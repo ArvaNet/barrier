@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "barrier",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "barrier", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "VAPID_PUBLIC_KEY": "BKNAhqcvsfFuHiXzUfkO_4ZoNtlVMRoO7vK9NeMzQpmswYGdzYlR4dCN5jmahleJVowHgQjBYepUAIH_CB2tm6k",
+    "VAPID_SUBJECT": "https://barrier.local"
+  },
+  "observability": { "enabled": true }
+}

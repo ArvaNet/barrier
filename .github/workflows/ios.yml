@@ -1,0 +1,122 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core tests (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Test BarrierCore
+        run: swift test --package-path Packages/BarrierCore
+
+  app:
+    name: Build, test and screenshot (iOS Simulator)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)
+          echo "Using $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Core tests (macOS)
+        run: swift test --package-path Packages/BarrierCore
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)["devices"]
+          ios=[(k,v) for k,v in d.items() if "iOS" in k]
+          ios.sort(key=lambda kv: [int(x) for x in kv[0].split("iOS-")[-1].split("-")])
+          for k,v in reversed(ios):
+              phones=[x for x in v if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]] or [x for x in v if x["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[-1]["udid"]); break
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices | grep "$UDID"
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Barrier.xcodeproj -scheme Barrier \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -120; tail -40 build.log; exit 1; }
+          echo "Build succeeded"
+
+      - name: Warnings
+        if: always()
+        run: grep -E "warning:" build.log | grep -v "/build/" | sort -u | head -60 || true
+
+      - name: Screenshots
+        run: |
+          set -x
+          UDID=${{ steps.sim.outputs.udid }}
+          APP=$(find build/Build/Products -name "Barrier.app" -maxdepth 3 | head -1)
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+          xcrun simctl install "$UDID" "$APP"
+          BID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          mkdir -p shots
+          shot () {
+            name=$1; shift
+            xcrun simctl terminate "$UDID" "$BID" || true
+            xcrun simctl launch "$UDID" "$BID" "$@"
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "shots/$name.png"
+          }
+          shot 01-today-evening -demo -hour 21
+          shot 02-today-morning -demo -hour 9
+          shot 03-ritual -demo -hour 21 -screen ritual
+          shot 04-routine -demo -hour 21 -screen routine
+          shot 05-progress -demo -hour 11 -screen progress
+          shot 06-derm -demo -hour 11 -screen derm
+          shot 07-report -demo -hour 11 -screen report
+          shot 08-settings -demo -hour 21 -screen settings
+          shot 09-onboarding -fresh -hour 11
+          shot 10-routine-day -demo -hour 11 -screen routine
+          ls -la shots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots/
+          if-no-files-found: ignore
+
+      - name: Upload project and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodeproj
+          path: |
+            Barrier.xcodeproj
+            build.log
+          if-no-files-found: ignore
