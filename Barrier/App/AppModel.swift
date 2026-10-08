@@ -10,7 +10,7 @@ enum Route: Hashable {
     case ritual(Slot, Day)
 }
 
-enum Tab: Hashable { case today, routine, progress, derm }
+enum AppTab: Hashable { case today, routine, progress, derm }
 
 struct RitualRequest: Identifiable, Hashable {
     var slot: Slot
@@ -33,7 +33,7 @@ final class AppModel {
     var state: AppState
     private(set) var now = Date()
     private(set) var today: Day
-    var tab: Tab = .today
+    var tab: AppTab = .today
     var ritual: RitualRequest?
     var showSettings = false
     var showReport = false

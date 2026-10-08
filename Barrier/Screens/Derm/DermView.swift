@@ -91,7 +91,7 @@ struct DermView: View {
             }
             .onDelete { idx in model.update { $0.questions.remove(atOffsets: idx) } }
             HStack {
-                TextField("Add a question…", text: $newQuestion, axis: .vertical)
+                TextField("Add a question…", text: $newQuestion)
                     .focused($questionFocused)
                     .submitLabel(.done)
                     .onSubmit(addQuestion)

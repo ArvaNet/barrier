@@ -168,9 +168,9 @@ struct CameraScreen: View {
 
 @Observable
 final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
-    enum State { case starting, running, denied, unavailable }
+    enum Phase { case starting, running, denied, unavailable }
 
-    var state: State = .starting
+    var state: Phase = .starting
     @ObservationIgnored let session = AVCaptureSession()
     @ObservationIgnored private let output = AVCapturePhotoOutput()
     @ObservationIgnored private let queue = DispatchQueue(label: "barrier.camera")

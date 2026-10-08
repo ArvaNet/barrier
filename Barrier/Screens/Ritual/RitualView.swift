@@ -110,7 +110,7 @@ struct RitualView: View {
                     .font(Typeface.display(40, weight: 420))
                     .fixedSize(horizontal: false, vertical: true)
                 if let a = s.step.amount, !a.isEmpty {
-                    Text(a).font(.title3).foregroundStyle(.primary.opacity(0.9))
+                    Text(a).font(.title3).foregroundStyle(Color.primary.opacity(0.9))
                 }
                 if let h = s.step.how, !h.isEmpty {
                     Text(h).font(.body).foregroundStyle(.secondary)

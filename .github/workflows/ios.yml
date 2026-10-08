@@ -66,7 +66,7 @@ jobs:
             -project Barrier.xcodeproj -scheme Barrier \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -120; tail -40 build.log; exit 1; }
+            CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -150; grep -A8 "The following build commands failed" build.log; exit 1; }
           echo "Build succeeded"
 
       - name: Warnings

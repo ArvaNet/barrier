@@ -115,7 +115,7 @@ enum BackgroundRefresh {
     static var identifier: String { (Bundle.main.bundleIdentifier ?? "com.arvanet.barrier") + ".refresh" }
 
     static func register() {
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
+        _ = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
             schedule()
             let work = Task { @MainActor in
                 let model = AppModel.shared

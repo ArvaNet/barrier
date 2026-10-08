@@ -179,7 +179,8 @@ struct JourneyCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        if let (product, day, note) = current {
+        if let cur = current {
+            let (product, day, note) = cur
             let id = "journey-\(product.id)-w\((day - 1) / 7)"
             if !model.state.dismissed.contains(id) {
                 VStack(alignment: .leading, spacing: 8) {

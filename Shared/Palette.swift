@@ -109,7 +109,7 @@ enum Typeface {
 
 extension Font {
     static let barrierDisplay = Typeface.display(36)
-    static let barrierTitle = Typeface.display(30, weight: 440, relativeTo: .title)
+    static let barrierTitle = Typeface.display(30, weight: 440, relativeTo: .title1)
     static let barrierH2 = Typeface.display(22, weight: 480, relativeTo: .title2)
     static let barrierH3 = Typeface.display(19, weight: 500, relativeTo: .title3)
 }

@@ -58,16 +58,16 @@ struct MainTabs: View {
         TabView(selection: $model.tab) {
             TodayView()
                 .tabItem { Label("Today", systemImage: "sun.horizon") }
-                .tag(Tab.today)
+                .tag(AppTab.today)
             RoutineView()
                 .tabItem { Label("Routine", systemImage: "list.bullet.rectangle") }
-                .tag(Tab.routine)
+                .tag(AppTab.routine)
             ProgressScreen()
                 .tabItem { Label("Progress", systemImage: "circle.circle") }
-                .tag(Tab.progress)
+                .tag(AppTab.progress)
             DermView()
                 .tabItem { Label("Derm", systemImage: "stethoscope") }
-                .tag(Tab.derm)
+                .tag(AppTab.derm)
         }
     }
 }
