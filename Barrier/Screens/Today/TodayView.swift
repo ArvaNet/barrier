@@ -37,13 +37,13 @@ struct TodayView: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(item: $detailDay) { day in
-            DayDetailSheet(day: day).environment(model).presentationDetents([.medium, .large])
+            DayDetailSheet(day: day).barrier(model).presentationDetents([.medium, .large])
         }
         .sheet(item: $notTonight) { inst in
-            NotTonightSheet(inst: inst).environment(model).presentationDetents([.medium, .large])
+            NotTonightSheet(inst: inst).barrier(model).presentationDetents([.medium, .large])
         }
         .fullScreenCover(isPresented: $showCamera) {
-            CameraScreen().environment(model)
+            CameraScreen().barrier(model)
         }
     }
 

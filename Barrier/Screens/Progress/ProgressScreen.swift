@@ -29,11 +29,11 @@ struct ProgressScreen: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(item: $detailDay) { d in
-            DayDetailSheet(day: d).environment(model).presentationDetents([.medium, .large])
+            DayDetailSheet(day: d).barrier(model).presentationDetents([.medium, .large])
         }
-        .fullScreenCover(isPresented: $showCamera) { CameraScreen().environment(model) }
-        .sheet(item: $compare) { pair in CompareView(pair: pair).environment(model) }
-        .sheet(item: $viewing) { photo in PhotoDetail(photo: photo).environment(model) }
+        .fullScreenCover(isPresented: $showCamera) { CameraScreen().barrier(model) }
+        .sheet(item: $compare) { pair in CompareView(pair: pair).barrier(model) }
+        .sheet(item: $viewing) { photo in PhotoDetail(photo: photo).barrier(model) }
         .onChange(of: pickerItem) { _, item in importPhoto(item) }
     }
 
@@ -93,7 +93,9 @@ struct ProgressScreen: View {
         let am = from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .am, from: from, to: min(end, today.adding(30)), today: today) : []
         let pmBy = Dictionary(pm.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let amBy = Dictionary(am.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
-        let cols = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
+        let cells: [Day?] = Array(repeating: nil, count: lead) + (0..<count).map { first.adding($0) }
+        let rows: [[Day?]] = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0 + 7, cells.count)]) }
+        let letters = ["M", "T", "W", "T", "F", "S", "S"]
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(first.date().formatted(.dateTime.month(.wide).year())).font(.barrierH3).foregroundStyle(Palette.ink)
@@ -104,14 +106,22 @@ struct ProgressScreen: View {
                     .accessibilityLabel("Next month")
             }
             .foregroundStyle(Palette.ink2)
-            LazyVGrid(columns: cols, spacing: 4) {
-                ForEach(["M", "T", "W", "T", "F", "S", "S"].indices, id: \.self) { i in
-                    Text(["M", "T", "W", "T", "F", "S", "S"][i]).font(.caption.weight(.semibold)).foregroundStyle(Palette.ink3)
+            VStack(spacing: 4) {
+                HStack(spacing: 2) {
+                    ForEach(0..<7, id: \.self) { i in
+                        Text(letters[i]).font(.caption.weight(.semibold)).foregroundStyle(Palette.ink3).frame(maxWidth: .infinity)
+                    }
                 }
-                ForEach(0..<lead, id: \.self) { _ in Color.clear.frame(height: 44) }
-                ForEach(0..<count, id: \.self) { i in
-                    let d = first.adding(i)
-                    calendarCell(d, today: today, pm: pmBy[d], am: amBy[d])
+                ForEach(0..<rows.count, id: \.self) { r in
+                    HStack(spacing: 2) {
+                        ForEach(0..<7, id: \.self) { c in
+                            if c < rows[r].count, let d = rows[r][c] {
+                                calendarCell(d, today: today, pm: pmBy[d], am: amBy[d])
+                            } else {
+                                Color.clear.frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                        }
+                    }
                 }
             }
             HStack(spacing: 14) {
@@ -295,12 +305,10 @@ struct ProgressScreen: View {
                 let n = row.value
                 HStack(spacing: 10) {
                     Text(label).font(.subheadline).foregroundStyle(Palette.ink).frame(width: 150, alignment: .leading).lineLimit(1)
-                    GeometryReader { g in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(hue(for: label).color)
-                            .frame(width: top > 0 ? g.size.width * CGFloat(n) / CGFloat(top) : 0)
-                    }
-                    .frame(height: 10)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(hue(for: label).color)
+                        .frame(width: max(6, 120 * CGFloat(n) / CGFloat(max(1, top))), height: 10)
+                    Spacer(minLength: 0)
                     Text("\(n)").font(.subheadline.monospacedDigit()).foregroundStyle(Palette.ink2).frame(width: 30, alignment: .trailing)
                 }
             }

@@ -185,7 +185,7 @@ struct ReportPageOne: View {
                 VStack(alignment: .leading, spacing: 14) {
                     block("How it went") {
                         stat("\(data.nightsDone) of \(data.nightsDue)", "evenings done since \(data.from.short)")
-                        if data.last28.due >= 5 { stat("\(data.last28.done) of \(data.last28.due)", "evenings, last 4 weeks") }
+                        if data.last28.due >= 5 && data.nightsDue > data.last28.due { stat("\(data.last28.done) of \(data.last28.due)", "evenings, last 4 weeks") }
                         if data.morningsDone > 0 { stat("\(data.morningsDone)", "mornings logged") }
                         if data.recovery > 0 { stat("\(data.recovery)", "recovery nights for irritation") }
                         if !data.byLabel.isEmpty {
@@ -201,6 +201,7 @@ struct ReportPageOne: View {
                                 Text(([c.feel.map(\.label).joined(separator: ", ")] + [c.note].compactMap { $0 }).joined(separator: ": "))
                                     .font(.system(size: 9.5, weight: c.feel.contains(where: \.isIrritation) ? .semibold : .regular))
                                     .foregroundStyle(c.feel.contains(where: \.isIrritation) ? Color(hex: 0xA4402F) : Paper.ink)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }

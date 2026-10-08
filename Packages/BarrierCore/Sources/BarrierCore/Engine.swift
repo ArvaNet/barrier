@@ -137,7 +137,11 @@ public enum Engine {
         let has: (ProductKind) -> Bool = { k in actives.contains { $0.product.kind == k } }
         var label: String
         var hue: Hue
-        if has(.retinoid) && has(.exfoliant) {
+        if slot == .am && sp.length == 1 {
+            // Same every morning: name it plainly.
+            label = "Morning routine"
+            hue = .dawn
+        } else if has(.retinoid) && has(.exfoliant) {
             label = "Retinoid + exfoliant \(word)"
             hue = .clay
         } else if has(.retinoid) {
@@ -261,13 +265,14 @@ public enum Engine {
     }
 
     /// Past nights with actives that were never logged, earliest first (max 2 days back).
+    /// Only rotations ask: on a same-every-time routine the answer changes nothing.
     public static func needsReconcile(_ state: AppState, today: Day) -> [Instance] {
         var out: [Instance] = []
         for slot in [Slot.pm, .am] where state.plan[slot].enabled {
             let from = max(today.adding(-2), state.plan.createdAt)
             let to = today.adding(-1)
             guard from <= to else { continue }
-            for i in timeline(state, slot: slot, from: from, to: to, today: today) where i.status == .unlogged && i.hasActives {
+            for i in timeline(state, slot: slot, from: from, to: to, today: today) where i.status == .unlogged && i.hasActives && i.cycleLen > 1 {
                 out.append(i)
             }
         }

@@ -25,10 +25,10 @@ struct RootView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.9), value: model.toast)
         .fullScreenCover(item: $model.ritual) { req in
             RitualView(request: req)
-                .environment(model)
+                .barrier(model)
         }
         .sheet(isPresented: $model.showSettings) {
-            SettingsView().environment(model)
+            SettingsView().barrier(model)
         }
         .onAppear(perform: applyLaunchScreen)
     }

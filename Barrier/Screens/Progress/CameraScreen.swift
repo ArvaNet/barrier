@@ -167,7 +167,7 @@ struct CameraScreen: View {
 }
 
 @Observable
-final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
+final class CameraController: NSObject, AVCapturePhotoCaptureDelegate, @unchecked Sendable {
     enum Phase { case starting, running, denied, unavailable }
 
     var state: Phase = .starting

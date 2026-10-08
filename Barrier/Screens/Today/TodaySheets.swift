@@ -39,7 +39,7 @@ struct NotTonightSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
             .sheet(isPresented: $showPause) {
-                PauseSheet { dismiss() }.environment(model).presentationDetents([.medium])
+                PauseSheet { dismiss() }.barrier(model).presentationDetents([.medium])
             }
         }
     }

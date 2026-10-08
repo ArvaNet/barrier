@@ -42,13 +42,13 @@ struct RoutineView: View {
             .navigationTitle("Routine")
             .toolbar { EditButton() }
             .sheet(item: $editing) { t in
-                StepEditorSheet(target: t).environment(model)
+                StepEditorSheet(target: t).barrier(model)
             }
             .sheet(item: $adding) { s in
-                AddProductSheet(slot: s).environment(model).presentationDetents([.large])
+                AddProductSheet(slot: s).barrier(model).presentationDetents([.large])
             }
             .sheet(isPresented: $showPause) {
-                PauseSheet().environment(model).presentationDetents([.medium])
+                PauseSheet().barrier(model).presentationDetents([.medium])
             }
             .confirmationDialog("Start over from a template", isPresented: $showTemplates, titleVisibility: .visible) {
                 ForEach(Presets.Template.allCases) { t in
@@ -155,8 +155,8 @@ struct SlotEditorSections: View {
                 }
             ), in: 1...8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(sp.length == 1 ? "Same every night" : "Repeats every \(sp.length) nights")
-                    Text(sp.length == 1 ? "Add nights for alternating routines." : "Tap a night to make it tonight.")
+                    Text(sp.length == 1 ? (nodes.count > 1 ? "Every night, easing in" : "Same every night") : "Repeats every \(sp.length) nights")
+                    Text(nodes.count > sp.length ? "Recovery nights are added while you ease in. Tap a night to make it tonight." : sp.length == 1 ? "Add nights for alternating routines." : "Tap a night to make it tonight.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -236,6 +236,7 @@ struct StepRow: View {
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Palette.ink3.opacity(0.6))
         }
         .contentShape(Rectangle())
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
     }
 
     private var detail: String {

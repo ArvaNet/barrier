@@ -34,6 +34,13 @@ struct RitualView: View {
     var body: some View {
         ZStack {
             (isNight ? Palette.stage : Palette.bg).ignoresSafeArea()
+            Circle()
+                .fill(inst.hue.color.opacity(isNight ? 0.16 : 0.12))
+                .frame(width: 460, height: 460)
+                .blur(radius: 110)
+                .offset(y: -330)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             VStack(spacing: 0) {
                 topBar
                 if finished, let done = finishedInstance {
@@ -310,7 +317,7 @@ struct RitualFinish: View {
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
-            CameraScreen().environment(model)
+            CameraScreen().barrier(model)
         }
     }
 }

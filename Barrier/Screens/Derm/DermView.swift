@@ -32,7 +32,7 @@ struct DermView: View {
             .background(Palette.bg.ignoresSafeArea())
             .navigationTitle("Dermatologist")
             .sheet(isPresented: $model.showReport) {
-                ReportView().environment(model)
+                ReportView().barrier(model)
             }
         }
     }

@@ -43,8 +43,8 @@ struct OnboardingView: View {
             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
         }
         .background(Palette.bg.ignoresSafeArea())
-        .sheet(item: $editing) { t in StepEditorSheet(target: t).environment(model) }
-        .sheet(item: $adding) { s in AddProductSheet(slot: s).environment(model) }
+        .sheet(item: $editing) { t in StepEditorSheet(target: t).barrier(model) }
+        .sheet(item: $adding) { s in AddProductSheet(slot: s).barrier(model) }
     }
 
     // MARK: Pages
@@ -54,10 +54,11 @@ struct OnboardingView: View {
             Spacer()
             OrbitView(
                 nodes: [OrbitNode(hue: .gold, state: .current), OrbitNode(hue: .clay, state: .future), OrbitNode(hue: .sage, state: .future), OrbitNode(hue: .mist, state: .future)],
-                current: 0, size: 150, showCount: false
+                current: 0, size: 170, showCount: false
             )
             .environment(\.colorScheme, .dark)
-            .padding(28)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 34)
             .background(Palette.stage, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
             .padding(.bottom, 36)
             Text("Your dermatologist’s routine, remembered.")

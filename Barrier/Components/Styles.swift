@@ -289,3 +289,11 @@ extension Day {
         }
     }
 }
+
+extension View {
+    /// What every presented screen needs: the model and the clay tint
+    /// (sheets don't inherit the tint, and toggles would turn green).
+    func barrier(_ model: AppModel) -> some View {
+        environment(model).tint(Palette.accent)
+    }
+}

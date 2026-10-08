@@ -28,6 +28,8 @@ struct SettingsView: View {
                         Text("Off").tag(-1)
                         ForEach([1, 2, 3, 4, 5, 6, 0], id: \.self) { d in Text(Calendar.current.weekdaySymbols[d]).tag(d) }
                     }
+                } header: {
+                    Text("Photos")
                 } footer: {
                     Text("That night’s reminder adds “photo night”, and Today asks for a photo.")
                 }
@@ -132,7 +134,7 @@ struct SettingsView: View {
         } header: {
             Text("Your data")
         } footer: {
-            Text(SharedStore.isShared ? "Saved on this iPhone and in its iCloud backup. The backup file includes your photos." : "Saved on this iPhone and in its iCloud backup. The backup file includes your photos. (The widget needs the App Group capability to see your data.)")
+            Text(SharedStore.isShared ? "Saved on this iPhone and in its iCloud backup. The backup file includes your photos." : "Saved on this iPhone and in its iCloud backup. The backup file includes your photos. The widget can’t read your routine until the App Group is set up in Xcode (see the README).")
         }
     }
 }
