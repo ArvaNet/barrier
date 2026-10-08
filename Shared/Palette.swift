@@ -94,7 +94,7 @@ enum Typeface {
     static func display(_ size: CGFloat, weight: CGFloat = 420, relativeTo style: UIFont.TextStyle = .largeTitle) -> Font {
         let scaled = UIFontMetrics(forTextStyle: style).scaledValue(for: size)
         let attrs: [UIFontDescriptor.AttributeName: Any] = [
-            .name: "Fraunces",
+            .family: "Fraunces",
             UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String): [
                 wght: weight, opsz: min(144, max(9, size)), soft: 60,
             ],

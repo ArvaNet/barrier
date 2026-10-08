@@ -9,12 +9,23 @@ public struct Source: Hashable, Sendable, Identifiable {
     public var label: String
     public var url: String
     public var id: String { url }
+
+    public init(label: String, url: String) {
+        self.label = label
+        self.url = url
+    }
 }
 
 public struct Note: Hashable, Sendable {
     public var title: String
     public var body: String
     public var sources: [Source]
+
+    public init(title: String, body: String, sources: [Source]) {
+        self.title = title
+        self.body = body
+        self.sources = sources
+    }
 }
 
 public enum Guidance {
