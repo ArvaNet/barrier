@@ -28,25 +28,27 @@ struct MarkRoutineDoneIntent: AppIntent {
     static var description = IntentDescription("Logs your evening or morning routine as done in Barrier.")
     static var openAppWhenRun: Bool = false
 
-    @Parameter(title: "Routine", default: .evening)
-    var routine: RoutineChoice
+    /// Empty means "whichever routine is current" (morning before 2 p.m.).
+    @Parameter(title: "Routine")
+    var routine: RoutineChoice?
 
     init() {}
 
-    init(routine: RoutineChoice) {
+    init(routine: RoutineChoice?) {
         self.routine = routine
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let today = Day.routineDay()
-        let slot = routine.slot
+        let slot = (routine ?? .now).slot
         let state = SharedStore.currentState(today: today)
         if let state, state.entry(today, slot)?.status == .done {
-            return .result(dialog: "Already logged. Sleep well.")
+            return .result(dialog: slot == .pm ? "Already logged. Sleep well." : "Already logged for this morning.")
         }
         SharedStore.appendInbox(InboxItem(day: today, slot: slot, action: .done))
-        let ids = ["\(today.iso):\(slot.rawValue):main", "\(today.iso):\(slot.rawValue):nudge"]
+        let ids = ["\(today.iso):\(slot.rawValue):main", "\(today.iso):\(slot.rawValue):nudge", "snooze:\(today.iso):\(slot.rawValue)"]
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids)
         WidgetCenter.shared.reloadAllTimelines()
         if let state {
             let next = Engine.instance(state, slot: slot, on: today.adding(1), today: today)

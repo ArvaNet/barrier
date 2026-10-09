@@ -174,14 +174,20 @@ struct Backup: Codable {
 
     @MainActor
     func restore(into model: AppModel) {
-        model.photos.deleteAll()
-        for (id, data) in photos {
-            if let img = UIImage(data: data) { try? model.photos.save(img, id: id) }
-        }
+        let photos = self.photos
+        let store = model.photos
         var s = state
         s.onboarded = true
-        model.update { $0 = s }
-        model.saveNow()
-        model.show("Backup restored.")
+        model.show("Restoring…")
+        Task.detached(priority: .userInitiated) {
+            store.deleteAll()
+            for (id, data) in photos { store.saveData(data, id: id) }
+            await MainActor.run {
+                model.loadFailed = false
+                model.update { $0 = s }
+                model.saveNow()
+                model.show("Backup restored.")
+            }
+        }
     }
 }

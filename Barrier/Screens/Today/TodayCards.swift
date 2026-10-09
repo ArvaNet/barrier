@@ -119,13 +119,14 @@ struct SkinCheckCard: View {
                             if set.contains(f) { set.remove(f) } else { set.insert(f) }
                             if f == .calm && set.contains(.calm) { set = [.calm] } else if f != .calm { set.remove(.calm) }
                             let ordered = Feeling.allCases.filter { set.contains($0) }
+                            if existing == nil { editing = true }
                             model.update { $0.checkIn(today, feel: ordered, note: existing?.note) }
                             Haptics.tap(model.state.settings.haptics)
                         }
                     }
                 }
                 if existing != nil {
-                    Button("Save") { editing = false }
+                    Button("Done") { editing = false }
                         .buttonStyle(SecondaryButtonStyle(compact: true))
                 }
             } else if let existing {

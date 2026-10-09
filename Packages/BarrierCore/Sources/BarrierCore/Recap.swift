@@ -50,7 +50,7 @@ public enum Recaps {
         if state.plan.pm.enabled {
             let start = max(from, state.plan.createdAt)
             if start <= to {
-                for i in Engine.timeline(state, slot: .pm, from: start, to: to, today: today) where i.status != .off && !i.steps.isEmpty {
+                for i in Engine.timeline(state, slot: .pm, from: start, to: to, today: today) where (i.status != .off && !i.steps.isEmpty) || i.entry?.status == .done || i.entry?.status == .skipped {
                     r.nightsDue += 1
                     if i.status == .done { r.nightsDone += 1 }
                     if i.rest == .inserted { r.recoveryNights += 1 }

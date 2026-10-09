@@ -32,9 +32,35 @@ enum SharedStore {
 
     // MARK: State
 
+    enum LoadResult {
+        /// First launch: nothing saved yet.
+        case empty
+        case loaded(AppState)
+        /// A file exists but couldn't be read (locked before first unlock, or damaged).
+        case failed
+    }
+
+    static func load() -> LoadResult {
+        guard FileManager.default.fileExists(atPath: stateURL.path) else { return .empty }
+        guard let data = coordinatedRead(stateURL) else { return .failed }
+        do {
+            return .loaded(try StateCoder.decode(data))
+        } catch {
+            keepCopy(data)
+            return .failed
+        }
+    }
+
     static func loadState() -> AppState? {
-        guard let data = coordinatedRead(stateURL) else { return nil }
-        return try? StateCoder.decode(data)
+        if case .loaded(let s) = load() { return s }
+        return nil
+    }
+
+    /// Keep an unreadable file aside so nothing is ever silently lost.
+    private static func keepCopy(_ data: Data) {
+        let stamp = Int(Date().timeIntervalSince1970)
+        let url = container.appendingPathComponent("state.unreadable-\(stamp).json")
+        try? data.write(to: url, options: .atomic)
     }
 
     static func saveState(_ s: AppState) throws {

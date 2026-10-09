@@ -55,9 +55,11 @@ struct RoutineView: View {
                     Button(t.title) {
                         model.update { s in
                             let keepTimes = (s.plan.am.time, s.plan.pm.time)
+                            let created = s.plan.createdAt
                             s = Presets.apply(t, to: s, today: model.today)
                             s.plan.am.time = keepTimes.0
                             s.plan.pm.time = keepTimes.1
+                            s.plan.createdAt = created
                         }
                         model.show("Routine replaced. History kept.")
                     }
@@ -115,7 +117,7 @@ struct SlotEditorSections: View {
                     model.update { $0.plan[slot].steps.move(fromOffsets: from, toOffset: to) }
                 }
                 .onDelete { idx in
-                    model.update { s in
+                    model.editPlan(slot) { s in
                         s.plan[slot].steps.remove(atOffsets: idx)
                         s.pruneOrphanProducts()
                     }
@@ -148,12 +150,11 @@ struct SlotEditorSections: View {
             Stepper(value: Binding(
                 get: { sp.length },
                 set: { n in
-                    model.update { s in
+                    model.editPlan(slot) { s in
                         s.plan[slot] = Engine.resize(s.plan[slot], to: n)
-                        s.rebase(slot, today: today, keeping: tonight)
                     }
                 }
-            ), in: 1...8) {
+            ), in: 1...Engine.maxRotation) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sp.length == 1 ? (nodes.count > 1 ? "Every night, easing in" : "Same every night") : "Repeats every \(sp.length) nights")
                     Text(nodes.count > sp.length ? "Recovery nights are added while you ease in. Tap a night to make it tonight." : sp.length == 1 ? "Add nights for alternating routines." : "Tap a night to make it tonight.")
@@ -272,24 +273,22 @@ struct EaseInSection: View {
             Toggle("Ease in gradually", isOn: Binding(
                 get: { sp.easeIn != nil },
                 set: { on in
-                    let tonight = model.instance(slot)
-                    model.update { s in
+                    model.editPlan(slot) { s in
                         s.plan[slot].easeIn = on ? EaseIn(start: today, phases: Presets.easeInPhases) : nil
-                        s.rebase(slot, today: today, keeping: tonight)
                     }
                 }
             ))
             if let ease = sp.easeIn {
                 DatePicker("Started", selection: Binding(
                     get: { ease.start.date() },
-                    set: { d in model.update { $0.plan[slot].easeIn?.start = Day(date: d) } }
+                    set: { d in model.editPlan(slot) { $0.plan[slot].easeIn?.start = Day(date: d) } }
                 ), displayedComponents: .date)
                 ForEach(Array(ease.phases.enumerated()), id: \.offset) { i, phase in
                     phaseRow(i, phase, ease: ease, length: sp.length)
                 }
                 HStack {
                     Button("Add a step") {
-                        model.update { s in
+                        model.editPlan(slot) { s in
                             let last = s.plan[slot].easeIn?.phases.last?.extraRest ?? 1
                             s.plan[slot].easeIn?.phases.append(EaseInPhase(days: 14, extraRest: max(0, last - 1)))
                         }
@@ -297,7 +296,7 @@ struct EaseInSection: View {
                     Spacer()
                     if ease.phases.count > 1 {
                         Button("Remove last", role: .destructive) {
-                            model.update { _ = $0.plan[slot].easeIn?.phases.popLast() }
+                            model.editPlan(slot) { _ = $0.plan[slot].easeIn?.phases.popLast() }
                         }
                     }
                 }
@@ -323,17 +322,15 @@ struct EaseInSection: View {
             Text("Days \(startDay + 1)–\(startDay + phase.days)").font(.subheadline.weight(.semibold))
             Stepper(value: Binding(
                 get: { phase.days },
-                set: { v in model.update { $0.plan[slot].easeIn?.phases[i].days = v } }
+                set: { v in model.editPlan(slot) { $0.plan[slot].easeIn?.phases[i].days = v } }
             ), in: 7...56, step: 7) {
                 Text("\(phase.days / 7) week\(phase.days == 7 ? "" : "s")").font(.subheadline)
             }
             Stepper(value: Binding(
                 get: { phase.extraRest },
                 set: { v in
-                    let tonight = model.instance(slot)
-                    model.update { s in
+                    model.editPlan(slot) { s in
                         s.plan[slot].easeIn?.phases[i].extraRest = v
-                        s.rebase(slot, today: model.today, keeping: tonight)
                     }
                 }
             ), in: 0...6) {

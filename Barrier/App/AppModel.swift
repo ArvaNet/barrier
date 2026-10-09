@@ -39,6 +39,9 @@ final class AppModel {
     var showReport = false
     var toast: Toast?
     var notificationStatus: UNAuthorizationStatus = .notDetermined
+    /// Saved data exists but couldn't be read. Saving is blocked until it's
+    /// readable again or the user chooses to start fresh / restore.
+    var loadFailed = false
     let launch: LaunchOptions
     let photos = PhotoStore()
 
@@ -60,7 +63,13 @@ final class AppModel {
         } else if launch.fresh {
             state = Presets.blankState(today: today)
         } else {
-            state = SharedStore.loadState() ?? Presets.blankState(today: today)
+            switch SharedStore.load() {
+            case .loaded(let s): state = s
+            case .empty: state = Presets.blankState(today: today)
+            case .failed:
+                state = Presets.blankState(today: today)
+                loadFailed = true
+            }
         }
         if !launch.demo {
             inboxObserver = DarwinObserver(name: SharedStore.inboxNotification) { [weak self] in
@@ -73,7 +82,10 @@ final class AppModel {
 
     func becameActive() {
         refreshClock()
+        retryLoadIfNeeded()
         ingestInbox()
+        let waiting = ritual != nil || RitualMemory.shared.progress.values.contains { ($0.waitEnds ?? .distantPast) > Date() }
+        TimerActivity.endStale(keepRunning: waiting)
         Task {
             await refreshNotificationStatus()
             scheduleNotifications(immediately: true)
@@ -86,11 +98,32 @@ final class AppModel {
         if d != today { today = d }
     }
 
+    /// Before first unlock the file is locked, so a background launch can't read
+    /// it. Try again once the app is in front.
+    func retryLoadIfNeeded() {
+        guard loadFailed, !launch.demo else { return }
+        if case .loaded(let s) = SharedStore.load() {
+            state = s
+            loadFailed = false
+        }
+    }
+
     func ingestInbox() {
-        guard !launch.demo else { return }
+        guard !launch.demo, !loadFailed else { return }
         let items = SharedStore.drainInbox()
         guard !items.isEmpty else { return }
         update { $0.apply(items, today: today) }
+        saveNow()
+        for it in items where it.action == .done {
+            NotificationService.shared.clearDelivered(day: it.day, slot: it.slot)
+            endRitual(it.slot, it.day)
+        }
+    }
+
+    /// Start fresh after a load failure; the unreadable file is kept aside.
+    func acceptFreshStart() {
+        loadFailed = false
+        saveNow()
     }
 
     // MARK: Changes
@@ -112,7 +145,7 @@ final class AppModel {
     }
 
     func saveNow() {
-        guard !launch.demo else { return }
+        guard !launch.demo, !loadFailed else { return }
         do {
             try SharedStore.saveState(state)
             WidgetCenter.shared.reloadAllTimelines()
@@ -122,7 +155,7 @@ final class AppModel {
     }
 
     func scheduleNotifications(immediately: Bool = false) {
-        guard !launch.demo, state.onboarded else { return }
+        guard !launch.demo, !loadFailed, state.onboarded else { return }
         scheduleTask?.cancel()
         scheduleTask = Task { [weak self] in
             if !immediately { try? await Task.sleep(nanoseconds: 1_000_000_000) }
@@ -133,6 +166,11 @@ final class AppModel {
 
     func refreshNotificationStatus() async {
         notificationStatus = await NotificationService.shared.status()
+    }
+
+    /// A structural plan edit that keeps tonight (and any open question) as it was.
+    func editPlan(_ slot: Slot, _ change: (inout AppState) -> Void) {
+        update { s in s.editPlan(slot, today: today, change) }
     }
 
     // MARK: Reading
@@ -158,22 +196,34 @@ final class AppModel {
     // MARK: Actions
 
     func markDone(_ inst: Instance, steps: [String]? = nil, quiet: Bool = false) {
-        let before = state
+        let prev = state.entry(inst.day, inst.slot)
         update { $0.markDone(inst, steps: steps) }
         NotificationService.shared.clearDelivered(day: inst.day, slot: inst.slot)
+        endRitual(inst.slot, inst.day)
         Haptics.success(state.settings.haptics)
         if !quiet {
             show(inst.slot == .pm ? "\(inst.label) done." : "Morning done.") { [weak self] in
-                self?.update { $0 = before }
+                self?.update { $0.restoreEntry(inst.day, inst.slot, to: prev) }
             }
         }
     }
 
     func markSkipped(_ inst: Instance) {
-        let before = state
+        let prev = state.entry(inst.day, inst.slot)
         update { $0.markSkipped(inst) }
+        NotificationService.shared.clearDelivered(day: inst.day, slot: inst.slot)
+        endRitual(inst.slot, inst.day)
         let hold = inst.hasActives ? " Tomorrow picks up where you left off." : ""
-        show("Skipped.\(hold)") { [weak self] in self?.update { $0 = before } }
+        show("Skipped.\(hold)") { [weak self] in self?.update { $0.restoreEntry(inst.day, inst.slot, to: prev) } }
+    }
+
+    /// A routine was logged some other way: stop its wait timer and forget its progress.
+    func endRitual(_ slot: Slot, _ day: Day) {
+        let id = RitualRequest(slot: slot, day: day).id
+        guard ritual?.id != id else { return } // the ritual screen handles its own timer
+        RitualMemory.shared.progress[id] = nil
+        TimerActivity.end()
+        NotificationService.shared.cancelTimer()
     }
 
     func undoEntry(_ inst: Instance) {
@@ -229,6 +279,7 @@ final class AppModel {
     }
 
     func finishOnboarding(_ s: AppState) {
+        loadFailed = false // setting up again counts as starting fresh
         var s = s
         s.onboarded = true
         update { $0 = s }
@@ -236,6 +287,7 @@ final class AppModel {
     }
 
     func resetEverything() {
+        loadFailed = false
         photos.deleteAll()
         update { $0 = Presets.blankState(today: today) }
         saveNow()

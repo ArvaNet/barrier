@@ -18,6 +18,7 @@ struct StepEditorSheet: View {
     @State private var until = Date().addingTimeInterval(84 * 86400)
     @State private var loaded = false
     @State private var confirmRemove = false
+    @State private var cantFit = false
 
     enum Freq: Hashable {
         case every(Int)
@@ -113,12 +114,17 @@ struct StepEditorSheet: View {
             }
             .confirmationDialog("Remove \(product.name)?", isPresented: $confirmRemove, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
-                    model.update { s in
+                    model.editPlan(target.slot) { s in
                         s.plan[target.slot].steps.removeAll { $0.id == target.stepID }
                         s.pruneOrphanProducts()
                     }
                     dismiss()
                 }
+            }
+            .alert("That pattern doesn’t fit", isPresented: $cantFit) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("With your other steps, the rotation would need more than (Engine.maxRotation) nights. Pick the exact nights or weekdays instead.")
             }
             .onAppear(perform: load)
         }
@@ -146,7 +152,6 @@ struct StepEditorSheet: View {
 
     private func save() {
         let slot = target.slot
-        let tonight = model.instance(slot)
         var p = product
         p.name = p.name.trimmingCharacters(in: .whitespaces)
         p.note = p.note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -155,22 +160,29 @@ struct StepEditorSheet: View {
         var st = step
         st.amount = st.amount?.trimmingCharacters(in: .whitespaces).nilIfEmpty
         st.how = st.how?.trimmingCharacters(in: .whitespaces).nilIfEmpty
-        let oldOn = model.state.plan[slot].steps.first { $0.id == st.id }?.on
-        model.update { s in
+        // Check the pattern fits before changing anything.
+        if case .every(let n) = freq, n > 1 {
+            var probe = model.state.plan[slot]
+            if let i = probe.steps.firstIndex(where: { $0.id == st.id }) { probe.steps[i] = st }
+            let products = model.products.merging([p.id: p]) { _, new in new }
+            if Engine.setEvery(probe, stepID: st.id, n: n, products: products) == nil {
+                cantFit = true
+                return
+            }
+        }
+        // Any change here (type, dates, schedule) can change what's due, so keep tonight fixed.
+        model.editPlan(slot) { s in
             s.upsertProduct(p)
             guard let i = s.plan[slot].steps.firstIndex(where: { $0.id == st.id }) else { return }
             s.plan[slot].steps[i] = st
             let products = Dictionary(s.products.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             switch freq {
             case .every(let n):
-                s.plan[slot] = Engine.setEvery(s.plan[slot], stepID: st.id, n: n, products: products)
+                if let plan = Engine.setEvery(s.plan[slot], stepID: st.id, n: n, products: products) { s.plan[slot] = plan }
             case .nights:
                 s.plan[slot].steps[i].on = .nights(nights.sorted())
             case .weekdays:
                 s.plan[slot].steps[i].on = .weekdays(weekdays.sorted())
-            }
-            if s.plan[slot].steps.first(where: { $0.id == st.id })?.on != oldOn {
-                s.rebase(slot, today: model.today, keeping: tonight)
             }
         }
         dismiss()
@@ -260,8 +272,8 @@ struct AddProductSheet: View {
     }
 
     private func insert(product p: Product, quick q: QuickProduct?, isNew: Bool) {
-        let tonight = model.instance(slot)
-        model.update { s in
+        var unscheduled = false
+        model.editPlan(slot) { s in
             if isNew { s.upsertProduct(p) }
             var step = Presets.makeStep(productId: p.id, from: q)
             if p.kind == .spf && slot == .pm { step.how = nil }
@@ -273,12 +285,17 @@ struct AddProductSheet: View {
             }
             if slot == .pm, let every = q?.every, every > 1 {
                 let products = Dictionary(s.products.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-                s.plan[slot] = Engine.setEvery(s.plan[slot], stepID: step.id, n: every, products: products)
+                if let plan = Engine.setEvery(s.plan[slot], stepID: step.id, n: every, products: products) {
+                    s.plan[slot] = plan
+                } else if let i = s.plan[slot].steps.firstIndex(where: { $0.id == step.id }) {
+                    // Doesn't fit the current rotation: add it unscheduled rather than guess.
+                    s.plan[slot].steps[i].on = .nights([])
+                    unscheduled = true
+                }
             }
             if !s.plan[slot].enabled { s.plan[slot].enabled = true }
-            s.rebase(slot, today: model.today, keeping: tonight)
         }
         Haptics.tap(model.state.settings.haptics)
-        model.show("Added \(p.name).")
+        model.show(unscheduled ? "Added \(p.name). Tap it to choose its nights." : "Added \(p.name).")
     }
 }

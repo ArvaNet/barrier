@@ -121,8 +121,8 @@ final class EngineTests: XCTestCase {
         let st = [Step(productId: clean.id), Step(productId: tret.id), Step(productId: aze.id)]
         s.plan.pm.steps = st
         let pm = Dictionary(uniqueKeysWithValues: s.products.map { ($0.id, $0) })
-        var plan = Engine.setEvery(s.plan.pm, stepID: st[1].id, n: 2, products: pm)
-        plan = Engine.setEvery(plan, stepID: st[2].id, n: 2, products: pm)
+        var plan = Engine.setEvery(s.plan.pm, stepID: st[1].id, n: 2, products: pm)!
+        plan = Engine.setEvery(plan, stepID: st[2].id, n: 2, products: pm)!
         s.plan.pm = plan
         s.onboarded = true
         XCTAssertEqual(plan.length, 2)

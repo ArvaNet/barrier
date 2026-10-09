@@ -6,7 +6,7 @@ import UIKit
 // MARK: - Photos
 
 /// Progress photos live only on this iPhone (and in its iCloud backup).
-final class PhotoStore {
+final class PhotoStore: @unchecked Sendable {
     private let fm = FileManager.default
 
     private var root: URL {
@@ -28,6 +28,14 @@ final class PhotoStore {
         }
         try a.write(to: url(id), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         try b.write(to: url(id, thumb: true), options: .atomic)
+    }
+
+    /// Write photo bytes as they are (restore), plus a fresh thumbnail.
+    func saveData(_ data: Data, id: String) {
+        try? data.write(to: url(id), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        if let img = UIImage(data: data), let t = img.resized(maxSide: 480).jpegData(compressionQuality: 0.8) {
+            try? t.write(to: url(id, thumb: true), options: .atomic)
+        }
     }
 
     func image(_ id: String, thumb: Bool = false) -> UIImage? {
@@ -97,6 +105,14 @@ enum TimerActivity {
         let attrs = RitualTimerAttributes(title: title, hue: hue.rawValue, reason: reason)
         let state = RitualTimerAttributes.ContentState(endsAt: endsAt, nextStep: nextStep)
         current = try? Activity.request(attributes: attrs, content: .init(state: state, staleDate: endsAt.addingTimeInterval(60)))
+    }
+
+    /// Clean up a countdown left behind (app closed mid-wait, or already over).
+    static func endStale(keepRunning: Bool) {
+        let now = Date()
+        for a in Activity<RitualTimerAttributes>.activities where !keepRunning || a.content.state.endsAt < now {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
     }
 
     static func end() {

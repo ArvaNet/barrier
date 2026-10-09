@@ -406,18 +406,32 @@ public struct AppState: Codable, Hashable, Sendable {
         plan = try c.decode(Plan.self, forKey: .plan)
         version = (try? c.decodeIfPresent(Int.self, forKey: .version)) ?? 1
         onboarded = (try? c.decodeIfPresent(Bool.self, forKey: .onboarded)) ?? false
-        products = (try? c.decodeIfPresent([Product].self, forKey: .products)) ?? []
-        log = (try? c.decodeIfPresent([Entry].self, forKey: .log)) ?? []
-        checkins = (try? c.decodeIfPresent([CheckIn].self, forKey: .checkins)) ?? []
-        pauses = (try? c.decodeIfPresent([Pause].self, forKey: .pauses)) ?? []
-        photos = (try? c.decodeIfPresent([PhotoMeta].self, forKey: .photos)) ?? []
-        questions = (try? c.decodeIfPresent([Question].self, forKey: .questions)) ?? []
+        // Element by element: one unreadable entry must never cost the whole history.
+        products = c.lossyArray(Product.self, forKey: .products)
+        log = c.lossyArray(Entry.self, forKey: .log)
+        checkins = c.lossyArray(CheckIn.self, forKey: .checkins)
+        pauses = c.lossyArray(Pause.self, forKey: .pauses)
+        photos = c.lossyArray(PhotoMeta.self, forKey: .photos)
+        questions = c.lossyArray(Question.self, forKey: .questions)
         settings = (try? c.decodeIfPresent(Settings.self, forKey: .settings)) ?? Settings()
         dismissed = (try? c.decodeIfPresent([String].self, forKey: .dismissed)) ?? []
         milestonesSeen = (try? c.decodeIfPresent([String].self, forKey: .milestonesSeen)) ?? []
     }
 
     public func product(_ id: String) -> Product? { products.first { $0.id == id } }
+}
+
+/// Decodes an element or nothing, so arrays survive one bad element.
+struct Lossy<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
+}
+
+extension KeyedDecodingContainer {
+    func lossyArray<T: Decodable>(_ type: T.Type, forKey key: Key) -> [T] {
+        let items = (try? decodeIfPresent([Lossy<T>].self, forKey: key)) ?? nil
+        return items?.compactMap { $0.value } ?? []
+    }
 }
 
 public func makeID() -> String {

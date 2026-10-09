@@ -404,14 +404,16 @@ struct CompareView: View {
     @Environment(\.dismiss) private var dismiss
     var pair: ComparePair
     @State private var split: CGFloat = 0.5
+    @State private var before: UIImage?
+    @State private var after: UIImage?
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
                 GeometryReader { g in
                     ZStack(alignment: .topLeading) {
-                        photo(pair.after)
-                        photo(pair.before)
+                        photo(after)
+                        photo(before)
                             .mask(alignment: .leading) { Rectangle().frame(width: g.size.width * split) }
                         Rectangle().fill(.white).frame(width: 2).offset(x: g.size.width * split - 1)
                             .shadow(color: .black.opacity(0.3), radius: 2)
@@ -441,15 +443,19 @@ struct CompareView: View {
             }
             .padding()
             .background(Palette.bg.ignoresSafeArea())
+            .task {
+                before = model.photos.image(pair.before.id)?.resized(maxSide: 1400)
+                after = model.photos.image(pair.after.id)?.resized(maxSide: 1400)
+            }
             .navigationTitle("Before and after")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
 
-    private func photo(_ p: PhotoMeta) -> some View {
+    private func photo(_ img: UIImage?) -> some View {
         GeometryReader { g in
-            if let img = model.photos.image(p.id) {
+            if let img {
                 Image(uiImage: img).resizable().scaledToFill().frame(width: g.size.width, height: g.size.height).clipped()
             } else {
                 Color.black

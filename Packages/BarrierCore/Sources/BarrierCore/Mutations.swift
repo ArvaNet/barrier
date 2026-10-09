@@ -44,6 +44,12 @@ public extension AppState {
         markSkipped(inst)
     }
 
+    /// Put back exactly what was logged before (for Undo).
+    mutating func restoreEntry(_ day: Day, _ slot: Slot, to previous: Entry?) {
+        log.removeAll { $0.day == day && $0.slot == slot }
+        if let previous { upsert(previous) }
+    }
+
     mutating func clearEntry(_ day: Day, _ slot: Slot) {
         guard let i = entryIndex(day, slot) else { return }
         if log[i].recovery == true {
@@ -112,6 +118,19 @@ public extension AppState {
     mutating func pruneOrphanProducts() {
         let used = Set((plan.am.steps + plan.pm.steps).map(\.productId))
         products.removeAll { !used.contains($0.id) }
+    }
+
+    /// Make a structural plan edit without changing what tonight is.
+    /// History before the edit keeps its meaning: the replay restarts at
+    /// today (or at last night, if last night still needs an answer).
+    mutating func editPlan(_ slot: Slot, today: Day, _ change: (inout AppState) -> Void) {
+        let tonight = Engine.instance(self, slot: slot, on: today, today: today)
+        let pending = Engine.needsReconcile(self, today: today).first { $0.slot == slot }
+        change(&self)
+        let day = pending?.day ?? today
+        let pos = pending?.pos ?? tonight.pos
+        let cl = Engine.cycleLen(plan[slot], on: day)
+        plan[slot].anchor = Anchor(day: day, pos: max(0, min(pos, cl - 1)))
     }
 
     /// After a structural edit, restart the replay today at a valid position,

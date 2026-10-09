@@ -354,7 +354,9 @@ public enum Engine {
         var out: [Ring] = []
         let byCycle = sp.length >= 3
         for inst in tl {
-            let boundary = byCycle ? (inst.pos == 0 && inst.rest == nil) : inst.day.weekday == 1
+            // Before the anchor (an earlier plan), only logged nights know their position.
+            let known = inst.day >= sp.anchor.day || inst.entry != nil
+            let boundary = byCycle ? (inst.pos == 0 && inst.rest == nil && known) : inst.day.weekday == 1
             if out.isEmpty || (boundary && !(out.last!.segments.isEmpty)) {
                 out.append(Ring(from: inst.day, to: inst.day, segments: []))
             }
@@ -397,9 +399,13 @@ public enum Engine {
         return plan
     }
 
+    public static let maxRotation = 12
+
     /// Put a step on "every Nth night", choosing the offset that collides
-    /// least with other actives. Grows the rotation if needed (up to 8).
-    public static func setEvery(_ sp: SlotPlan, stepID: String, n: Int, products: [String: Product]) -> SlotPlan {
+    /// least with other actives. Grows the rotation if needed, up to
+    /// `maxRotation`. Returns nil when the pattern can't fit without breaking
+    /// another step's spacing.
+    public static func setEvery(_ sp: SlotPlan, stepID: String, n: Int, products: [String: Product]) -> SlotPlan? {
         var plan = sp
         if n <= 1 {
             plan.steps = plan.steps.map { s in
@@ -410,7 +416,8 @@ public enum Engine {
             return plan
         }
         let want = lcm(max(1, plan.length), n)
-        if want != plan.length { plan = resize(plan, to: min(want, 8)) }
+        if want > maxRotation { return nil }
+        if want != plan.length { plan = resize(plan, to: want) }
         let L = plan.length
         var usage = Array(repeating: 0, count: L)
         for s in plan.steps where s.id != stepID {

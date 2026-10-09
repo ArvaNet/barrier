@@ -77,7 +77,7 @@ public enum Reminders {
     }
 
     /// Everything to schedule, given the state and the current moment.
-    public static func plan(_ state: AppState, now: Date = Date(), calendar: Calendar = .current) -> [PlannedReminder] {
+    public static func plan(_ state: AppState, now: Date = Date(), calendar: Calendar = .barrier) -> [PlannedReminder] {
         guard state.onboarded, state.settings.remindersOn else { return [] }
         let today = Day.routineDay(now, calendar: calendar)
         let end = today.adding(horizonDays - 1)
@@ -87,7 +87,11 @@ public enum Reminders {
         for slot in [Slot.am, .pm] {
             let sp = state.plan[slot]
             guard sp.enabled, !sp.steps.isEmpty else { continue }
+            // Once a night with actives is still open, later nights could shift
+            // (Barrier never skips ahead), so their reminders stay generic.
+            var uncertain = false
             for inst in Engine.timeline(state, slot: slot, from: today, to: end, today: today) {
+                defer { if inst.hasActives && !inst.isResolved { uncertain = true } }
                 if inst.isResolved || inst.status == .off || inst.steps.isEmpty { continue }
                 let fire = DayTime(inst.day, sp.time)
                 let fireDate = fire.date(calendar: calendar)
@@ -95,13 +99,13 @@ public enum Reminders {
                 let link = "ritual/\(slot.rawValue)/\(inst.day.iso)"
                 let photoNight = slot == .pm && settings.photoDay >= 0 && inst.day.weekday == settings.photoDay
                 if fireDate > now {
-                    let c = ahead < specificDays ? mainCopy(inst, photoNight: photoNight) : generic(slot)
+                    let c = ahead < specificDays && !uncertain ? mainCopy(inst, photoNight: photoNight) : generic(slot)
                     out.append(PlannedReminder(
                         id: "\(inst.day.iso):\(slot.rawValue):main", kind: .main, slot: slot, day: inst.day, fire: fire,
                         offsetMin: 0, title: c.0, body: c.1, link: link, actionable: true
                     ))
                 }
-                if settings.nudge && inst.rest != .pause && ahead < nudgeDays {
+                if settings.nudge && inst.rest != .pause && ahead < nudgeDays && !uncertain {
                     let nudgeDate = fireDate.addingTimeInterval(TimeInterval(settings.nudgeAfterMin * 60))
                     if nudgeDate > now {
                         let c = nudgeCopy(inst)

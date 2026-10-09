@@ -5,6 +5,7 @@ struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @State private var page = 0
     @State private var template: Presets.Template?
+    @State private var applied: Presets.Template?
     @State private var editing: StepTarget?
     @State private var adding: Slot?
     @State private var hasFollowUp = false
@@ -117,8 +118,9 @@ struct OnboardingView: View {
                 .padding(24)
             }
             Button("Continue") {
-                if let t = template {
+                if let t = template, t != applied {
                     model.update { $0 = Presets.apply(t, to: $0, today: model.today) }
+                    applied = t
                 }
                 next()
             }

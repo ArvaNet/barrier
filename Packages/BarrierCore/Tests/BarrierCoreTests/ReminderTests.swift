@@ -28,7 +28,9 @@ final class ReminderTests: XCTestCase {
         XCTAssertEqual(first[0].title, "Tonight: Exfoliation night")
         XCTAssertTrue(first[0].body.contains("Exfoliant (AHA/BHA)"))
         XCTAssertEqual(r.filter { $0.kind == .main }.count, 14 + 13)
-        XCTAssertEqual(r.filter { $0.kind == .nudge }.count, 2 + 3) // today pm + next 2 days am/pm…
+        // Tonight pm, plus mornings tomorrow and the day after. Evening nudges after an
+        // open active night are held back, because that night may still shift.
+        XCTAssertEqual(r.filter { $0.kind == .nudge }.count, 3)
         XCTAssertLessThanOrEqual(r.count, 60)
         XCTAssertNotNil(r.first { $0.kind == .keepAlive })
         // Far-off nights get generic text.

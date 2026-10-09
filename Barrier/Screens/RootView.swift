@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var didLaunchRoute = false
+    @State private var loadAlertDismissed = false
 
     var body: some View {
         @Bindable var model = model
@@ -29,6 +30,21 @@ struct RootView: View {
         }
         .sheet(isPresented: $model.showSettings) {
             SettingsView().barrier(model)
+        }
+        .alert("Barrier couldn’t read your saved data", isPresented: Binding(
+            get: { model.loadFailed && !loadAlertDismissed },
+            set: { if !$0 { loadAlertDismissed = true } }
+        )) {
+            Button("Restore a backup") {
+                loadAlertDismissed = true
+                model.showSettings = true
+            }
+            Button("Start fresh", role: .destructive) {
+                loadAlertDismissed = true
+                model.acceptFreshStart()
+            }
+        } message: {
+            Text("Nothing has been deleted: the unreadable file is kept on this iPhone. Restore a backup file if you have one, or start fresh.")
         }
         .onAppear(perform: applyLaunchScreen)
     }

@@ -44,7 +44,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         // Keep one-off timers and snoozes; replace everything planned.
         let replace = pending.map(\.identifier).filter { $0 != Self.timerID && !$0.hasPrefix("snooze:") }
         center.removePendingNotificationRequests(withIdentifiers: replace)
-        let cal = Calendar.current
+        let cal = Calendar.barrier
         for r in planned {
             let content = UNMutableNotificationContent()
             content.title = r.title
@@ -126,24 +126,35 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         switch response.actionIdentifier {
         case Self.doneAction:
             guard let slot = slotRaw.flatMap(Slot.init(rawValue:)), let day = dayRaw.flatMap(Day.init(iso:)) else { return }
-            await MainActor.run {
+            let state: AppState? = await MainActor.run {
                 let model = AppModel.shared
                 model.refreshClock()
+                model.retryLoadIfNeeded()
+                guard !model.loadFailed else { return nil }
                 model.update { $0.markDone(slot, on: day, today: model.today) }
                 model.saveNow()
-                self.clearDelivered(day: day, slot: slot)
+                model.endRitual(slot, day)
+                return model.state
             }
+            clearDelivered(day: day, slot: slot)
+            // Re-plan now: iOS may suspend the app as soon as this returns.
+            if let state { await reschedule(state) }
         case Self.skipAction:
             guard let slot = slotRaw.flatMap(Slot.init(rawValue:)), let day = dayRaw.flatMap(Day.init(iso:)) else { return }
-            await MainActor.run {
+            let state: AppState? = await MainActor.run {
                 let model = AppModel.shared
                 model.refreshClock()
+                model.retryLoadIfNeeded()
+                guard !model.loadFailed else { return nil }
                 if model.state.entry(day, slot) == nil {
                     model.update { $0.markSkipped(slot, on: day, today: model.today) }
                     model.saveNow()
                 }
-                self.clearDelivered(day: day, slot: slot)
+                model.endRitual(slot, day)
+                return model.state
             }
+            clearDelivered(day: day, slot: slot)
+            if let state { await reschedule(state) }
         case Self.snoozeAction:
             if let d = dayRaw, let s = slotRaw {
                 snooze(response.notification.request.content, day: d, slot: s)

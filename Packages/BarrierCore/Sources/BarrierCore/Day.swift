@@ -100,20 +100,20 @@ public let dayRolloverHour = 4
 
 public extension Day {
     /// The calendar day of a moment in the given calendar's time zone.
-    static func of(_ date: Date, calendar: Calendar = .current) -> Day {
+    static func of(_ date: Date, calendar: Calendar = .barrier) -> Day {
         let c = calendar.dateComponents([.year, .month, .day], from: date)
         return Day(c.year!, c.month!, c.day!)
     }
 
     /// The routine day a moment belongs to.
-    static func routineDay(_ date: Date = Date(), calendar: Calendar = .current) -> Day {
+    static func routineDay(_ date: Date = Date(), calendar: Calendar = .barrier) -> Day {
         let hour = calendar.component(.hour, from: date)
         let d = Day.of(date, calendar: calendar)
         return hour < dayRolloverHour ? d.adding(-1) : d
     }
 
     /// Local midnight of this day.
-    func date(calendar: Calendar = .current) -> Date {
+    func date(calendar: Calendar = .barrier) -> Date {
         calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
     }
 }
@@ -178,11 +178,23 @@ public struct DayTime: Hashable, Sendable {
         return DateComponents(year: d.year, month: d.month, day: d.day, hour: time.hour, minute: time.minute)
     }
 
-    public func date(calendar: Calendar = .current) -> Date {
+    public func date(calendar: Calendar = .barrier) -> Date {
         calendar.date(from: components) ?? Date.distantPast
     }
 
-    public func adding(minutes: Int, calendar: Calendar = .current) -> Date {
+    public func adding(minutes: Int, calendar: Calendar = .barrier) -> Date {
         date(calendar: calendar).addingTimeInterval(TimeInterval(minutes * 60))
+    }
+}
+
+public extension Calendar {
+    /// Gregorian in the current time zone. All day math uses this, whatever
+    /// calendar the iPhone displays (Buddhist, Hebrew, Islamic…), so weekdays
+    /// and dates always line up with `Day`.
+    static var barrier: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone.current
+        c.locale = Locale.current
+        return c
     }
 }

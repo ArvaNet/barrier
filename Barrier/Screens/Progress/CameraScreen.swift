@@ -14,10 +14,8 @@ struct CameraScreen: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var saving = false
 
-    private var lastPhoto: UIImage? {
-        guard let last = model.state.photos.max(by: { $0.at < $1.at }) else { return nil }
-        return model.photos.image(last.id)
-    }
+    /// The previous photo, decoded once (the overlay redraws on every slider move).
+    @State private var lastPhoto: UIImage?
 
     var body: some View {
         ZStack {
@@ -47,7 +45,12 @@ struct CameraScreen: View {
         }
         .foregroundStyle(.white)
         .statusBarHidden()
-        .task { await camera.start() }
+        .task {
+            if let last = model.state.photos.max(by: { $0.at < $1.at }) {
+                lastPhoto = model.photos.image(last.id)?.resized(maxSide: 1200)
+            }
+            await camera.start()
+        }
         .onDisappear { camera.stop() }
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }

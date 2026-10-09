@@ -284,12 +284,18 @@ struct ReportPhotosPage: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("BARRIER · PROGRESS PHOTOS").font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
             Text("Photos, \(data.photos.first?.0.day.short ?? "") – \(data.photos.last?.0.day.short ?? "")").font(Typeface.display(22, weight: 430))
-            let cols = Array(repeating: GridItem(.fixed(166), spacing: 12), count: 3)
-            LazyVGrid(columns: cols, alignment: .leading, spacing: 14) {
-                ForEach(Array(data.photos.enumerated()), id: \.offset) { _, item in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Image(uiImage: item.1).resizable().scaledToFill().frame(width: 166, height: 221).clipped().clipShape(RoundedRectangle(cornerRadius: 6))
-                        Text(item.0.day.long).font(.system(size: 9)).foregroundStyle(Paper.ink3)
+            // Plain rows: lazy grids don't render inside ImageRenderer.
+            let rows = stride(from: 0, to: data.photos.count, by: 3).map { Array(data.photos[$0..<min($0 + 3, data.photos.count)]) }
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(0..<rows.count, id: \.self) { r in
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(0..<rows[r].count, id: \.self) { c in
+                            let item = rows[r][c]
+                            VStack(alignment: .leading, spacing: 4) {
+                                Image(uiImage: item.1).resizable().scaledToFill().frame(width: 166, height: 221).clipped().clipShape(RoundedRectangle(cornerRadius: 6))
+                                Text(item.0.day.long).font(.system(size: 9)).foregroundStyle(Paper.ink3)
+                            }
+                        }
                     }
                 }
             }
