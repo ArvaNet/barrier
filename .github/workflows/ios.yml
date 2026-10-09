@@ -39,7 +39,11 @@ jobs:
         run: brew install xcodegen
 
       - name: Generate project
-        run: xcodegen generate
+        run: |
+          xcodegen generate
+          if [ -n "$(git status --porcelain Barrier.xcodeproj)" ]; then
+            echo "::warning::The committed Barrier.xcodeproj is out of date. Run xcodegen generate (or copy it from this run's xcodeproj artifact) and commit."
+          fi
 
       - name: Core tests (macOS)
         run: swift test --package-path Packages/BarrierCore
@@ -88,7 +92,7 @@ jobs:
             name=$1; shift
             xcrun simctl terminate "$UDID" "$BID" || true
             xcrun simctl launch "$UDID" "$BID" "$@"
-            sleep 6
+            sleep 9
             xcrun simctl io "$UDID" screenshot "shots/$name.png"
             PID=$(pgrep -x Barrier | head -1 || true)
             if [ -n "$PID" ]; then sample "$PID" 1 -file "shots/$name.sample.txt" >/dev/null 2>&1 || true; else echo "$name: app not running" | tee -a shots/notes.txt; fi
