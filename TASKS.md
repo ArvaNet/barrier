@@ -5,7 +5,7 @@ screenshot-checked on the iOS Simulator in CI, ready for the founder to run on
 their iPhone from Xcode.
 
 - [x] Fact-check the guidance (docs/derm-facts.md)
-- [x] Core package: models, schedule engine, reminders, guidance, milestones, recap (35 tests, Linux + macOS)
+- [x] Core package: models, schedule engine, reminders, guidance, milestones, recap (37 tests, Linux + macOS)
 - [x] App: model, storage (App Group), notifications with actions, background refresh
 - [x] Screens: onboarding, Today, ritual, routine editor, progress, camera, compare, derm, report PDF, settings
 - [x] Widget (home + Lock Screen, Done button), Live Activity timer, Siri intents
@@ -14,7 +14,7 @@ their iPhone from Xcode.
 - [x] Green CI build, zero warnings
 - [x] Screenshot review + polish (Progress hang, finish layout, tints, status bar, copy)
 - [x] Review 1 (docs/review-1.md): 9 blockers + 6 should-fix, all fixed with regression tests
-- [ ] Review 2 on the fixes (docs/review-2.md)
+- [x] Review 2 on the fixes (docs/review-2.md): 4 blockers + 6 should-fix, all fixed
 - [x] Generated Barrier.xcodeproj committed; CI warns when stale
 - [x] Vault status + decision log updated
 
