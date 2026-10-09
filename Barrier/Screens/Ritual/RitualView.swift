@@ -33,14 +33,19 @@ struct RitualView: View {
 
     var body: some View {
         ZStack {
-            (isNight ? Palette.stage : Palette.bg).ignoresSafeArea()
-            Circle()
-                .fill(inst.hue.color.opacity(isNight ? 0.16 : 0.12))
-                .frame(width: 460, height: 460)
-                .blur(radius: 110)
-                .offset(y: -330)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            (isNight ? Palette.stage : Palette.bg)
+                .overlay(alignment: .top) {
+                    // Ambient glow in the night's hue. In an overlay so it can't widen the layout.
+                    Circle()
+                        .fill(inst.hue.color.opacity(isNight ? 0.16 : 0.12))
+                        .frame(width: 460, height: 460)
+                        .blur(radius: 110)
+                        .offset(y: -330)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                .clipped()
+                .ignoresSafeArea()
             VStack(spacing: 0) {
                 topBar
                 if finished, let done = finishedInstance {
@@ -300,7 +305,7 @@ struct RitualFinish: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 if !next.steps.isEmpty {
-                    Text("Next: \(next.label.lowercased()) \(next.day.relative(to: inst.day, evening: inst.slot == .pm)).")
+                    Text("Next: \(next.label.lowercased()), \(next.day.relative(to: inst.day, evening: false)).")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             }

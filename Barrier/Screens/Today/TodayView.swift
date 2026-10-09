@@ -284,7 +284,7 @@ struct SlotHero: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(doneTime(inst)).font(.subheadline.weight(.semibold))
                 if !next.steps.isEmpty {
-                    Text("Next: \(next.label.lowercased()) \(next.day.relative(to: model.today, evening: slot == .pm))")
+                    Text("Next: \(next.label.lowercased()), \(next.day.relative(to: model.today, evening: false))")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

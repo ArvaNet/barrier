@@ -109,6 +109,15 @@ struct Page<Content: View>: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Palette.bg.ignoresSafeArea())
+            .overlay(alignment: .top) {
+                // A backdrop under the status bar, since these pages hide the nav bar.
+                GeometryReader { g in
+                    Palette.bg.opacity(0.94)
+                        .frame(height: g.safeAreaInsets.top)
+                        .ignoresSafeArea(edges: .top)
+                }
+                .allowsHitTesting(false)
+            }
             .onAppear {
                 // Screenshot hook: `-screen today-bottom`.
                 if model.launch.screen?.hasSuffix("-bottom") == true {
