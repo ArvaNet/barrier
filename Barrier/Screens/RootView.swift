@@ -39,11 +39,11 @@ struct RootView: View {
         didLaunchRoute = true
         switch screen {
         case "routine": model.tab = .routine
-        case "progress": model.tab = .progress
+        case "progress", "progress-bottom": model.tab = .progress
         case "derm": model.tab = .derm
         case "report": model.open(.report)
         case "settings": model.showSettings = true
-        case "ritual": model.open(.ritual(.pm, model.today))
+        case "ritual", "ritual-wait", "ritual-done": model.open(.ritual(.pm, model.today))
         case "ritual-am": model.open(.ritual(.am, model.today))
         default: break
         }
@@ -74,21 +74,31 @@ struct MainTabs: View {
 
 /// A scrollable page with the app's background.
 struct Page<Content: View>: View {
+    @Environment(AppModel.self) private var model
     var spacing: CGFloat = 16
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: spacing) {
-                content()
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: spacing) {
+                    content()
+                    Color.clear.frame(height: 1).id("page-bottom")
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 40)
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 40)
-            .frame(maxWidth: 560)
-            .frame(maxWidth: .infinity)
+            .scrollDismissesKeyboard(.interactively)
+            .background(Palette.bg.ignoresSafeArea())
+            .onAppear {
+                // Screenshot hook: `-screen today-bottom`.
+                if model.launch.screen?.hasSuffix("-bottom") == true {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("page-bottom", anchor: .bottom) }
+                }
+            }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .background(Palette.bg.ignoresSafeArea())
     }
 }

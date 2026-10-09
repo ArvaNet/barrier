@@ -62,6 +62,14 @@ struct RitualView: View {
             if !loaded {
                 p = RitualMemory.shared.progress[request.id] ?? RitualProgress()
                 loaded = true
+                // Screenshot hooks (demo only).
+                if model.launch.demo, steps.count > 1 {
+                    if model.launch.screen == "ritual-wait" {
+                        p = RitualProgress(index: 1, ticked: [steps[0].step.id], waitEnds: Date().addingTimeInterval(17 * 60 + 42), waitTotal: 20 * 60)
+                    } else if model.launch.screen == "ritual-done" {
+                        DispatchQueue.main.async { finish() }
+                    }
+                }
             }
             UIApplication.shared.isIdleTimerDisabled = true
         }

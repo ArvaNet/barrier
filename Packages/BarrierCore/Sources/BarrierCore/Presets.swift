@@ -172,7 +172,6 @@ public enum Presets {
                 s.log.append(Entry(day: d, slot: .am, status: .done, label: "Morning routine", hue: .dawn, at: d.date().addingTimeInterval(8 * 3600)))
             }
         }
-        s.log.append(Entry(day: today, slot: .am, status: .done, label: "Morning routine", hue: .dawn))
         s.checkins = [
             CheckIn(day: start.adding(4), feel: [.dry, .flaky]),
             CheckIn(day: start.adding(8), feel: [.red, .stinging], note: "Burned a bit around the nose"),

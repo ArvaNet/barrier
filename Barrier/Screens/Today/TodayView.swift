@@ -28,6 +28,7 @@ struct TodayView: View {
                 if let m = Milestones.unseen(model.state, today: today) {
                     MilestoneCard(milestone: m)
                 }
+                RecapCard()
                 SkinCheckCard()
                 JourneyCard()
                 PhotoPromptCard(showCamera: $showCamera)

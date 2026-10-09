@@ -90,7 +90,7 @@ jobs:
             xcrun simctl launch "$UDID" "$BID" "$@"
             sleep 6
             xcrun simctl io "$UDID" screenshot "shots/$name.png"
-            PID=$(pgrep -f "Barrier.app/Barrier$" | head -1 || true)
+            PID=$(pgrep -x Barrier | head -1 || true)
             if [ -n "$PID" ]; then sample "$PID" 1 -file "shots/$name.sample.txt" >/dev/null 2>&1 || true; else echo "$name: app not running" | tee -a shots/notes.txt; fi
           }
           shot 01-today-evening -demo -hour 21
@@ -103,6 +103,11 @@ jobs:
           shot 08-settings -demo -hour 21 -screen settings
           shot 09-onboarding -fresh -hour 11
           shot 10-routine-day -demo -hour 11 -screen routine
+          shot 11-today-bottom -demo -hour 21 -screen today-bottom
+          shot 12-progress-bottom -demo -hour 11 -screen progress-bottom
+          shot 13-ritual-wait -demo -hour 21 -screen ritual-wait
+          shot 14-ritual-done -demo -hour 21 -screen ritual-done
+          shot 15-today-morning-lead -demo -hour 7
           cp ~/Library/Logs/DiagnosticReports/Barrier* shots/ 2>/dev/null || true
           ls -la shots
 

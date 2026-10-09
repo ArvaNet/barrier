@@ -361,3 +361,27 @@ struct TipCard: View {
         .card(padding: 16, tint: true)
     }
 }
+
+// MARK: - Monday recap
+
+struct RecapCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if let r = Recaps.lastWeek(model.state, today: model.today), !model.state.dismissed.contains(r.id) {
+            VStack(alignment: .leading, spacing: 8) {
+                Kicker("Your week · \(r.from.short) – \(r.to.short)")
+                Text(r.headline).font(.barrierH2).foregroundStyle(Palette.ink)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(r.lines, id: \.self) { line in
+                        Text(line).font(.subheadline).foregroundStyle(Palette.ink2)
+                    }
+                }
+                Button("Got it") { model.update { $0.dismiss(r.id) } }
+                    .buttonStyle(SecondaryButtonStyle(compact: true))
+                    .padding(.top, 4)
+            }
+            .card()
+        }
+    }
+}

@@ -18,3 +18,17 @@ final class ProgressProbeTests: XCTestCase {
         _ = Milestones.reached(s, today: today)
     }
 }
+
+final class RecapTests: XCTestCase {
+    func testMondayRecap() {
+        let monday = Day(2026, 11, 2)
+        XCTAssertEqual(monday.weekday, 1)
+        let s = Presets.demoState(today: monday)
+        let r = Recaps.lastWeek(s, today: monday)
+        XCTAssertNotNil(r)
+        XCTAssertEqual(r?.from, Day(2026, 10, 26))
+        XCTAssertEqual(r?.nightsDue, 7)
+        XCTAssertTrue(r!.headline.contains("nights") || r!.headline.contains("Every night"))
+        XCTAssertNil(Recaps.lastWeek(s, today: monday.adding(2)))
+    }
+}
