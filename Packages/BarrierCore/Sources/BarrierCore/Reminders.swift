@@ -87,11 +87,11 @@ public enum Reminders {
         for slot in [Slot.am, .pm] {
             let sp = state.plan[slot]
             guard sp.enabled, !sp.steps.isEmpty else { continue }
-            // Once a night with actives is still open, later nights could shift
+            // Once a rotating night with actives is still open, later nights could shift
             // (Barrier never skips ahead), so their reminders stay generic.
             var uncertain = false
             for inst in Engine.timeline(state, slot: slot, from: today, to: end, today: today) {
-                defer { if inst.hasActives && !inst.isResolved { uncertain = true } }
+                defer { if inst.hasActives && !inst.isResolved && inst.cycleLen > 1 { uncertain = true } }
                 if inst.isResolved || inst.status == .off || inst.steps.isEmpty { continue }
                 let fire = DayTime(inst.day, sp.time)
                 let fireDate = fire.date(calendar: calendar)

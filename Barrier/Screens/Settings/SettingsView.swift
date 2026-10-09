@@ -180,14 +180,16 @@ struct Backup: Codable {
         s.onboarded = true
         model.show("Restoring…")
         Task.detached(priority: .userInitiated) {
-            store.deleteAll()
+            // New photos first, then the routine, and only then drop old photos:
+            // an interrupted restore never leaves a routine without its photos.
             for (id, data) in photos { store.saveData(data, id: id) }
             await MainActor.run {
                 model.loadFailed = false
                 model.update { $0 = s }
                 model.saveNow()
-                model.show("Backup restored.")
             }
+            store.deleteAll(except: Set(photos.keys))
+            await MainActor.run { model.show("Backup restored.") }
         }
     }
 }

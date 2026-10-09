@@ -9,6 +9,8 @@ struct RitualTimerAttributes: ActivityAttributes {
         var nextStep: String
     }
 
+    /// Which routine this wait belongs to ("2026-10-09-pm").
+    var ritualID: String
     /// "Retinoid night"
     var title: String
     /// Hue raw value, so the activity wears the night's color.

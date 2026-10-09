@@ -127,10 +127,15 @@ public extension AppState {
         let tonight = Engine.instance(self, slot: slot, on: today, today: today)
         let pending = Engine.needsReconcile(self, today: today).first { $0.slot == slot }
         change(&self)
-        let day = pending?.day ?? today
-        let pos = pending?.pos ?? tonight.pos
-        let cl = Engine.cycleLen(plan[slot], on: day)
-        plan[slot].anchor = Anchor(day: day, pos: max(0, min(pos, cl - 1)))
+        let keep = max(0, min(tonight.pos, Engine.cycleLen(plan[slot], on: today) - 1))
+        // Keep last night's open question only if replaying it under the new plan
+        // still lands on the same night tonight; otherwise tonight wins.
+        if let p = pending {
+            let cl = Engine.cycleLen(plan[slot], on: p.day)
+            plan[slot].anchor = Anchor(day: p.day, pos: max(0, min(p.pos, cl - 1)))
+            if Engine.instance(self, slot: slot, on: today, today: today).pos == keep { return }
+        }
+        plan[slot].anchor = Anchor(day: today, pos: keep)
     }
 
     /// After a structural edit, restart the replay today at a valid position,

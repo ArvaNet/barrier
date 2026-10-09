@@ -229,22 +229,22 @@ struct RitualView: View {
             p.waitEnds = ends
             let next = steps[i + 1]
             let reason = next.product.kind == .retinoid ? "Skin should be completely dry" : "Letting it absorb"
-            TimerActivity.start(title: inst.label, hue: inst.hue, reason: reason, endsAt: ends, nextStep: next.product.name)
-            NotificationService.shared.scheduleTimer(at: ends, title: "Time for \(next.product.name)", body: "Your \(wait)-minute wait is over.")
+            TimerActivity.start(ritualID: request.id, title: inst.label, hue: inst.hue, reason: reason, endsAt: ends, nextStep: next.product.name)
+            NotificationService.shared.scheduleTimer(at: ends, title: "Time for \(next.product.name)", body: "Your \(wait)-minute wait is over.", ritualID: request.id)
         } else {
             withAnimation { p.index = i + 1 }
         }
     }
 
     private func endWait() {
-        TimerActivity.end()
-        NotificationService.shared.cancelTimer()
+        TimerActivity.end(ritualID: request.id)
+        NotificationService.shared.cancelTimer(ritualID: request.id)
         withAnimation { p.waitEnds = nil }
     }
 
     private func finish() {
-        TimerActivity.end()
-        NotificationService.shared.cancelTimer()
+        TimerActivity.end(ritualID: request.id)
+        NotificationService.shared.cancelTimer(ritualID: request.id)
         let current = inst
         model.markDone(current, steps: p.ticked, quiet: true)
         finishedInstance = current
@@ -256,7 +256,7 @@ struct RitualView: View {
         if p.waitEnds != nil && !finished {
             // Keep the timer running in the background; the notification will ping.
         } else {
-            TimerActivity.end()
+            TimerActivity.end(ritualID: request.id)
         }
         dismiss()
     }

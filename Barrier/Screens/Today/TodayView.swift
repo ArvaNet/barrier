@@ -329,7 +329,7 @@ struct SlotHero: View {
                     .foregroundStyle(inst.isDone ? Color(hex: 0x13201C) : Palette.hueInk(inst.hue))
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(slot == .pm ? "Tonight · \(inst.label)" : "This morning · \(inst.label)")
+                Text(slot == .pm ? "Tonight · \(inst.label)" : (inst.label == "Morning routine" ? "This morning" : "This morning · \(inst.label)"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 Text(compactStatus(inst, time: sp.time)).font(.footnote).foregroundStyle(Palette.ink3)

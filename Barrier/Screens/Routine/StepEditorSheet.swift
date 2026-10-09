@@ -19,6 +19,10 @@ struct StepEditorSheet: View {
     @State private var loaded = false
     @State private var confirmRemove = false
     @State private var cantFit = false
+    /// The schedule as it was opened, so saving a name or note never moves the step.
+    @State private var originalFreq: Freq = .every(1)
+    @State private var originalNights: Set<Int> = []
+    @State private var originalWeekdays: Set<Int> = []
 
     enum Freq: Hashable {
         case every(Int)
@@ -124,7 +128,7 @@ struct StepEditorSheet: View {
             .alert("That pattern doesn’t fit", isPresented: $cantFit) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("With your other steps, the rotation would need more than (Engine.maxRotation) nights. Pick the exact nights or weekdays instead.")
+                Text("With your other steps, the rotation would need more than \(Engine.maxRotation) nights. Pick the exact nights or weekdays instead.")
             }
             .onAppear(perform: load)
         }
@@ -148,6 +152,9 @@ struct StepEditorSheet: View {
             nights = Set(n)
             if let gap = Engine.every(of: s, length: sp.length), gap <= 4 { freq = .every(gap) } else { freq = .nights }
         }
+        originalFreq = freq
+        originalNights = nights
+        originalWeekdays = weekdays
     }
 
     private func save() {
@@ -160,8 +167,11 @@ struct StepEditorSheet: View {
         var st = step
         st.amount = st.amount?.trimmingCharacters(in: .whitespaces).nilIfEmpty
         st.how = st.how?.trimmingCharacters(in: .whitespaces).nilIfEmpty
+        let scheduleChanged = freq != originalFreq
+            || (freq == .nights && nights != originalNights)
+            || (freq == .weekdays && weekdays != originalWeekdays)
         // Check the pattern fits before changing anything.
-        if case .every(let n) = freq, n > 1 {
+        if scheduleChanged, case .every(let n) = freq, n > 1 {
             var probe = model.state.plan[slot]
             if let i = probe.steps.firstIndex(where: { $0.id == st.id }) { probe.steps[i] = st }
             let products = model.products.merging([p.id: p]) { _, new in new }
@@ -175,6 +185,7 @@ struct StepEditorSheet: View {
             s.upsertProduct(p)
             guard let i = s.plan[slot].steps.firstIndex(where: { $0.id == st.id }) else { return }
             s.plan[slot].steps[i] = st
+            guard scheduleChanged else { return }
             let products = Dictionary(s.products.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             switch freq {
             case .every(let n):

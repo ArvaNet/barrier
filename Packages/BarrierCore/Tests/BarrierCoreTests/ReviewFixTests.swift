@@ -91,3 +91,44 @@ final class ReviewFixTests: XCTestCase {
         XCTAssertEqual(Day(2026, 10, 9).weekday, 5) // Friday
     }
 }
+
+/// Regression tests for docs/review-2.md.
+final class ReviewTwoTests: XCTestCase {
+    let mon = Day(2026, 10, 5)
+
+    /// B2: an open question must not drag tonight to another night.
+    func testEditKeepsTonightEvenWithAnOpenQuestion() {
+        var s = Presets.blankState(today: mon)
+        let clean = Product(name: "Cleanser", kind: .cleanser)
+        let tret = Product(name: "Tretinoin", kind: .retinoid)
+        let aze = Product(name: "Azelaic acid", kind: .treatment)
+        s.products = [clean, tret, aze]
+        s.plan.pm.length = 2
+        s.plan.pm.steps = [Step(productId: clean.id), Step(productId: tret.id, on: .nights([0])), Step(productId: aze.id, on: .nights([1]))]
+        s.onboarded = true
+        // Monday's tretinoin night not logged, Tuesday's done.
+        s.log = [Entry(day: mon.adding(1), slot: .pm, status: .done)]
+        let wed = mon.adding(2)
+        XCTAssertEqual(Engine.instance(s, slot: .pm, on: wed, today: wed).label, "Azelaic acid night")
+        s.editPlan(.pm, today: wed) { st in
+            st.plan.pm.steps.removeAll { $0.productId == tret.id }
+            st.pruneOrphanProducts()
+        }
+        XCTAssertEqual(Engine.instance(s, slot: .pm, on: wed, today: wed).label, "Azelaic acid night")
+    }
+
+    /// S3: every-night routines can't shift, so their reminders stay specific.
+    func testEveryNightRoutineKeepsSpecificReminders() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Vilnius")!
+        var s = Presets.blankState(today: mon)
+        let tret = Product(name: "Tretinoin", kind: .retinoid)
+        s.products = [tret]
+        s.plan.pm.steps = [Step(productId: tret.id)]
+        s.onboarded = true
+        s.settings.photoDay = -1
+        let noon = cal.date(from: DateComponents(year: 2026, month: 10, day: 5, hour: 12))!
+        let r = Reminders.plan(s, now: noon, calendar: cal)
+        XCTAssertEqual(r.first { $0.id == "\(mon.adding(1).iso):pm:main" }?.title, "Tonight: Retinoid night")
+    }
+}

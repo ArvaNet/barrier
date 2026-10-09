@@ -220,10 +220,10 @@ final class AppModel {
     /// A routine was logged some other way: stop its wait timer and forget its progress.
     func endRitual(_ slot: Slot, _ day: Day) {
         let id = RitualRequest(slot: slot, day: day).id
-        guard ritual?.id != id else { return } // the ritual screen handles its own timer
-        RitualMemory.shared.progress[id] = nil
-        TimerActivity.end()
-        NotificationService.shared.cancelTimer()
+        // Only this routine's countdown: another routine's wait keeps running.
+        if ritual?.id != id { RitualMemory.shared.progress[id] = nil }
+        TimerActivity.end(ritualID: id)
+        NotificationService.shared.cancelTimer(ritualID: id)
     }
 
     func undoEntry(_ inst: Instance) {

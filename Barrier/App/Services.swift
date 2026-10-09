@@ -52,6 +52,15 @@ final class PhotoStore: @unchecked Sendable {
     func deleteAll() {
         try? fm.removeItem(at: root)
     }
+
+    /// Remove every photo file whose id isn't in `keep`.
+    func deleteAll(except keep: Set<String>) {
+        guard let files = try? fm.contentsOfDirectory(atPath: root.path) else { return }
+        for f in files {
+            let id = f.replacingOccurrences(of: "-thumb.jpg", with: "").replacingOccurrences(of: ".jpg", with: "")
+            if !keep.contains(id) { try? fm.removeItem(at: root.appendingPathComponent(f)) }
+        }
+    }
 }
 
 extension UIImage {
@@ -99,10 +108,10 @@ enum Haptics {
 enum TimerActivity {
     private static var current: Activity<RitualTimerAttributes>?
 
-    static func start(title: String, hue: Hue, reason: String, endsAt: Date, nextStep: String) {
+    static func start(ritualID: String, title: String, hue: Hue, reason: String, endsAt: Date, nextStep: String) {
         end()
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let attrs = RitualTimerAttributes(title: title, hue: hue.rawValue, reason: reason)
+        let attrs = RitualTimerAttributes(ritualID: ritualID, title: title, hue: hue.rawValue, reason: reason)
         let state = RitualTimerAttributes.ContentState(endsAt: endsAt, nextStep: nextStep)
         current = try? Activity.request(attributes: attrs, content: .init(state: state, staleDate: endsAt.addingTimeInterval(60)))
     }
@@ -111,6 +120,13 @@ enum TimerActivity {
     static func endStale(keepRunning: Bool) {
         let now = Date()
         for a in Activity<RitualTimerAttributes>.activities where !keepRunning || a.content.state.endsAt < now {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
+    /// End only the countdown that belongs to one routine.
+    static func end(ritualID: String) {
+        for a in Activity<RitualTimerAttributes>.activities where a.attributes.ritualID == ritualID {
             Task { await a.end(nil, dismissalPolicy: .immediate) }
         }
     }
@@ -136,6 +152,12 @@ enum BackgroundRefresh {
             let work = Task { @MainActor in
                 let model = AppModel.shared
                 model.refreshClock()
+                model.retryLoadIfNeeded()
+                // Never plan from the blank fallback: it would wipe the real reminders.
+                guard !model.loadFailed, model.state.onboarded else {
+                    task.setTaskCompleted(success: false)
+                    return
+                }
                 model.ingestInbox()
                 await NotificationService.shared.reschedule(model.state)
                 task.setTaskCompleted(success: true)
