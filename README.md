@@ -38,6 +38,28 @@ You need a Mac with Xcode 16 or newer.
 With a free Apple ID the app runs for 7 days, then needs another Run from
 Xcode. A paid developer account removes that limit and enables TestFlight.
 
+### If the first build complains
+
+- **"…doesn't support the App Groups capability"** (some free Apple IDs):
+  on both targets, Signing & Capabilities → remove **App Groups**. The app
+  works the same; only the widget can't see your routine.
+- **"Failed to register bundle identifier"**: change `BUNDLE_PREFIX` (and
+  `APP_GROUP`) in `project.yml` to something unique, e.g.
+  `com.yourname.barrier`, then run `xcodegen generate` (or edit the bundle
+  identifiers in both targets' build settings).
+- **Reminders don't show at night**: if you use a Sleep or Do Not Disturb
+  Focus, add Barrier to its allowed apps (Settings → Focus → Sleep → Apps).
+- **After adding or removing source files**: run `xcodegen generate`
+  (`brew install xcodegen`). CI warns when the committed project is stale.
+
+### First night
+
+1. Pick "My dermatologist's routine" and add exactly what you were given,
+   with their words in each step's instructions.
+2. Set how often each active goes on (or use Ease in) and your reminder times.
+3. Tap Settings → "Send a test reminder", lock the phone, and long-press it.
+4. Take your "before" photo.
+
 ## Project layout
 
 - `Packages/BarrierCore`: models, the schedule engine, reminder planning and
