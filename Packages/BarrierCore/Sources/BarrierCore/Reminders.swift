@@ -31,6 +31,24 @@ public enum Reminders {
     public static let nudgeDays = 3
     public static let spfDays = 7
 
+    /// "After shower: back" / "Back".
+    static func bodyTitle(_ sp: SlotPlan) -> String {
+        if let cue = sp.cue, !cue.isEmpty { return "\(cue): \(sp.displayName.lowercased())" }
+        return sp.displayName
+    }
+
+    public static func bodyCopy(_ inst: Instance, sp: SlotPlan) -> (title: String, body: String) {
+        if inst.rest == .pause {
+            return (bodyTitle(sp), "Plan paused. Just the basics today.")
+        }
+        if let a = inst.steps.first(where: \.active) {
+            let line = a.step.amount.map { "\(a.product.name): \($0.lowercased())" } ?? a.product.name
+            let more = inst.steps.count > 1 ? " +\(inst.steps.count - 1) more" : ""
+            return (bodyTitle(sp), "\(line)\(more). Tap Done when it’s on.")
+        }
+        return (bodyTitle(sp), "\(stepNames(inst)). Tap Done when it’s on.")
+    }
+
     public static func mainCopy(_ inst: Instance, photoNight: Bool) -> (title: String, body: String) {
         if inst.rest == .pause {
             return inst.slot == .pm
@@ -50,7 +68,11 @@ public enum Reminders {
         return (title, names.isEmpty ? "Open Barrier for your steps." : names)
     }
 
-    public static func nudgeCopy(_ inst: Instance) -> (title: String, body: String) {
+    public static func nudgeCopy(_ inst: Instance, sp: SlotPlan? = nil) -> (title: String, body: String) {
+        if inst.slot == .body {
+            let name = (sp?.displayName ?? "Body").lowercased()
+            return ("Still to do: \(name)", "One minute and it’s logged. Long-press for Done or Skip today.")
+        }
         if inst.slot == .am {
             return ("Morning routine still open", "Two minutes now covers the whole day. Sunscreen last.")
         }
@@ -63,10 +85,12 @@ public enum Reminders {
         return ("Quick one tonight", "Recovery night: cleanse, moisturize, sleep.")
     }
 
-    static func generic(_ slot: Slot) -> (String, String) {
-        slot == .pm
-            ? ("Evening routine", "Open Barrier to see tonight’s steps.")
-            : ("Morning routine", "Open Barrier to see this morning’s steps.")
+    static func generic(_ slot: Slot, sp: SlotPlan? = nil) -> (String, String) {
+        switch slot {
+        case .pm: return ("Evening routine", "Open Barrier to see tonight’s steps.")
+        case .am: return ("Morning routine", "Open Barrier to see this morning’s steps.")
+        case .body: return (sp.map(bodyTitle) ?? "Body routine", "Open Barrier to see today’s steps.")
+        }
     }
 
     static func stepNames(_ inst: Instance, max: Int = 4) -> String {
@@ -84,7 +108,7 @@ public enum Reminders {
         let settings = state.settings
         var out: [PlannedReminder] = []
 
-        for slot in [Slot.am, .pm] {
+        for slot in Slot.allCases {
             let sp = state.plan[slot]
             guard sp.enabled, !sp.steps.isEmpty else { continue }
             // Once a rotating night with actives is still open, later nights could shift
@@ -99,7 +123,10 @@ public enum Reminders {
                 let link = "ritual/\(slot.rawValue)/\(inst.day.iso)"
                 let photoNight = slot == .pm && settings.photoDay >= 0 && inst.day.weekday == settings.photoDay
                 if fireDate > now {
-                    let c = ahead < specificDays && !uncertain ? mainCopy(inst, photoNight: photoNight) : generic(slot)
+                    let specific = ahead < specificDays && !uncertain
+                    let c = slot == .body
+                        ? (specific ? bodyCopy(inst, sp: sp) : generic(slot, sp: sp))
+                        : (specific ? mainCopy(inst, photoNight: photoNight) : generic(slot))
                     out.append(PlannedReminder(
                         id: "\(inst.day.iso):\(slot.rawValue):main", kind: .main, slot: slot, day: inst.day, fire: fire,
                         offsetMin: 0, title: c.0, body: c.1, link: link, actionable: true
@@ -108,7 +135,7 @@ public enum Reminders {
                 if settings.nudge && inst.rest != .pause && ahead < nudgeDays && !uncertain {
                     let nudgeDate = fireDate.addingTimeInterval(TimeInterval(settings.nudgeAfterMin * 60))
                     if nudgeDate > now {
-                        let c = nudgeCopy(inst)
+                        let c = nudgeCopy(inst, sp: sp)
                         out.append(PlannedReminder(
                             id: "\(inst.day.iso):\(slot.rawValue):nudge", kind: .nudge, slot: slot, day: inst.day, fire: fire,
                             offsetMin: settings.nudgeAfterMin, title: c.0, body: c.1, link: link, actionable: true
@@ -164,6 +191,7 @@ public enum Reminders {
             let db = b.fire.date(calendar: calendar).addingTimeInterval(TimeInterval(b.offsetMin * 60))
             return da < db
         }
-        return Array(sorted.prefix(60))
+        // 58 leaves room under iOS's 64 for a wait timer, snoozes and a test reminder.
+        return Array(sorted.prefix(58))
     }
 }

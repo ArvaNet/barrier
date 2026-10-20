@@ -60,7 +60,7 @@ struct StepEditorSheet: View {
                 }
                 Section {
                     Picker("How often", selection: $freq) {
-                        Text(target.slot == .pm ? "Every night" : "Every morning").tag(Freq.every(1))
+                        Text("Every \(target.slot.word)").tag(Freq.every(1))
                         Text("Every other \(target.slot.word)").tag(Freq.every(2))
                         Text("Every 3rd \(target.slot.word)").tag(Freq.every(3))
                         Text("Every 4th \(target.slot.word)").tag(Freq.every(4))
@@ -105,7 +105,7 @@ struct StepEditorSheet: View {
                     Text("A start date in the future holds the step until then. A last day is for courses, like a 12-week prescription.")
                 }
                 Section {
-                    Button("Remove from \(target.slot == .pm ? "evening" : "morning")", role: .destructive) { confirmRemove = true }
+                    Button("Remove from \(target.slot.name(model.state.plan).lowercased())", role: .destructive) { confirmRemove = true }
                 }
             }
             .navigationTitle(product.name.isEmpty ? "Step" : product.name)
@@ -215,7 +215,10 @@ struct AddProductSheet: View {
 
     var body: some View {
         let inSlot = Set(model.state.plan[slot].steps.map(\.productId))
-        let fromOther = model.state.products.filter { !inSlot.contains($0.id) }
+        // Morning and evening can share products; the body routine keeps its own.
+        let otherFace: Slot? = slot == .am ? .pm : (slot == .pm ? .am : nil)
+        let otherIDs = Set(otherFace.map { model.state.plan[$0].steps.map(\.productId) } ?? [])
+        let fromOther = model.state.products.filter { otherIDs.contains($0.id) && !inSlot.contains($0.id) }
         let suggestions = Presets.suggestions(for: slot, existing: model.state.products)
         NavigationStack {
             Form {
@@ -257,7 +260,7 @@ struct AddProductSheet: View {
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .navigationTitle(slot == .pm ? "Add to evening" : "Add to morning")
+            .navigationTitle("Add to \(slot.name(model.state.plan).lowercased())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }

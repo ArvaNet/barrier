@@ -145,6 +145,30 @@ public enum Guidance {
         Tip(id: "exf", text: "Exfoliating on top of retinoids can mean more dryness. Keep them on separate nights unless your dermatologist says otherwise.", source: S.aadExfoliate, needs: [.exfoliant], anyOf: false),
     ]
 
+    // MARK: Body (docs/body-facts.md)
+
+    public static let aadBackAcne = Source(label: "AAD: back acne", url: "https://www.aad.org/public/diseases/acne-and-rosacea/back-acne-how-to-see-clearer-skin")
+    public static let dermnetBpo = Source(label: "DermNet: benzoyl peroxide", url: "https://dermnetnz.org/topics/benzoyl-peroxide")
+
+    /// Tips for the body routine. `bpo` ones only show when a benzoyl peroxide product is in it.
+    public static let bodyTips: [(id: String, text: String, source: Source?, bpo: Bool)] = [
+        ("body-bleach", "Benzoyl peroxide bleaches fabric. Rinse it off well, or let it dry fully before clothes, towels or bedding touch it.", dermnetBpo, true),
+        ("body-wash", "On the back, a benzoyl peroxide wash is commonly left on a few minutes before rinsing. Follow your label.", aadBackAcne, true),
+        ("body-sweat", "After sweating, shower and change as soon as you can. Loose cotton or sweat-wicking clothes help.", aadBackAcne, false),
+        ("body-rub", "Backpack straps and anything that rubs can make back breakouts worse. Skip loofahs and back brushes.", aadBackAcne, false),
+        ("body-slow", "Back treatments commonly take 6 to 8 weeks to show, and clearing can take 3 to 4 months.", aadBackAcne, false),
+        ("body-dry", "Most body treatments go on clean, dry skin. Your label says how soon after a shower.", nil, false),
+    ]
+
+    public static func bodyTip(hasBpo: Bool, dayNumber: Int) -> Tip {
+        let pool = bodyTips.filter { !$0.bpo || hasBpo }
+        let n = ((dayNumber % pool.count) + pool.count) % pool.count
+        let t = pool[n]
+        return Tip(id: t.id, text: t.text, source: t.source, needs: [], anyOf: false)
+    }
+
+    public static let backPhotoTips = "Ask someone, or use the timer. Window light in front of you, plain background."
+
     public static func tip(for kinds: Set<ProductKind>, dayNumber: Int) -> Tip {
         let pool = tips.filter { t in
             if t.needs.isEmpty { return true }

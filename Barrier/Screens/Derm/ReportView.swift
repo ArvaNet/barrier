@@ -95,6 +95,12 @@ struct ReportData {
     var notes: String?
     var ifIrritated: String?
     var photos: [(PhotoMeta, UIImage)]
+    /// The body routine ("Back"), when it's on.
+    var bodyName: String?
+    var bodyWhen: String?
+    var bodySteps: [StepLine] = []
+    var bodyDone = 0
+    var bodyDue = 0
 
     @MainActor
     init(state s: AppState, today: Day, photos store: PhotoStore) {
@@ -115,12 +121,21 @@ struct ReportData {
         }
         pmSteps = lines(.pm)
         amSteps = lines(.am)
+        let bp = s.plan.body
+        if bp.enabled && !bp.steps.isEmpty {
+            bodyName = bp.displayName
+            bodyWhen = "\(bp.cue ?? "Daily"), around \(bp.time.formatted)."
+            bodySteps = lines(.body)
+            let btl = s.plan.createdAt <= today ? Engine.timeline(s, slot: .body, from: s.plan.createdAt, to: today, today: today) : []
+            bodyDue = btl.filter { $0.status != .off && $0.status != .pending && !$0.steps.isEmpty }.count
+            bodyDone = btl.filter { $0.status == .done }.count
+        }
         rotation = s.plan.pm.length > 1 ? "Evening repeats every \(s.plan.pm.length) nights." : nil
         if let e = s.plan.pm.easeIn {
             let end = e.start.adding(e.totalDays)
             easing = end > today ? "Easing in since \(e.start.short), full routine from \(end.short)." : "Eased in from \(e.start.short) to \(end.short)."
         }
-        let used = Set((s.plan.am.steps + s.plan.pm.steps).map(\.productId))
+        let used = s.usedProductIDs
         self.products = s.products.filter { used.contains($0.id) && ($0.kind.isActive || $0.kind == .oral || $0.note != nil) }
         let st = Engine.stats(s, today: today)
         nightsDone = st.nightsDone
@@ -170,6 +185,12 @@ struct ReportPageOne: View {
                     if !data.amSteps.isEmpty {
                         block("Morning routine") { steps(data.amSteps) }
                     }
+                    if let name = data.bodyName {
+                        block("\(name) routine") {
+                            if let w = data.bodyWhen { small(w) }
+                            steps(data.bodySteps)
+                        }
+                    }
                     if !data.products.isEmpty {
                         block("Treatments") {
                             ForEach(data.products, id: \.id) { p in
@@ -187,6 +208,7 @@ struct ReportPageOne: View {
                         stat("\(data.nightsDone) of \(data.nightsDue)", "evenings done since \(data.from.short)")
                         if data.last28.due >= 5 && data.nightsDue > data.last28.due { stat("\(data.last28.done) of \(data.last28.due)", "evenings, last 4 weeks") }
                         if data.morningsDone > 0 { stat("\(data.morningsDone)", "mornings logged") }
+                        if let name = data.bodyName, data.bodyDue > 0 { stat("\(data.bodyDone) of \(data.bodyDue)", "\(name.lowercased()) days done") }
                         if data.recovery > 0 { stat("\(data.recovery)", "recovery nights for irritation") }
                         if !data.byLabel.isEmpty {
                             small(data.byLabel.map { "\($0.0): \($0.1)" }.joined(separator: " · "))
@@ -195,10 +217,10 @@ struct ReportPageOne: View {
                     }
                     block("Skin log") {
                         if data.checkins.isEmpty { small("No check-ins yet.") }
-                        ForEach(data.checkins, id: \.day) { c in
+                        ForEach(data.checkins, id: \.self) { c in
                             HStack(alignment: .firstTextBaseline, spacing: 6) {
                                 Text(c.day.short).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(Paper.ink3).frame(width: 40, alignment: .leading)
-                                Text(([c.feel.map(\.label).joined(separator: ", ")] + [c.note].compactMap { $0 }).joined(separator: ": "))
+                                Text((c.place == .body ? "\(data.bodyName ?? "Body"): " : "") + ([c.feel.map(\.label).joined(separator: ", ")] + [c.note].compactMap { $0 }).joined(separator: ": "))
                                     .font(.system(size: 9.5, weight: c.feel.contains(where: \.isIrritation) ? .semibold : .regular))
                                     .foregroundStyle(c.feel.contains(where: \.isIrritation) ? Color(hex: 0xA4402F) : Paper.ink)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -293,7 +315,7 @@ struct ReportPhotosPage: View {
                             let item = rows[r][c]
                             VStack(alignment: .leading, spacing: 4) {
                                 Image(uiImage: item.1).resizable().scaledToFill().frame(width: 166, height: 221).clipped().clipShape(RoundedRectangle(cornerRadius: 6))
-                                Text(item.0.day.long).font(.system(size: 9)).foregroundStyle(Paper.ink3)
+                                Text(item.0.place == .body ? "\(data.bodyName ?? "Body") · \(item.0.day.long)" : item.0.day.long).font(.system(size: 9)).foregroundStyle(Paper.ink3)
                             }
                         }
                     }

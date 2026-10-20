@@ -3,19 +3,30 @@ import BarrierCore
 import PhotosUI
 import SwiftUI
 
-/// Front camera with a faint "ghost" of your last photo, so every photo lines
-/// up with the one before. Photos stay on the phone.
+/// Progress photos with a faint "ghost" of the last one, so every photo lines
+/// up with the one before. Face: front camera. Back: rear camera with a
+/// 5-second self-timer. Photos stay on the phone.
 struct CameraScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @State private var area: Area
+
+    init(initialArea: Area = .face) {
+        _area = State(initialValue: initialArea)
+    }
     @State private var camera = CameraController()
     @State private var captured: UIImage?
     @State private var ghostOpacity: Double = 0.35
     @State private var pickerItem: PhotosPickerItem?
     @State private var saving = false
-
-    /// The previous photo, decoded once (the overlay redraws on every slider move).
+    @State private var countdown: Int?
+    @State private var timerTask: Task<Void, Never>?
+    /// The previous photo of this area, decoded once (the overlay redraws on every slider move).
     @State private var lastPhoto: UIImage?
+    @State private var started = false
+
+    private var hasBody: Bool { model.state.plan.body.enabled }
+    private var bodyName: String { model.state.plan.body.displayName }
 
     var body: some View {
         ZStack {
@@ -29,10 +40,14 @@ struct CameraScreen: View {
                         if let ghost = lastPhoto, ghostOpacity > 0 {
                             Image(uiImage: ghost).resizable().scaledToFill().opacity(ghostOpacity).allowsHitTesting(false)
                         }
-                        Ellipse()
-                            .strokeBorder(.white.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
-                            .frame(width: 240, height: 320)
-                            .allowsHitTesting(false)
+                        guide.allowsHitTesting(false)
+                        if let countdown {
+                            Text("\(countdown)")
+                                .font(Typeface.display(120, weight: 380))
+                                .shadow(color: .black.opacity(0.5), radius: 12)
+                                .contentTransition(.numericText(countsDown: true))
+                                .accessibilityLabel("\(countdown) seconds")
+                        }
                     } else {
                         unavailable
                     }
@@ -46,12 +61,21 @@ struct CameraScreen: View {
         .foregroundStyle(.white)
         .statusBarHidden()
         .task {
-            if let last = model.state.photos.max(by: { $0.at < $1.at }) {
-                lastPhoto = model.photos.image(last.id)?.resized(maxSide: 1200)
-            }
-            await camera.start()
+            guard !started else { return }
+            started = true
+            loadGhost()
+            await camera.start(position: position(for: area))
         }
-        .onDisappear { camera.stop() }
+        .onChange(of: area) { _, new in
+            cancelTimer()
+            captured = nil
+            loadGhost()
+            Task { await camera.switchTo(position(for: new)) }
+        }
+        .onDisappear {
+            cancelTimer()
+            camera.stop()
+        }
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
             Task {
@@ -60,6 +84,26 @@ struct CameraScreen: View {
                 }
                 pickerItem = nil
             }
+        }
+    }
+
+    private func position(for area: Area) -> AVCaptureDevice.Position { area == .face ? .front : .back }
+
+    private func loadGhost() {
+        let last = model.state.photos.filter { $0.place == area }.max { $0.at < $1.at }
+        lastPhoto = last.flatMap { model.photos.image($0.id)?.resized(maxSide: 1200) }
+    }
+
+    @ViewBuilder
+    private var guide: some View {
+        if area == .face {
+            Ellipse()
+                .strokeBorder(.white.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
+                .frame(width: 240, height: 320)
+        } else {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(.white.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
+                .frame(width: 270, height: 380)
         }
     }
 
@@ -83,9 +127,19 @@ struct CameraScreen: View {
                     .accessibilityLabel("Last photo overlay")
                 }
             }
+            if hasBody && captured == nil {
+                Picker("Area", selection: $area) {
+                    Text("Face").tag(Area.face)
+                    Text(bodyName).tag(Area.body)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+                .colorScheme(.dark)
+            }
             if captured == nil && camera.state == .running {
-                Text(lastPhoto == nil ? "Window light, no makeup, face the camera." : "Line up with last time. Same spot, same light.")
+                Text(hint)
                     .font(.footnote.weight(.medium))
+                    .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
@@ -93,6 +147,13 @@ struct CameraScreen: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
+    }
+
+    private var hint: String {
+        if area == .body {
+            return lastPhoto == nil ? "Rear camera, 5-second timer. \(Guidance.backPhotoTips)" : "Line up with last time. Same spot, same distance, same light."
+        }
+        return lastPhoto == nil ? "Window light, no makeup, face the camera." : "Line up with last time. Same spot, same light."
     }
 
     private var bottomBar: some View {
@@ -116,15 +177,21 @@ struct CameraScreen: View {
                 }
                 .accessibilityLabel("Import from Photos")
                 Spacer()
-                Button {
-                    camera.capture { img in captured = img }
-                    Haptics.tap(model.state.settings.haptics)
-                } label: {
-                    Circle().strokeBorder(.white, lineWidth: 4).frame(width: 76, height: 76)
-                        .overlay(Circle().fill(.white.opacity(0.18)).padding(8))
+                Button(action: shutter) {
+                    ZStack {
+                        Circle().strokeBorder(.white, lineWidth: 4).frame(width: 76, height: 76)
+                        if countdown != nil {
+                            RoundedRectangle(cornerRadius: 6).fill(.white).frame(width: 24, height: 24)
+                        } else {
+                            Circle().fill(.white.opacity(0.18)).padding(8).frame(width: 76, height: 76)
+                            if area == .body {
+                                Image(systemName: "timer").font(.system(size: 20, weight: .semibold))
+                            }
+                        }
+                    }
                 }
                 .disabled(camera.state != .running)
-                .accessibilityLabel("Take photo")
+                .accessibilityLabel(countdown != nil ? "Cancel timer" : (area == .body ? "Take photo in 5 seconds" : "Take photo"))
                 Spacer()
                 Color.clear.frame(width: 56, height: 56)
             }
@@ -132,6 +199,37 @@ struct CameraScreen: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
         .background(Color.black)
+    }
+
+    private func shutter() {
+        if countdown != nil {
+            cancelTimer()
+            return
+        }
+        guard area == .body else {
+            camera.capture { img in captured = img }
+            Haptics.tap(model.state.settings.haptics)
+            return
+        }
+        // Back photos: a 5-second self-timer so you can hold the phone behind you
+        // or prop it up.
+        timerTask = Task { @MainActor in
+            for n in stride(from: 5, through: 1, by: -1) {
+                withAnimation { countdown = n }
+                Haptics.tap(model.state.settings.haptics)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { return }
+            }
+            countdown = nil
+            camera.capture { img in captured = img }
+            Haptics.success(model.state.settings.haptics)
+        }
+    }
+
+    private func cancelTimer() {
+        timerTask?.cancel()
+        timerTask = nil
+        countdown = nil
     }
 
     @ViewBuilder
@@ -154,12 +252,13 @@ struct CameraScreen: View {
     private func save() {
         guard let img = captured else { return }
         saving = true
-        let meta = PhotoMeta(day: model.today)
+        let meta = PhotoMeta(day: model.today, area: area)
+        let firstOfArea = !model.state.photos.contains { $0.place == area }
         Task {
             do {
                 try model.photos.save(img, id: meta.id)
                 model.update { $0.photos.append(meta) }
-                model.show(model.state.photos.count == 1 ? "Your “before” is saved." : "Photo saved.")
+                model.show(firstOfArea ? "Your “before” is saved." : "Photo saved.")
                 dismiss()
             } catch {
                 model.show("Couldn’t save the photo.")
@@ -178,24 +277,28 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate, @unchecke
     @ObservationIgnored private let output = AVCapturePhotoOutput()
     @ObservationIgnored private let queue = DispatchQueue(label: "barrier.camera")
     @ObservationIgnored private var completion: ((UIImage) -> Void)?
-    @ObservationIgnored private var configured = false
+    @ObservationIgnored private var position: AVCaptureDevice.Position = .front
 
-    func start() async {
+    func start(position: AVCaptureDevice.Position) async {
         var granted = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
             granted = await AVCaptureDevice.requestAccess(for: .video)
         }
         guard granted else {
-            await MainActor.run { state = AVCaptureDevice.authorizationStatus(for: .video) == .denied || AVCaptureDevice.authorizationStatus(for: .video) == .restricted ? .denied : .unavailable }
+            let status = AVCaptureDevice.authorizationStatus(for: .video)
+            await MainActor.run { state = status == .denied || status == .restricted ? .denied : .unavailable }
             return
         }
+        await switchTo(position)
+    }
+
+    /// Use the front or rear camera (also the first start).
+    func switchTo(_ position: AVCaptureDevice.Position) async {
         let ok: Bool = await withCheckedContinuation { cont in
             queue.async {
-                if !self.configured {
-                    self.configured = self.configure()
-                }
-                if self.configured && !self.session.isRunning { self.session.startRunning() }
-                cont.resume(returning: self.configured)
+                let ok = self.configure(position)
+                if ok && !self.session.isRunning { self.session.startRunning() }
+                cont.resume(returning: ok)
             }
         }
         await MainActor.run { state = ok ? .running : .unavailable }
@@ -205,18 +308,20 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate, @unchecke
         queue.async { if self.session.isRunning { self.session.stopRunning() } }
     }
 
-    private func configure() -> Bool {
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
+    private func configure(_ position: AVCaptureDevice.Position) -> Bool {
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
               let input = try? AVCaptureDeviceInput(device: device) else { return false }
         session.beginConfiguration()
+        defer { session.commitConfiguration() }
         session.sessionPreset = .photo
-        guard session.canAddInput(input), session.canAddOutput(output) else {
-            session.commitConfiguration()
-            return false
-        }
+        for old in session.inputs { session.removeInput(old) }
+        guard session.canAddInput(input) else { return false }
         session.addInput(input)
-        session.addOutput(output)
-        session.commitConfiguration()
+        if !session.outputs.contains(output) {
+            guard session.canAddOutput(output) else { return false }
+            session.addOutput(output)
+        }
+        self.position = position
         return true
     }
 
@@ -231,10 +336,10 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate, @unchecke
 
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         guard let data = photo.fileDataRepresentation(), let img = UIImage(data: data) else { return }
-        // Save what the preview showed (mirrored), so the ghost lines up next time.
         let upright = img.normalized()
-        let mirrored = upright.withHorizontallyFlippedOrientation().normalized()
-        DispatchQueue.main.async { self.completion?(mirrored) }
+        // The front preview is mirrored; save what it showed so the ghost lines up.
+        let result = position == .front ? upright.withHorizontallyFlippedOrientation().normalized() : upright
+        DispatchQueue.main.async { self.completion?(result) }
     }
 }
 

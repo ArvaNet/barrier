@@ -9,6 +9,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
     static let shared = NotificationService()
 
     static let routineCategory = "routine"
+    /// Body routine: "Skip today" instead of "Not tonight".
+    static let dayCategory = "routine-day"
     static let doneAction = "done"
     static let snoozeAction = "snooze"
     static let skipAction = "skip"
@@ -23,7 +25,9 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
         let snooze = UNNotificationAction(identifier: Self.snoozeAction, title: "In 30 minutes", options: [], icon: UNNotificationActionIcon(systemImageName: "clock"))
         let skip = UNNotificationAction(identifier: Self.skipAction, title: "Not tonight", options: [], icon: UNNotificationActionIcon(systemImageName: "moon.zzz"))
         let routine = UNNotificationCategory(identifier: Self.routineCategory, actions: [done, snooze, skip], intentIdentifiers: [], options: [])
-        center.setNotificationCategories([routine])
+        let skipDay = UNNotificationAction(identifier: Self.skipAction, title: "Skip today", options: [], icon: UNNotificationActionIcon(systemImageName: "forward"))
+        let day = UNNotificationCategory(identifier: Self.dayCategory, actions: [done, snooze, skipDay], intentIdentifiers: [], options: [])
+        center.setNotificationCategories([routine, day])
     }
 
     func status() async -> UNAuthorizationStatus {
@@ -78,7 +82,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
         content.threadIdentifier = r.slot?.rawValue ?? r.kind.rawValue
         content.interruptionLevel = r.kind == .keepAlive ? .passive : .active
         content.relevanceScore = r.kind == .main ? 1 : 0.5
-        if r.actionable { content.categoryIdentifier = Self.routineCategory }
+        if r.actionable { content.categoryIdentifier = r.slot == .body ? Self.dayCategory : Self.routineCategory }
         var info: [String: Any] = ["link": r.link, "kind": r.kind.rawValue]
         if let s = r.slot { info["slot"] = s.rawValue }
         if let d = r.day { info["day"] = d.iso }

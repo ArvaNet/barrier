@@ -13,7 +13,7 @@ struct OnboardingView: View {
     @State private var followUpWith = ""
     @State private var askingPermission = false
 
-    private let pages = 6
+    private let pages = 7
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,7 +37,8 @@ struct OnboardingView: View {
                 case 1: templates
                 case 2: slotPage(.pm)
                 case 3: slotPage(.am)
-                case 4: details
+                case 4: slotPage(.body)
+                case 5: details
                 default: reminders
                 }
             }
@@ -139,15 +140,29 @@ struct OnboardingView: View {
         }
     }
 
+    private func pageTitle(_ slot: Slot) -> String {
+        switch slot {
+        case .pm: return "Your evening"
+        case .am: return "Your morning"
+        case .body: return "Back or body?"
+        }
+    }
+
+    private func pageText(_ slot: Slot) -> String {
+        switch slot {
+        case .pm: return "Add what you use at night, in order. Tap a step to set how often, the amount, and your dermatologist’s exact words."
+        case .am: return "Same for the morning. Sunscreen usually goes last."
+        case .body: return "Got something for your back, chest or body too, like a lotion after the shower? Turn this on and it gets its own reminder and log. Otherwise, skip."
+        }
+    }
+
     private func slotPage(_ slot: Slot) -> some View {
         VStack(spacing: 0) {
             List {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(slot == .pm ? "Your evening" : "Your morning").font(.barrierTitle).foregroundStyle(Palette.ink)
-                        Text(slot == .pm
-                             ? "Add what you use at night, in order. Tap a step to set how often, the amount, and your dermatologist’s exact words."
-                             : "Same for the morning. Sunscreen usually goes last.")
+                        Text(pageTitle(slot)).font(.barrierTitle).foregroundStyle(Palette.ink)
+                        Text(pageText(slot))
                             .font(.subheadline).foregroundStyle(Palette.ink2)
                     }
                     .listRowBackground(Color.clear)
@@ -225,6 +240,10 @@ struct OnboardingView: View {
                 }
                 if am.enabled && !am.steps.isEmpty {
                     bullet("sun.max", "Mornings at \(am.time.formatted).")
+                }
+                if s.plan.body.enabled && !s.plan.body.steps.isEmpty {
+                    let b = s.plan.body
+                    bullet("figure.stand", "\(b.displayName): \((b.cue ?? "daily").lowercased()), around \(b.time.formatted).")
                 }
                 bullet("hand.tap", "Long-press a reminder: Done, In 30 minutes, or Not tonight.")
                 bullet("checkmark.seal", "Once it’s done, the nudges stop.")

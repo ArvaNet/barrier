@@ -80,14 +80,17 @@ public extension AppState {
         }
     }
 
-    mutating func checkIn(_ day: Day, feel: [Feeling], note: String? = nil) {
-        checkins.removeAll { $0.day == day }
+    /// One check-in per day and area; an empty one removes it.
+    mutating func checkIn(_ day: Day, feel: [Feeling], note: String? = nil, area: Area = .face) {
+        checkins.removeAll { $0.day == day && $0.place == area }
         if feel.isEmpty && (note ?? "").isEmpty { return }
-        checkins.append(CheckIn(day: day, feel: feel, note: note?.isEmpty == true ? nil : note))
-        checkins.sort { $0.day < $1.day }
+        checkins.append(CheckIn(day: day, feel: feel, note: note?.isEmpty == true ? nil : note, area: area))
+        checkins.sort { $0.day == $1.day ? $0.place.rawValue > $1.place.rawValue : $0.day < $1.day }
     }
 
-    func checkIn(on day: Day) -> CheckIn? { checkins.first { $0.day == day } }
+    func checkIn(on day: Day, area: Area = .face) -> CheckIn? {
+        checkins.first { $0.day == day && $0.place == area }
+    }
 
     mutating func addPause(from: Day, to: Day, reason: PauseReason) {
         pauses.append(Pause(from: min(from, to), to: max(from, to), reason: reason))
@@ -110,13 +113,22 @@ public extension AppState {
     /// Remove a product and every step that uses it.
     mutating func removeProduct(_ id: String) {
         products.removeAll { $0.id == id }
-        plan.am.steps.removeAll { $0.productId == id }
-        plan.pm.steps.removeAll { $0.productId == id }
+        for slot in Slot.allCases { plan[slot].steps.removeAll { $0.productId == id } }
+    }
+
+    /// Products in the face routines (journey notes and tips are about the face).
+    var faceProductIDs: Set<String> {
+        Set((plan.am.steps + plan.pm.steps).map(\.productId))
+    }
+
+    /// Products used by any routine (face or body).
+    var usedProductIDs: Set<String> {
+        Set(Slot.allCases.flatMap { plan[$0].steps.map(\.productId) })
     }
 
     /// Products no step uses any more.
     mutating func pruneOrphanProducts() {
-        let used = Set((plan.am.steps + plan.pm.steps).map(\.productId))
+        let used = usedProductIDs
         products.removeAll { !used.contains($0.id) }
     }
 

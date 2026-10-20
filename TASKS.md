@@ -22,3 +22,19 @@ their iPhone from Xcode.
 - [ ] Set Team on both targets, run on iPhone (README → Run it on your iPhone)
 - [ ] Enter the real dermatologist routine; send a test reminder; take the "before" photo
 - [ ] Check once with 2+ photos that the report's photo page renders
+
+# Body routine (back, chest, body treatments)
+
+Finish line: a third routine ("Body", user-named, e.g. "Back") with its own time or
+"after shower" cue, reminders with Done, Today row, guided routine, log, back photos
+(rear camera + self-timer), face/back check-ins, report section. Tested, green CI with
+screenshots, pushed.
+
+- [ ] Core: Slot.body, Plan.body (old saves still load), SlotPlan name/cue, Area on photos + check-ins
+- [ ] Core: engine labels, reconcile, stats, reminders, recap, presets, demo data + tests
+- [ ] App: Today row, ritual, routine editor (third segment), onboarding page
+- [ ] App: camera face/back (rear camera, self-timer), photo areas, compare same-area
+- [ ] App: skin check-in face/back, progress dots + counts, report section
+- [ ] Notifications: body category (Skip today), intent case, widget unaffected
+- [ ] Fact-checked body tips (docs/body-facts.md)
+- [ ] CI green + screenshots reviewed, review pass, pushed, vault note

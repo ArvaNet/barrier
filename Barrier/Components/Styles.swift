@@ -297,3 +297,57 @@ extension View {
         environment(model).tint(Palette.accent)
     }
 }
+
+// MARK: - Routine names and symbols
+
+extension Slot {
+    /// Outline symbol for rows.
+    var symbol: String {
+        switch self {
+        case .am: return "sun.max"
+        case .pm: return "moon"
+        case .body: return "figure.stand"
+        }
+    }
+
+    /// Filled symbol for the big card.
+    var fillSymbol: String {
+        switch self {
+        case .am: return "sun.max.fill"
+        case .pm: return "moon.fill"
+        case .body: return "figure.stand"
+        }
+    }
+
+    /// "Tonight", "This morning", or the body routine's cue ("After shower").
+    func when(_ sp: SlotPlan) -> String {
+        switch self {
+        case .am: return "This morning"
+        case .pm: return "Tonight"
+        case .body: return (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
+        }
+    }
+
+    /// "Not tonight", "Not this morning", "Not today".
+    var notNow: String {
+        switch self {
+        case .am: return "Not this morning"
+        case .pm: return "Not tonight"
+        case .body: return "Not today"
+        }
+    }
+
+    /// The routine's name in the app ("Evening", "Morning", "Back").
+    func name(_ plan: Plan) -> String {
+        self == .body ? plan.body.displayName : title
+    }
+
+    /// Whether this routine's screens wear the dusk look.
+    func isDusk(_ sp: SlotPlan) -> Bool {
+        switch self {
+        case .pm: return true
+        case .am: return false
+        case .body: return sp.time.hour >= 17 || sp.time.hour < dayRolloverHour
+        }
+    }
+}

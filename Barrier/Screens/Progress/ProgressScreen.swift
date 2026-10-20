@@ -12,6 +12,8 @@ struct ProgressScreen: View {
     @State private var compare: ComparePair?
     @State private var viewing: PhotoMeta?
     @State private var pickerItem: PhotosPickerItem?
+    /// Photo filter; nil = all areas.
+    @State private var photoArea: Area?
 
     var body: some View {
         let today = model.today
@@ -31,7 +33,7 @@ struct ProgressScreen: View {
         .sheet(item: $detailDay) { d in
             DayDetailSheet(day: d).barrier(model).presentationDetents([.medium, .large])
         }
-        .fullScreenCover(isPresented: $showCamera) { CameraScreen().barrier(model) }
+        .fullScreenCover(isPresented: $showCamera) { CameraScreen(initialArea: photoArea ?? .face).barrier(model) }
         .sheet(item: $compare) { pair in CompareView(pair: pair).barrier(model) }
         .sheet(item: $viewing) { photo in PhotoDetail(photo: photo).barrier(model) }
         .onChange(of: pickerItem) { _, item in importPhoto(item) }
@@ -59,6 +61,9 @@ struct ProgressScreen: View {
                 }
                 if stats.morningsDone > 0 {
                     Text("\(stats.morningsDone) mornings").font(.footnote).foregroundStyle(Palette.ink3)
+                }
+                if stats.bodyDone > 0 {
+                    Text("\(model.state.plan.body.displayName): \(stats.bodyDone) day\(stats.bodyDone == 1 ? "" : "s")").font(.footnote).foregroundStyle(Palette.ink3)
                 }
             }
         }
@@ -91,8 +96,10 @@ struct ProgressScreen: View {
         let from = max(first, model.state.plan.createdAt)
         let pm = from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .pm, from: from, to: min(end, today.adding(30)), today: today) : []
         let am = from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .am, from: from, to: min(end, today.adding(30)), today: today) : []
+        let body = model.state.plan.body.enabled && from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .body, from: from, to: min(end, today.adding(30)), today: today) : []
         let pmBy = Dictionary(pm.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let amBy = Dictionary(am.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
+        let bodyBy = Dictionary(body.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let cells: [Day?] = Array(repeating: nil, count: lead) + (0..<count).map { first.adding($0) }
         let rows: [[Day?]] = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0 + 7, cells.count)]) }
         let letters = ["M", "T", "W", "T", "F", "S", "S"]
@@ -116,7 +123,7 @@ struct ProgressScreen: View {
                     HStack(spacing: 2) {
                         ForEach(0..<7, id: \.self) { c in
                             if c < rows[r].count, let d = rows[r][c] {
-                                calendarCell(d, today: today, pm: pmBy[d], am: amBy[d])
+                                calendarCell(d, today: today, pm: pmBy[d], am: amBy[d], body: bodyBy[d])
                             } else {
                                 Color.clear.frame(maxWidth: .infinity, minHeight: 44)
                             }
@@ -127,6 +134,12 @@ struct ProgressScreen: View {
             HStack(spacing: 14) {
                 legend(filled: true, "Done")
                 legend(filled: false, "Planned")
+                if model.state.plan.body.enabled {
+                    HStack(spacing: 5) {
+                        Circle().fill(Hue.lilac.color).frame(width: 5, height: 5)
+                        Text(model.state.plan.body.displayName)
+                    }
+                }
                 Spacer()
             }
             .font(.caption)
@@ -135,7 +148,7 @@ struct ProgressScreen: View {
         .card()
     }
 
-    private func calendarCell(_ d: Day, today: Day, pm: Instance?, am: Instance?) -> some View {
+    private func calendarCell(_ d: Day, today: Day, pm: Instance?, am: Instance?, body: Instance?) -> some View {
         let isToday = d == today
         return Button {
             detailDay = d
@@ -148,6 +161,7 @@ struct ProgressScreen: View {
                 HStack(spacing: 3) {
                     dot(am, small: true)
                     dot(pm, small: false)
+                    if model.state.plan.body.enabled { dot(body, small: true) }
                 }
                 .frame(height: 9)
             }
@@ -159,7 +173,7 @@ struct ProgressScreen: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(d.long)\(pm?.isDone == true ? ", evening done" : "")\(am?.isDone == true ? ", morning done" : "")")
+        .accessibilityLabel("\(d.long)\(pm?.isDone == true ? ", evening done" : "")\(am?.isDone == true ? ", morning done" : "")\(body?.isDone == true ? ", \(model.state.plan.body.displayName.lowercased()) done" : "")")
     }
 
     @ViewBuilder
@@ -188,7 +202,8 @@ struct ProgressScreen: View {
     // MARK: Photos
 
     private var photosCard: some View {
-        let photos = model.state.photos.sorted { $0.at > $1.at }
+        let showAreas = model.state.plan.body.enabled || model.state.photos.contains { $0.place == .body }
+        let photos = model.state.photos.filter { photoArea == nil || $0.place == photoArea }.sorted { $0.at > $1.at }
         let cols = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -203,8 +218,20 @@ struct ProgressScreen: View {
                     .foregroundStyle(Palette.accent)
                 }
             }
+            if showAreas {
+                Picker("Area", selection: $photoArea) {
+                    Text("All").tag(Area?.none)
+                    Text("Face").tag(Area?.some(.face))
+                    Text(model.state.plan.body.displayName).tag(Area?.some(.body))
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: photoArea) { _, _ in
+                    selecting = false
+                    selected = []
+                }
+            }
             if selecting {
-                Text(selected.isEmpty ? "Pick two photos." : "Pick one more.").font(.footnote).foregroundStyle(Palette.ink3)
+                Text(selected.isEmpty ? "Pick two photos of the same area." : "Pick one more.").font(.footnote).foregroundStyle(Palette.ink3)
             }
             HStack(spacing: 10) {
                 Button {
@@ -224,7 +251,7 @@ struct ProgressScreen: View {
             } else {
                 LazyVGrid(columns: cols, spacing: 6) {
                     ForEach(photos) { ph in
-                        PhotoThumb(photo: ph, selected: selected.contains(ph.id))
+                        PhotoThumb(photo: ph, selected: selected.contains(ph.id), areaName: showAreas && photoArea == nil ? areaName(ph.place) : nil)
                             .onTapGesture { tapPhoto(ph) }
                     }
                 }
@@ -242,6 +269,11 @@ struct ProgressScreen: View {
             selected.remove(at: i)
             return
         }
+        // A face next to a back isn't a comparison.
+        if let first = selected.first, let other = model.state.photos.first(where: { $0.id == first }), other.place != ph.place {
+            model.show("Pick two \(areaName(other.place).lowercased()) photos.")
+            return
+        }
         selected.append(ph.id)
         if selected.count == 2 {
             let pair = model.state.photos.filter { selected.contains($0.id) }.sorted { $0.at < $1.at }
@@ -255,7 +287,7 @@ struct ProgressScreen: View {
         guard let item else { return }
         Task {
             if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) {
-                let meta = PhotoMeta(day: model.today)
+                let meta = PhotoMeta(day: model.today, area: photoArea ?? .face)
                 do {
                     try model.photos.save(img, id: meta.id)
                     model.update { $0.photos.append(meta) }
@@ -268,6 +300,10 @@ struct ProgressScreen: View {
         }
     }
 
+    private func areaName(_ a: Area) -> String {
+        a == .face ? "Face" : model.state.plan.body.displayName
+    }
+
     // MARK: Skin log
 
     private func skinLog(_ today: Day) -> some View {
@@ -278,11 +314,11 @@ struct ProgressScreen: View {
                 Text("Check in from Today. A tap a day builds a record your dermatologist can actually use.")
                     .font(.footnote).foregroundStyle(Palette.ink3)
             } else {
-                ForEach(recent.prefix(8), id: \.day) { c in
+                ForEach(recent.prefix(10), id: \.self) { c in
                     HStack(alignment: .firstTextBaseline) {
                         Text(c.day.short).font(.subheadline.monospacedDigit()).foregroundStyle(Palette.ink3).frame(width: 64, alignment: .leading)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(c.feel.map(\.label).joined(separator: ", "))
+                            Text((c.place == .body ? "\(areaName(.body)): " : "") + c.feel.map(\.label).joined(separator: ", "))
                                 .font(.subheadline.weight(c.feel.contains(where: \.isIrritation) ? .semibold : .regular))
                                 .foregroundStyle(c.feel.contains(where: \.isIrritation) ? Palette.danger : Palette.ink)
                             if let n = c.note { Text(n).font(.footnote).foregroundStyle(Palette.ink3) }
@@ -331,6 +367,8 @@ struct PhotoThumb: View {
     @Environment(AppModel.self) private var model
     var photo: PhotoMeta
     var selected = false
+    /// Shown when the grid mixes face and body photos.
+    var areaName: String?
     @State private var image: UIImage?
 
     var body: some View {
@@ -339,7 +377,7 @@ struct PhotoThumb: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             }
-            Text(photo.day.short)
+            Text(areaName.map { "\($0) · \(photo.day.short)" } ?? photo.day.short)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 6)

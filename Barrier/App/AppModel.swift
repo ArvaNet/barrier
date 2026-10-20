@@ -187,10 +187,21 @@ final class AppModel {
 
     /// Which slot leads Today: the morning until 2 p.m. if it's still open.
     var leadSlot: Slot {
+        let active = state.plan.activeSlots
+        let hasAM = active.contains(.am)
+        let hasPM = active.contains(.pm)
+        // Only a body routine set up: it leads.
+        if !hasAM && !hasPM { return active.contains(.body) ? .body : .pm }
+        if !hasPM { return .am }
         let h = Calendar.current.component(.hour, from: now)
-        let amOpen = state.plan.am.enabled && !state.plan.am.steps.isEmpty && !instance(.am).isResolved
-        if !state.plan.pm.enabled || state.plan.pm.steps.isEmpty { return .am }
+        let amOpen = hasAM && !instance(.am).isResolved
         return (h >= dayRolloverHour && h < 14 && amOpen) ? .am : .pm
+    }
+
+    /// The other routines, shown as rows under the lead card, earliest first.
+    var otherSlots: [Slot] {
+        let lead = leadSlot
+        return state.plan.activeSlots.filter { $0 != lead }.sorted { state.plan[$0].time < state.plan[$1].time }
     }
 
     // MARK: Actions
@@ -202,7 +213,7 @@ final class AppModel {
         endRitual(inst.slot, inst.day)
         Haptics.success(state.settings.haptics)
         if !quiet {
-            show(inst.slot == .pm ? "\(inst.label) done." : "Morning done.") { [weak self] in
+            show(inst.slot == .am ? "Morning done." : "\(inst.label) done.") { [weak self] in
                 self?.update { $0.restoreEntry(inst.day, inst.slot, to: prev) }
             }
         }
@@ -213,7 +224,7 @@ final class AppModel {
         update { $0.markSkipped(inst) }
         NotificationService.shared.clearDelivered(day: inst.day, slot: inst.slot)
         endRitual(inst.slot, inst.day)
-        let hold = inst.hasActives ? " Tomorrow picks up where you left off." : ""
+        let hold = inst.hasActives && inst.cycleLen > 1 ? " Next time picks up where you left off." : ""
         show("Skipped.\(hold)") { [weak self] in self?.update { $0.restoreEntry(inst.day, inst.slot, to: prev) } }
     }
 
@@ -232,7 +243,9 @@ final class AppModel {
 
     func setRecovery(_ day: Day, _ slot: Slot, on: Bool) {
         update { $0.setRecovery(day, slot, on: on) }
-        if on { show("Tonight is a recovery night. Actives are off.") }
+        if on {
+            show(slot == .body ? "\(state.plan.body.displayName): gentle day, treatment left out." : "Tonight is a recovery night. Actives are off.")
+        }
     }
 
     func show(_ text: String, undo: (() -> Void)? = nil) {

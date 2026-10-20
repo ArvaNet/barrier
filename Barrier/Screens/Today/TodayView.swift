@@ -10,7 +10,6 @@ struct TodayView: View {
     var body: some View {
         let today = model.today
         let lead = model.leadSlot
-        let other: Slot = lead == .pm ? .am : .pm
         NavigationStack {
             Page {
                 header(today)
@@ -21,8 +20,8 @@ struct TodayView: View {
                     PauseBanner(pause: pause)
                 }
                 SlotHero(slot: lead, big: true, notTonight: $notTonight)
-                if model.state.plan[other].enabled && !model.state.plan[other].steps.isEmpty {
-                    SlotHero(slot: other, big: false, notTonight: $notTonight)
+                ForEach(model.otherSlots) { slot in
+                    SlotHero(slot: slot, big: false, notTonight: $notTonight)
                 }
                 WeekCard(onTap: { detailDay = $0 })
                 if let m = Milestones.unseen(model.state, today: today) {
@@ -91,7 +90,7 @@ struct SlotHero: View {
     var body: some View {
         let inst = model.instance(slot)
         if big {
-            if slot == .pm {
+            if slot.isDusk(model.state.plan[slot]) {
                 content(inst).stage()
             } else {
                 content(inst).card(padding: 20)
@@ -108,7 +107,7 @@ struct SlotHero: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Kicker("\(slot == .pm ? "Tonight" : "This morning") · \(sp.time.formatted)", color: .secondary)
+                    Kicker("\(slot.when(sp)) · \(sp.time.formatted)", color: .secondary)
                     Text(inst.label)
                         .font(.barrierDisplay)
                         .foregroundStyle(.primary)
@@ -141,7 +140,7 @@ struct SlotHero: View {
         } else if inst.rest == .inserted {
             parts.append("Actives off so your skin can settle.")
         } else if inst.cycleLen > 1 {
-            parts.append("\(slot == .pm ? "Night" : "Morning") \(inst.pos + 1) of \(inst.cycleLen)")
+            parts.append("\(slot.word.capitalized) \(inst.pos + 1) of \(inst.cycleLen)")
         }
         if inst.easing, let ease = model.state.plan[slot].easeIn {
             let week = ease.start.days(to: inst.day) / 7 + 1
@@ -169,7 +168,7 @@ struct SlotHero: View {
             ZStack {
                 Circle().fill(inst.hue.color.opacity(0.35)).frame(width: 64, height: 64).blur(radius: 14)
                 Circle().fill(inst.hue.color).frame(width: 26, height: 26)
-                Image(systemName: slot == .pm ? "moon.fill" : "sun.max.fill")
+                Image(systemName: slot.fillSymbol)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color(hex: 0x13201C).opacity(0.75))
             }
@@ -250,7 +249,7 @@ struct SlotHero: View {
             } label: {
                 Label("Start", systemImage: "play.fill").labelStyle(.titleOnly)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: slot == .pm ? Palette.stageAccent : Palette.accent))
+            .buttonStyle(PrimaryButtonStyle(fill: slot.isDusk(model.state.plan[slot]) ? Palette.stageAccent : Palette.accent))
             .disabled(inst.steps.isEmpty)
 
             Button("Done") { model.markDone(inst) }
@@ -258,7 +257,7 @@ struct SlotHero: View {
                 .disabled(inst.steps.isEmpty)
 
             Menu {
-                Button { notTonight = inst } label: { Label("Not tonight…", systemImage: "moon.zzz") }
+                Button { notTonight = inst } label: { Label("\(slot.notNow)…", systemImage: "moon.zzz") }
                 if inst.rest == .inserted {
                     Button { model.setRecovery(inst.day, slot, on: false) } label: { Label("Back to the normal plan", systemImage: "arrow.uturn.backward") }
                 }
@@ -324,12 +323,12 @@ struct SlotHero: View {
         return HStack(spacing: 14) {
             ZStack {
                 Circle().fill(inst.hue.color.opacity(inst.isDone ? 1 : 0.25)).frame(width: 36, height: 36)
-                Image(systemName: inst.isDone ? "checkmark" : (slot == .pm ? "moon" : "sun.max"))
+                Image(systemName: inst.isDone ? "checkmark" : slot.symbol)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(inst.isDone ? Color(hex: 0x13201C) : Palette.hueInk(inst.hue))
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(slot == .pm ? "Tonight · \(inst.label)" : (inst.label == "Morning routine" ? "This morning" : "This morning · \(inst.label)"))
+                Text(compactTitle(inst))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 Text(compactStatus(inst, time: sp.time)).font(.footnote).foregroundStyle(Palette.ink3)
@@ -351,11 +350,24 @@ struct SlotHero: View {
         .card(padding: 14)
     }
 
+    private func compactTitle(_ inst: Instance) -> String {
+        switch slot {
+        case .pm: return "Tonight · \(inst.label)"
+        case .am: return inst.label == "Morning routine" ? "This morning" : "This morning · \(inst.label)"
+        case .body: return inst.label
+        }
+    }
+
     private func compactStatus(_ inst: Instance, time: ClockTime) -> String {
         switch inst.status {
         case .done: return doneTime(inst)
         case .skipped: return "Skipped"
-        default: return "\(inst.steps.count) step\(inst.steps.count == 1 ? "" : "s") · \(time.formatted)"
+        default:
+            let steps = "\(inst.steps.count) step\(inst.steps.count == 1 ? "" : "s")"
+            if slot == .body, let cue = model.state.plan.body.cue, !cue.isEmpty {
+                return "\(steps) · \(cue.lowercased()) · \(time.formatted)"
+            }
+            return "\(steps) · \(time.formatted)"
         }
     }
 }

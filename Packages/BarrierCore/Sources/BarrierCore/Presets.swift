@@ -37,12 +37,25 @@ public enum Presets {
     public static func quick(_ key: String) -> QuickProduct? { quickProducts.first { $0.key == key } }
 
     /// Suggested quick-adds for a slot, minus what's already in it.
+    /// Common things prescribed or recommended for the back, chest or body.
+    public static let bodyProducts: [QuickProduct] = [
+        .init(key: "bodyBpo", name: "Benzoyl peroxide wash", kind: .treatment, slot: .body, how: "In the shower: leave on a few minutes, then rinse. Follow your label."),
+        .init(key: "bodyClinda", name: "Clindamycin lotion", kind: .treatment, slot: .body, amount: "Thin layer on affected areas"),
+        .init(key: "bodyRx", name: "Prescription cream", kind: .treatment, slot: .body, amount: "As prescribed"),
+        .init(key: "bodyAntifungal", name: "Antifungal cream", kind: .treatment, slot: .body, amount: "As prescribed"),
+        .init(key: "bodyWash", name: "Gentle body wash", kind: .cleanser, slot: .body),
+        .init(key: "bodyMoist", name: "Body moisturizer", kind: .moisturizer, slot: .body),
+    ]
+
+    /// Suggested quick-adds for a routine, minus what's already in it.
     public static func suggestions(for slot: Slot, existing: [Product]) -> [QuickProduct] {
         let names = Set(existing.map { $0.name.lowercased() })
-        return quickProducts.filter { q in
-            (q.slot == nil || q.slot == slot) && !names.contains(q.name.lowercased())
-        }
+        let pool = slot == .body ? bodyProducts : quickProducts.filter { $0.slot == nil || $0.slot == slot }
+        return pool.filter { !names.contains($0.name.lowercased()) }
     }
+
+    /// Cues for the body routine.
+    public static let bodyCues = ["After shower", "Before bed", "After the gym"]
 
     public static func emptySlot(_ time: ClockTime, today: Day, enabled: Bool = true) -> SlotPlan {
         SlotPlan(enabled: enabled, time: time, length: 1, steps: [], anchor: Anchor(day: today, pos: 0))
@@ -142,7 +155,9 @@ public enum Presets {
                 break
             }
         }
-        s.products = products
+        // Templates are for the face: keep the body routine and its products.
+        let bodyIDs = Set(state.plan.body.steps.map(\.productId))
+        s.products = products + state.products.filter { bodyIDs.contains($0.id) }
         s.plan.am = am
         s.plan.pm = pm
         s.plan.createdAt = today
@@ -162,9 +177,18 @@ public enum Presets {
         s.plan.am.steps = insert(azeStep, kind: .treatment, into: s.plan.am.steps, kinds: kinds)
         s.plan.followUp = FollowUp(day: today.adding(19), with: "Dr. Petrauskienė")
         s.plan.ifIrritated = "Skip tretinoin for 2 nights, moisturizer only, then restart every other night."
+        // A back routine: a prescription lotion every evening after the shower.
+        let back = Product(name: "Clindamycin lotion", kind: .treatment, note: "Thin layer on the upper back, after the shower, once a day.", from: start.adding(9))
+        s.products.append(back)
+        s.plan.body = SlotPlan(enabled: true, time: ClockTime(20, 30), length: 1,
+                               steps: [Step(productId: back.id, amount: "Thin layer on affected areas", how: "On clean, dry skin")],
+                               anchor: Anchor(day: start, pos: 0), name: "Back", cue: "After shower")
         s.onboarded = true
         for i in 0..<23 {
             let d = start.adding(i)
+            if i >= 9 && i % 5 != 2 {
+                s.log.append(Entry(day: d, slot: .body, status: .done, label: "Back", hue: .lilac, at: d.date().addingTimeInterval(20.5 * 3600)))
+            }
             if i == 9 || i == 16 { continue } // two forgotten nights
             let inst = Engine.instance(s, slot: .pm, on: d, today: today)
             s.log.append(Entry(day: d, slot: .pm, status: .done, pos: inst.pos, label: inst.label, hue: inst.hue, at: d.date().addingTimeInterval(22 * 3600)))
@@ -178,7 +202,9 @@ public enum Presets {
             CheckIn(day: start.adding(13), feel: [.dry]),
             CheckIn(day: start.adding(19), feel: [.calm]),
             CheckIn(day: start.adding(22), feel: [.calm, .breakout], note: "Two small spots on the chin"),
-        ]
+            CheckIn(day: start.adding(12), feel: [.breakout], note: "Upper back, a few new spots", area: .body),
+            CheckIn(day: start.adding(20), feel: [.calm], area: .body),
+        ].sorted { $0.day < $1.day }
         s.questions = [
             Question(text: "Can I add vitamin C in the morning?"),
             Question(text: "Is the dryness around my nose normal?"),

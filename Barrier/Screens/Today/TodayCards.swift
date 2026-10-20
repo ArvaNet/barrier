@@ -97,19 +97,31 @@ struct WeekCard: View {
 struct SkinCheckCard: View {
     @Environment(AppModel.self) private var model
     @State private var editing = false
+    @State private var area: Area = .face
 
     var body: some View {
         let today = model.today
-        let existing = model.state.checkIn(on: today)
+        let hasBody = model.state.plan.body.enabled
+        let place: Area = hasBody ? area : .face
+        let existing = model.state.checkIn(on: today, area: place)
         let selected = Set(existing?.feel ?? [])
         let irritated = selected.contains(where: \.isIrritation)
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("How’s your skin today?").font(.barrierH3).foregroundStyle(Palette.ink)
+                Text(place == .face ? "How’s your skin today?" : "How’s your \(model.state.plan.body.displayName.lowercased()) today?")
+                    .font(.barrierH3).foregroundStyle(Palette.ink)
                 Spacer()
                 if existing != nil && !editing {
                     Button("Edit") { editing = true }.font(.subheadline.weight(.semibold)).foregroundStyle(Palette.accent)
                 }
+            }
+            if hasBody {
+                Picker("Area", selection: $area) {
+                    Text("Face").tag(Area.face)
+                    Text(model.state.plan.body.displayName).tag(Area.body)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: area) { _, _ in editing = false }
             }
             if existing == nil || editing {
                 FlowLayout(spacing: 8) {
@@ -120,7 +132,7 @@ struct SkinCheckCard: View {
                             if f == .calm && set.contains(.calm) { set = [.calm] } else if f != .calm { set.remove(.calm) }
                             let ordered = Feeling.allCases.filter { set.contains($0) }
                             if existing == nil { editing = true }
-                            model.update { $0.checkIn(today, feel: ordered, note: existing?.note) }
+                            model.update { $0.checkIn(today, feel: ordered, note: existing?.note, area: place) }
                             Haptics.tap(model.state.settings.haptics)
                         }
                     }
@@ -135,7 +147,7 @@ struct SkinCheckCard: View {
                     .foregroundStyle(Palette.ink2)
             }
             if irritated {
-                IrritationHelp()
+                IrritationHelp(slot: place == .body ? .body : .pm)
             }
         }
         .card()
@@ -144,11 +156,14 @@ struct SkinCheckCard: View {
 
 struct IrritationHelp: View {
     @Environment(AppModel.self) private var model
+    /// The routine to make gentle: tonight's face routine, or the body routine.
+    var slot: Slot = .pm
 
     var body: some View {
-        let tonight = model.instance(.pm)
+        let inst = model.instance(slot)
+        let isBody = slot == .body
         VStack(alignment: .leading, spacing: 10) {
-            if let derm = model.state.plan.ifIrritated, !derm.isEmpty {
+            if !isBody, let derm = model.state.plan.ifIrritated, !derm.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Kicker("Your dermatologist said")
                     Text(derm).font(.subheadline).foregroundStyle(Palette.ink)
@@ -157,13 +172,13 @@ struct IrritationHelp: View {
                 Text(Guidance.irritation.body).font(.footnote).foregroundStyle(Palette.ink2)
                 SourcesView(sources: Guidance.irritation.sources)
             }
-            if tonight.hasActives && !tonight.isResolved && tonight.rest == nil {
-                Button("Make tonight a recovery night") {
-                    model.setRecovery(model.today, .pm, on: true)
+            if inst.hasActives && !inst.isResolved && inst.rest == nil {
+                Button(isBody ? "Make today’s \(model.state.plan.body.displayName.lowercased()) gentle" : "Make tonight a recovery night") {
+                    model.setRecovery(model.today, slot, on: true)
                 }
                 .buttonStyle(PrimaryButtonStyle())
-            } else if tonight.rest == .inserted {
-                Label("Tonight is already a recovery night.", systemImage: "leaf")
+            } else if inst.rest == .inserted {
+                Label(isBody ? "Today is already a gentle day." : "Tonight is already a recovery night.", systemImage: "leaf")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Palette.ok)
             }
@@ -205,7 +220,7 @@ struct JourneyCard: View {
     }
 
     private var current: (Product, Int, Note)? {
-        let used = Set((model.state.plan.pm.steps + model.state.plan.am.steps).map(\.productId))
+        let used = model.state.faceProductIDs
         let candidates = model.state.products
             .filter { used.contains($0.id) && ($0.kind == .retinoid || $0.kind == .treatment) && $0.from != nil }
             .sorted { a, b in a.kind == .retinoid && b.kind != .retinoid }
@@ -351,11 +366,18 @@ struct TipCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let used = Set((model.state.plan.pm.steps + model.state.plan.am.steps).map(\.productId))
+        let used = model.state.faceProductIDs
         let kinds = Set(model.state.products.filter { used.contains($0.id) }.map(\.kind))
-        let tip = Guidance.tip(for: kinds, dayNumber: model.today.ordinal)
+        let bp = model.state.plan.body
+        let bodyOn = bp.enabled && !bp.steps.isEmpty
+        // With a body routine, every other day's tip is about it.
+        let useBody = bodyOn && model.today.ordinal % 2 == 1
+        let hasBpo = bp.steps.contains { model.product($0.productId)?.name.lowercased().contains("benzoyl") == true }
+        let tip = useBody
+            ? Guidance.bodyTip(hasBpo: hasBpo, dayNumber: model.today.ordinal / 2)
+            : Guidance.tip(for: kinds, dayNumber: model.today.ordinal)
         VStack(alignment: .leading, spacing: 6) {
-            Kicker("Good to know")
+            Kicker(useBody ? "Good to know · \(bp.displayName)" : "Good to know")
             Text(tip.text).font(.subheadline).foregroundStyle(Palette.ink2).fixedSize(horizontal: false, vertical: true)
             if let s = tip.source { SourcesView(sources: [s]) }
         }

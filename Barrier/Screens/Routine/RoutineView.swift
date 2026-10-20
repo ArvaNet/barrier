@@ -22,6 +22,7 @@ struct RoutineView: View {
                     Picker("Routine", selection: $slot) {
                         Text("Evening").tag(Slot.pm)
                         Text("Morning").tag(Slot.am)
+                        Text(model.state.plan.body.displayName).tag(Slot.body)
                     }
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
@@ -40,6 +41,10 @@ struct RoutineView: View {
             .scrollContentBackground(.hidden)
             .background(Palette.bg.ignoresSafeArea())
             .navigationTitle("Routine")
+            .onAppear {
+                // Screenshot hook: `-screen routine-body`.
+                if model.launch.screen == "routine-body" { slot = .body }
+            }
             .toolbar { EditButton() }
             .sheet(item: $editing) { t in
                 StepEditorSheet(target: t).barrier(model)
@@ -84,16 +89,20 @@ struct SlotEditorSections: View {
         let sp = model.state.plan[slot]
         let products = model.products
         if showTime {
-            Section {
-                Toggle(slot == .pm ? "Evening routine" : "Morning routine", isOn: Binding(
-                    get: { sp.enabled },
-                    set: { v in model.update { $0.plan[slot].enabled = v } }
-                ))
-                if sp.enabled {
-                    DatePicker("Remind me at", selection: Binding(
-                        get: { sp.time.date },
-                        set: { d in model.update { $0.plan[slot].time = ClockTime(date: d) } }
-                    ), displayedComponents: .hourAndMinute)
+            if slot == .body {
+                BodyHeaderSection(sp: sp)
+            } else {
+                Section {
+                    Toggle(slot == .pm ? "Evening routine" : "Morning routine", isOn: Binding(
+                        get: { sp.enabled },
+                        set: { v in model.update { $0.plan[slot].enabled = v } }
+                    ))
+                    if sp.enabled {
+                        DatePicker("Remind me at", selection: Binding(
+                            get: { sp.time.date },
+                            set: { d in model.update { $0.plan[slot].time = ClockTime(date: d) } }
+                        ), displayedComponents: .hourAndMinute)
+                    }
                 }
             }
         }
@@ -386,6 +395,51 @@ struct PausesSection: View {
             Text("Breaks")
         } footer: {
             Text("Traveling, a procedure, or skin that needs a rest. Reminders switch to the basics and the rotation waits.")
+        }
+    }
+}
+
+// MARK: - Body routine header
+
+/// Name, cue ("After shower") and time for the body routine.
+struct BodyHeaderSection: View {
+    @Environment(AppModel.self) private var model
+    var sp: SlotPlan
+
+    var body: some View {
+        Section {
+            Toggle("\(sp.displayName) routine", isOn: Binding(
+                get: { sp.enabled },
+                set: { v in model.update { $0.plan.body.enabled = v } }
+            ))
+            if sp.enabled {
+                HStack {
+                    Text("For")
+                    TextField("Back", text: Binding(
+                        get: { sp.name ?? "" },
+                        set: { v in model.update { $0.plan.body.name = v } }
+                    ))
+                    .multilineTextAlignment(.trailing)
+                    .textInputAutocapitalization(.sentences)
+                }
+                Picker("When", selection: Binding(
+                    get: { sp.cue ?? "" },
+                    set: { v in model.update { $0.plan.body.cue = v.isEmpty ? nil : v } }
+                )) {
+                    Text("At a set time").tag("")
+                    ForEach(Presets.bodyCues, id: \.self) { Text($0).tag($0) }
+                }
+                DatePicker((sp.cue ?? "").isEmpty ? "Remind me at" : "Usually around", selection: Binding(
+                    get: { sp.time.date },
+                    set: { d in model.update { $0.plan.body.time = ClockTime(date: d) } }
+                ), displayedComponents: .hourAndMinute)
+            }
+        } header: {
+            Text("Body routine")
+        } footer: {
+            Text(sp.enabled
+                 ? "Its own reminder and log, and it never changes your face routine. The reminder reads “\(sp.cue ?? sp.displayName)\(sp.cue == nil ? "" : ": " + sp.displayName.lowercased())”."
+                 : "For a treatment on your back, chest or body, like a lotion after the shower.")
         }
     }
 }

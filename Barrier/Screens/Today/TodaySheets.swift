@@ -13,12 +13,14 @@ struct NotTonightSheet: View {
         NavigationStack {
             List {
                 Section {
-                    option("Skip tonight", detail: inst.hasActives ? "Tomorrow picks up \(inst.label.lowercased()) where you left off." : "Rest nights still count.", symbol: "moon.zzz") {
+                    option(skipTitle, detail: skipDetail, symbol: "moon.zzz") {
                         model.markSkipped(inst)
                         dismiss()
                     }
-                    if inst.slot == .pm && inst.hasActives && inst.rest == nil {
-                        option("Skin’s irritated: recovery night", detail: "Drops the actives tonight. Your rotation waits.", symbol: "leaf") {
+                    if inst.slot != .am && inst.hasActives && inst.rest == nil {
+                        option(inst.slot == .body ? "Skin’s irritated: gentle day" : "Skin’s irritated: recovery night",
+                               detail: inst.slot == .body ? "Leaves out the treatment today. Your face routine isn’t affected." : "Drops the actives tonight. Your rotation waits.",
+                               symbol: "leaf") {
                             model.setRecovery(inst.day, inst.slot, on: true)
                             dismiss()
                         }
@@ -27,13 +29,13 @@ struct NotTonightSheet: View {
                         showPause = true
                     }
                 }
-                if let derm = model.state.plan.ifIrritated, !derm.isEmpty {
+                if inst.slot != .body, let derm = model.state.plan.ifIrritated, !derm.isEmpty {
                     Section("Your dermatologist said") {
                         Text(derm).font(.subheadline)
                     }
                 }
             }
-            .navigationTitle(inst.slot == .pm ? "Not tonight?" : "Not this morning?")
+            .navigationTitle("\(inst.slot.notNow)?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
@@ -42,6 +44,19 @@ struct NotTonightSheet: View {
                 PauseSheet { dismiss() }.barrier(model).presentationDetents([.medium])
             }
         }
+    }
+
+    private var skipTitle: String {
+        switch inst.slot {
+        case .pm: return "Skip tonight"
+        case .am: return "Skip this morning"
+        case .body: return "Skip today"
+        }
+    }
+
+    private var skipDetail: String {
+        if inst.hasActives && inst.cycleLen > 1 { return "Next time picks up \(inst.label.lowercased()) where you left off." }
+        return inst.slot == .pm && !inst.hasActives ? "Rest nights still count." : "It’s logged as skipped. No streaks to lose."
     }
 
     private func option(_ title: String, detail: String, symbol: String, action: @escaping () -> Void) -> some View {
@@ -109,16 +124,18 @@ struct DayDetailSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach([Slot.pm, .am], id: \.self) { slot in
+                ForEach([Slot.pm, .am, .body], id: \.self) { slot in
                     let sp = model.state.plan[slot]
                     if sp.enabled && !sp.steps.isEmpty && day >= model.state.plan.createdAt || model.state.entry(day, slot) != nil {
                         section(slot)
                     }
                 }
-                if let c = model.state.checkIn(on: day) {
-                    Section("Skin") {
-                        Text(c.feel.map(\.label).joined(separator: ", "))
-                        if let n = c.note { Text(n).foregroundStyle(.secondary) }
+                ForEach(Area.allCases) { area in
+                    if let c = model.state.checkIn(on: day, area: area) {
+                        Section(area == .face ? "Skin" : "Skin · \(model.state.plan.body.displayName)") {
+                            Text(c.feel.map(\.label).joined(separator: ", "))
+                            if let n = c.note { Text(n).foregroundStyle(.secondary) }
+                        }
                     }
                 }
                 if model.state.photos.contains(where: { $0.day == day }) {
@@ -141,7 +158,7 @@ struct DayDetailSheet: View {
         Section {
             HStack(spacing: 10) {
                 HueDot(hue: inst.hue, size: 12, hollow: !inst.isDone)
-                Text(inst.label.isEmpty ? (slot == .pm ? "Evening" : "Morning") : inst.label).font(.headline)
+                Text(inst.label.isEmpty ? slot.name(model.state.plan) : inst.label).font(.headline)
                 Spacer()
                 Text(statusText(inst)).font(.subheadline).foregroundStyle(.secondary)
             }
@@ -161,7 +178,7 @@ struct DayDetailSheet: View {
                 }
             }
         } header: {
-            Text(slot == .pm ? "Evening" : "Morning")
+            Text(slot.name(model.state.plan))
         }
     }
 

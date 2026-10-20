@@ -54,7 +54,8 @@ struct RootView: View {
         guard !didLaunchRoute, let screen = model.launch.screen else { return }
         didLaunchRoute = true
         switch screen {
-        case "routine": model.tab = .routine
+        case "routine", "routine-body": model.tab = .routine
+        case "ritual-body": model.open(.ritual(.body, model.today))
         case "progress", "progress-bottom": model.tab = .progress
         case "derm": model.tab = .derm
         case "report": model.open(.report)

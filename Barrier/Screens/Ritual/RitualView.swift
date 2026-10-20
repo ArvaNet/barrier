@@ -29,7 +29,7 @@ struct RitualView: View {
 
     private var inst: Instance { model.instance(request.slot, on: request.day) }
     private var steps: [DueStep] { inst.steps }
-    private var isNight: Bool { request.slot == .pm }
+    private var isNight: Bool { request.slot.isDusk(model.state.plan[request.slot]) }
 
     var body: some View {
         ZStack {
@@ -297,7 +297,7 @@ struct RitualFinish: View {
                 .scaleEffect(turned ? 1 : 0.85)
             }
             VStack(spacing: 8) {
-                Text(inst.slot == .pm ? "\(inst.label) done." : "Morning done.")
+                Text(inst.slot == .am ? "Morning done." : "\(inst.label) done.")
                     .font(Typeface.display(32, weight: 430))
                     .multilineTextAlignment(.center)
                 if inst.slot == .pm {
@@ -319,7 +319,7 @@ struct RitualFinish: View {
                 .buttonStyle(SecondaryButtonStyle())
             }
             Button("Back to today", action: close)
-                .buttonStyle(PrimaryButtonStyle(fill: inst.slot == .pm ? Palette.stageAccent : Palette.accent))
+                .buttonStyle(PrimaryButtonStyle(fill: inst.slot.isDusk(model.state.plan[inst.slot]) ? Palette.stageAccent : Palette.accent))
                 .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity)

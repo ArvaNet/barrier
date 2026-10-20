@@ -3,11 +3,37 @@ import Foundation
 // The whole app state is plain Codable data saved as one JSON file. Every
 // decoder tolerates missing fields so older saves keep loading after updates.
 
+/// A routine: the face routines morning and evening, plus one body routine
+/// (back, chest, body) with its own time.
 public enum Slot: String, Codable, CaseIterable, Sendable, Identifiable {
-    case am, pm
+    case am, pm, body
     public var id: String { rawValue }
-    public var word: String { self == .pm ? "night" : "morning" }
-    public var title: String { self == .pm ? "Evening" : "Morning" }
+
+    /// The unit a rotation counts in: "every other night / morning / day".
+    public var word: String {
+        switch self {
+        case .am: return "morning"
+        case .pm: return "night"
+        case .body: return "day"
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .am: return "Morning"
+        case .pm: return "Evening"
+        case .body: return "Body"
+        }
+    }
+
+    /// Where on the body this routine is applied.
+    public var area: Area { self == .body ? .body : .face }
+}
+
+/// Face or body, for photos and skin check-ins.
+public enum Area: String, Codable, CaseIterable, Sendable, Identifiable {
+    case face, body
+    public var id: String { rawValue }
 }
 
 public enum ProductKind: String, Codable, CaseIterable, Sendable, Identifiable {
@@ -175,8 +201,13 @@ public struct SlotPlan: Codable, Hashable, Sendable {
     public var names: [String: String]?
     public var easeIn: EaseIn?
     public var anchor: Anchor
+    /// Body routine only: what it's for ("Back").
+    public var name: String?
+    /// Body routine only: a moment instead of a clock time ("After shower").
+    /// The reminder still uses `time` as the usual moment.
+    public var cue: String?
 
-    public init(enabled: Bool = true, time: ClockTime, length: Int = 1, steps: [Step] = [], names: [String: String]? = nil, easeIn: EaseIn? = nil, anchor: Anchor) {
+    public init(enabled: Bool = true, time: ClockTime, length: Int = 1, steps: [Step] = [], names: [String: String]? = nil, easeIn: EaseIn? = nil, anchor: Anchor, name: String? = nil, cue: String? = nil) {
         self.enabled = enabled
         self.time = time
         self.length = length
@@ -184,6 +215,14 @@ public struct SlotPlan: Codable, Hashable, Sendable {
         self.names = names
         self.easeIn = easeIn
         self.anchor = anchor
+        self.name = name
+        self.cue = cue
+    }
+
+    /// "Back", or "Body" when unnamed.
+    public var displayName: String {
+        let n = (name ?? "").trimmingCharacters(in: .whitespaces)
+        return n.isEmpty ? "Body" : n
     }
 }
 
@@ -200,26 +239,64 @@ public struct FollowUp: Codable, Hashable, Sendable {
 public struct Plan: Codable, Hashable, Sendable {
     public var am: SlotPlan
     public var pm: SlotPlan
+    /// Back, chest or body treatment. Off until set up.
+    public var body: SlotPlan
     public var followUp: FollowUp?
     /// What the dermatologist said to do if skin gets irritated.
     public var ifIrritated: String?
     public var dermNotes: String?
     public var createdAt: Day
 
-    public init(am: SlotPlan, pm: SlotPlan, followUp: FollowUp? = nil, ifIrritated: String? = nil, dermNotes: String? = nil, createdAt: Day) {
+    public init(am: SlotPlan, pm: SlotPlan, body: SlotPlan? = nil, followUp: FollowUp? = nil, ifIrritated: String? = nil, dermNotes: String? = nil, createdAt: Day) {
         self.am = am
         self.pm = pm
+        self.body = body ?? Plan.defaultBody(createdAt)
         self.followUp = followUp
         self.ifIrritated = ifIrritated
         self.dermNotes = dermNotes
         self.createdAt = createdAt
     }
 
+    public static func defaultBody(_ day: Day) -> SlotPlan {
+        SlotPlan(enabled: false, time: ClockTime(20, 30), length: 1, steps: [], anchor: Anchor(day: day, pos: 0), name: "Back")
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case am, pm, body, followUp, ifIrritated, dermNotes, createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        am = try c.decode(SlotPlan.self, forKey: .am)
+        pm = try c.decode(SlotPlan.self, forKey: .pm)
+        createdAt = try c.decode(Day.self, forKey: .createdAt)
+        // Saves from before the body routine existed have no "body" key.
+        body = (try? c.decodeIfPresent(SlotPlan.self, forKey: .body)) ?? Plan.defaultBody(createdAt)
+        followUp = try? c.decodeIfPresent(FollowUp.self, forKey: .followUp)
+        ifIrritated = try? c.decodeIfPresent(String.self, forKey: .ifIrritated)
+        dermNotes = try? c.decodeIfPresent(String.self, forKey: .dermNotes)
+    }
+
     public subscript(slot: Slot) -> SlotPlan {
-        get { slot == .am ? am : pm }
-        set {
-            if slot == .am { am = newValue } else { pm = newValue }
+        get {
+            switch slot {
+            case .am: return am
+            case .pm: return pm
+            case .body: return body
+            }
         }
+        set {
+            switch slot {
+            case .am: am = newValue
+            case .pm: pm = newValue
+            case .body: body = newValue
+            }
+        }
+    }
+
+    /// Routines that are on and have at least one step.
+    public var activeSlots: [Slot] {
+        Slot.allCases.filter { self[$0].enabled && !self[$0].steps.isEmpty }
     }
 }
 
@@ -268,13 +345,18 @@ public struct CheckIn: Codable, Hashable, Sendable {
     public var feel: [Feeling]
     public var note: String?
     public var at: Date
+    /// nil = face (saves from before body check-ins).
+    public var area: Area?
 
-    public init(day: Day, feel: [Feeling], note: String? = nil, at: Date = Date()) {
+    public init(day: Day, feel: [Feeling], note: String? = nil, at: Date = Date(), area: Area = .face) {
         self.day = day
         self.feel = feel
         self.note = note
         self.at = at
+        self.area = area == .face ? nil : area
     }
+
+    public var place: Area { area ?? .face }
 }
 
 public enum PauseReason: String, Codable, CaseIterable, Sendable, Identifiable {
@@ -311,13 +393,18 @@ public struct PhotoMeta: Codable, Identifiable, Hashable, Sendable {
     public var day: Day
     public var at: Date
     public var note: String?
+    /// nil = face (saves from before body photos).
+    public var area: Area?
 
-    public init(id: String = makeID(), day: Day, at: Date = Date(), note: String? = nil) {
+    public init(id: String = makeID(), day: Day, at: Date = Date(), note: String? = nil, area: Area = .face) {
         self.id = id
         self.day = day
         self.at = at
         self.note = note
+        self.area = area == .face ? nil : area
     }
+
+    public var place: Area { area ?? .face }
 }
 
 public struct Question: Codable, Identifiable, Hashable, Sendable {

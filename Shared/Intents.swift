@@ -5,15 +5,22 @@ import UserNotifications
 import WidgetKit
 
 enum RoutineChoice: String, AppEnum {
-    case evening, morning
+    case evening, morning, body
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Routine"
     static var caseDisplayRepresentations: [RoutineChoice: DisplayRepresentation] = [
         .evening: "Evening routine",
         .morning: "Morning routine",
+        .body: "Body routine",
     ]
 
-    var slot: Slot { self == .evening ? .pm : .am }
+    var slot: Slot {
+        switch self {
+        case .evening: return .pm
+        case .morning: return .am
+        case .body: return .body
+        }
+    }
 
     /// Evening after 2 p.m. (or before the 4 a.m. rollover), morning otherwise.
     static var now: RoutineChoice {
@@ -43,7 +50,11 @@ struct MarkRoutineDoneIntent: AppIntent {
         let slot = (routine ?? .now).slot
         let state = SharedStore.currentState(today: today)
         if let state, state.entry(today, slot)?.status == .done {
-            return .result(dialog: slot == .pm ? "Already logged. Sleep well." : "Already logged for this morning.")
+            switch slot {
+            case .pm: return .result(dialog: "Already logged. Sleep well.")
+            case .am: return .result(dialog: "Already logged for this morning.")
+            case .body: return .result(dialog: "Already logged for today.")
+            }
         }
         SharedStore.appendInbox(InboxItem(day: today, slot: slot, action: .done))
         let ids = ["\(today.iso):\(slot.rawValue):main", "\(today.iso):\(slot.rawValue):nudge", "snooze:\(today.iso):\(slot.rawValue)"]

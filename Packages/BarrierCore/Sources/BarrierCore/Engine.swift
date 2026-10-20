@@ -129,6 +129,14 @@ public enum Engine {
     }
 
     public static func label(slot: Slot, steps: [DueStep], rest: RestReason?, sp: SlotPlan, pos: Int, products: [String: Product]) -> (label: String, hue: Hue) {
+        if slot == .body {
+            // The body routine is named by the user ("Back") and keeps that name.
+            let name = sp.displayName
+            if rest == .pause { return ("\(name), basics only", .lilac) }
+            if rest == .inserted { return ("\(name), gentle", .sage) }
+            let custom = sp.names?[String(pos)].flatMap { $0.isEmpty ? nil : $0 }
+            return (custom ?? name, .lilac)
+        }
         let word = slot.word
         if rest == .pause { return ("Simple \(word)", slot == .pm ? .mist : .dawn) }
         if rest == .inserted { return (slot == .pm ? "Recovery night" : "Gentle morning", .sage) }
@@ -268,7 +276,7 @@ public enum Engine {
     /// Only rotations ask: on a same-every-time routine the answer changes nothing.
     public static func needsReconcile(_ state: AppState, today: Day) -> [Instance] {
         var out: [Instance] = []
-        for slot in [Slot.pm, .am] where state.plan[slot].enabled {
+        for slot in Slot.allCases where state.plan[slot].enabled {
             let from = max(today.adding(-2), state.plan.createdAt)
             let to = today.adding(-1)
             guard from <= to else { continue }
@@ -276,7 +284,8 @@ public enum Engine {
                 out.append(i)
             }
         }
-        return out.sorted { a, b in a.day == b.day ? (a.slot == .am) : a.day < b.day }
+        let order: [Slot: Int] = [.am: 0, .pm: 1, .body: 2]
+        return out.sorted { a, b in a.day == b.day ? order[a.slot, default: 0] < order[b.slot, default: 0] : a.day < b.day }
     }
 
     /// The next day (after `today`) when a step matching `match` is due.
@@ -303,6 +312,7 @@ public enum Engine {
     public struct Stats: Sendable {
         public var nightsDone = 0
         public var morningsDone = 0
+        public var bodyDone = 0
         public var last28Done = 0
         public var last28Due = 0
         public var firstDay: Day?
@@ -317,7 +327,11 @@ public enum Engine {
             if e.recovery == true && e.slot == .pm { s.recoveryNights += 1 }
             if e.status == .skipped && e.slot == .pm { s.skipped += 1 }
             guard e.status == .done else { continue }
-            if e.slot == .pm { s.nightsDone += 1 } else { s.morningsDone += 1 }
+            switch e.slot {
+            case .pm: s.nightsDone += 1
+            case .am: s.morningsDone += 1
+            case .body: s.bodyDone += 1
+            }
             if s.firstDay == nil || e.day < s.firstDay! { s.firstDay = e.day }
             if e.slot == .pm, let l = e.label { s.byLabel[l, default: 0] += 1 }
         }
