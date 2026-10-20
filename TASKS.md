@@ -37,4 +37,4 @@ screenshots, pushed.
 - [x] App: skin check-in face/back, progress dots + counts, report section
 - [x] Notifications: body category (Skip today), intent case, widget unaffected
 - [x] Fact-checked body tips (docs/body-facts.md)
-- [ ] CI green + screenshots reviewed, review pass, pushed, vault note
+- [x] CI green + screenshots reviewed, review pass (docs/review-3.md, all fixed), pushed, vault note
