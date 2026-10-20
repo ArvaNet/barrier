@@ -64,13 +64,13 @@ struct StepEditorSheet: View {
                         Text("Every other \(target.slot.word)").tag(Freq.every(2))
                         Text("Every 3rd \(target.slot.word)").tag(Freq.every(3))
                         Text("Every 4th \(target.slot.word)").tag(Freq.every(4))
-                        if sp.length > 1 { Text("Pick nights in the rotation").tag(Freq.nights) }
+                        if sp.length > 1 { Text("Pick \(target.slot.word)s in the rotation").tag(Freq.nights) }
                         Text("Specific weekdays").tag(Freq.weekdays)
                     }
                     if freq == .nights {
                         FlowLayout(spacing: 8) {
                             ForEach(Engine.rotationNodes(model.state, slot: target.slot, on: model.today).filter { !$0.rest }, id: \.pos) { n in
-                                Chip(title: "Night \(n.pos + 1)", selected: nights.contains(n.pos), hue: n.hue) {
+                                Chip(title: "\(target.slot.word.capitalized) \(n.pos + 1)", selected: nights.contains(n.pos), hue: n.hue) {
                                     if nights.contains(n.pos) { nights.remove(n.pos) } else { nights.insert(n.pos) }
                                 }
                             }
@@ -91,7 +91,7 @@ struct StepEditorSheet: View {
                     Text("When")
                 } footer: {
                     if case .every(let n) = freq, n > 1 {
-                        Text("Barrier counts nights you actually do. Miss one and the next night picks up where you left off.")
+                        Text("Barrier counts \(target.slot.word)s you actually do. Miss one and the next \(target.slot.word) picks up where you left off.")
                     }
                 }
                 Section {

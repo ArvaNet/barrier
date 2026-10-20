@@ -154,6 +154,8 @@ struct SlotEditorSections: View {
     private func rotationSection(_ sp: SlotPlan, products: [String: Product]) -> some View {
         let today = model.today
         let tonight = model.instance(slot)
+        let unit = slot.word
+        let nowWord = slot == .pm ? "tonight" : (slot == .am ? "this morning" : "today")
         let nodes = Engine.rotationNodes(model.state, slot: slot, on: today)
         Section {
             Stepper(value: Binding(
@@ -165,8 +167,8 @@ struct SlotEditorSections: View {
                 }
             ), in: 1...Engine.maxRotation) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(sp.length == 1 ? (nodes.count > 1 ? "Every night, easing in" : "Same every night") : "Repeats every \(sp.length) nights")
-                    Text(nodes.count > sp.length ? "Recovery nights are added while you ease in. Tap a night to make it tonight." : sp.length == 1 ? "Add nights for alternating routines." : "Tap a night to make it tonight.")
+                    Text(sp.length == 1 ? (nodes.count > 1 ? "Every \(unit), easing in" : "Same every \(unit)") : "Repeats every \(sp.length) \(unit)s")
+                    Text(nodes.count > sp.length ? "Recovery nights are added while you ease in. Tap a night to make it tonight." : sp.length == 1 ? "Add \(unit)s for alternating routines." : "Tap a \(unit) to make it \(nowWord).")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -180,14 +182,14 @@ struct SlotEditorSections: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack(spacing: 5) {
                                         HueDot(hue: n.hue, size: 9)
-                                        Text("Night \(n.pos + 1)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                        Text("\(unit.capitalized) \(n.pos + 1)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                                     }
                                     Text(n.label.replacingOccurrences(of: " night", with: ""))
                                         .font(.footnote.weight(.medium))
                                         .lineLimit(2)
                                         .multilineTextAlignment(.leading)
                                     if n.pos == tonight.pos {
-                                        Text("Tonight").font(.caption2.weight(.bold)).foregroundStyle(Palette.accent)
+                                        Text(nowWord.capitalized).font(.caption2.weight(.bold)).foregroundStyle(Palette.accent)
                                     }
                                 }
                                 .frame(width: 86, alignment: .leading)
@@ -204,15 +206,15 @@ struct SlotEditorSections: View {
         } header: {
             Text("Rotation")
         }
-        .confirmationDialog("Make tonight night \((confirmTonight ?? 0) + 1)?", isPresented: Binding(get: { confirmTonight != nil }, set: { if !$0 { confirmTonight = nil } }), titleVisibility: .visible) {
-            Button("Yes, tonight is night \((confirmTonight ?? 0) + 1)") {
+        .confirmationDialog("Make \(nowWord) \(unit) \((confirmTonight ?? 0) + 1)?", isPresented: Binding(get: { confirmTonight != nil }, set: { if !$0 { confirmTonight = nil } }), titleVisibility: .visible) {
+            Button("Yes, \(nowWord) is \(unit) \((confirmTonight ?? 0) + 1)") {
                 if let pos = confirmTonight {
                     model.update { s in
                         s.plan[slot].anchor = Anchor(day: today, pos: pos)
                         // Today's own log entry would advance it past `pos`.
                         if let e = s.entry(today, slot), e.status != .done { s.clearEntry(today, slot) }
                     }
-                    model.show("Tonight is now night \(pos + 1).")
+                    model.show("\(nowWord.capitalized) is now \(unit) \(pos + 1).")
                 }
                 confirmTonight = nil
             }

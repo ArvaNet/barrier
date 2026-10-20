@@ -25,7 +25,9 @@ struct NotTonightSheet: View {
                             dismiss()
                         }
                     }
-                    option("Pause the plan…", detail: "Traveling, a procedure, or a break. Basics only until you’re back.", symbol: "pause.circle") {
+                    option("Pause the plan…", detail: inst.slot == .body
+                           ? "Pauses your face routines too. Basics only until you’re back."
+                           : "Traveling, a procedure, or a break. Basics only until you’re back.", symbol: "pause.circle") {
                         showPause = true
                     }
                 }
@@ -55,7 +57,9 @@ struct NotTonightSheet: View {
     }
 
     private var skipDetail: String {
-        if inst.hasActives && inst.cycleLen > 1 { return "Next time picks up \(inst.label.lowercased()) where you left off." }
+        if inst.hasActives && inst.cycleLen > 1 {
+            return inst.slot == .body ? "Next time picks up where you left off." : "Next time picks up \(inst.label.lowercased()) where you left off."
+        }
         return inst.slot == .pm && !inst.hasActives ? "Rest nights still count." : "It’s logged as skipped. No streaks to lose."
     }
 
@@ -126,7 +130,9 @@ struct DayDetailSheet: View {
             List {
                 ForEach([Slot.pm, .am, .body], id: \.self) { slot in
                     let sp = model.state.plan[slot]
-                    if sp.enabled && !sp.steps.isEmpty && day >= model.state.plan.createdAt || model.state.entry(day, slot) != nil {
+                    // The body routine starts later than the plan: no empty sections before it.
+                    let started = day >= model.state.plan.createdAt && (slot != .body || day >= sp.anchor.day)
+                    if (sp.enabled && !sp.steps.isEmpty && started) || model.state.entry(day, slot) != nil {
                         section(slot)
                     }
                 }
@@ -169,7 +175,9 @@ struct DayDetailSheet: View {
                     if let a = s.step.amount { Text(a).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
                 }
             }
-            if day <= model.today && inst.status != .off {
+            if inst.steps.isEmpty && inst.entry == nil && inst.status != .off {
+                Text("Nothing due that day.").foregroundStyle(.secondary)
+            } else if day <= model.today && inst.status != .off {
                 if inst.isResolved {
                     Button("Clear what was logged", role: .destructive) { model.undoEntry(inst) }
                 } else {

@@ -217,7 +217,7 @@ struct SlotHero: View {
                 }
             }
             if inst.steps.isEmpty {
-                Text("Nothing scheduled. Add steps in Routine.")
+                Text(emptyText(inst))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
@@ -304,8 +304,9 @@ struct SlotHero: View {
 
     private func skippedBanner(_ inst: Instance) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: "moon.zzz").font(.title3).foregroundStyle(.secondary)
-            Text(inst.hasActives ? "Skipped. Tomorrow picks up where you left off." : "Skipped. Rest nights still count.")
+            Image(systemName: slot == .pm ? "moon.zzz" : "forward").font(.title3).foregroundStyle(.secondary)
+            Text(inst.hasActives && inst.cycleLen > 1 ? "Skipped. Next time picks up where you left off."
+                 : slot == .pm && !inst.hasActives ? "Skipped. Rest nights still count." : "Skipped. No streaks to lose.")
                 .font(.subheadline)
             Spacer()
             Button("Undo") { model.undoEntry(inst) }
@@ -337,6 +338,7 @@ struct SlotHero: View {
             if inst.status == .pending || inst.status == .future {
                 Button("Done") { model.markDone(inst) }
                     .buttonStyle(SecondaryButtonStyle(compact: true))
+                    .disabled(inst.steps.isEmpty)
             } else if inst.isResolved {
                 Button("Undo") { model.undoEntry(inst) }
                     .font(.footnote.weight(.semibold))
@@ -348,6 +350,16 @@ struct SlotHero: View {
             if !inst.isResolved { model.ritual = RitualRequest(slot: slot, day: inst.day) }
         }
         .card(padding: 14)
+    }
+
+    /// What the card says when nothing is due.
+    private func emptyText(_ inst: Instance) -> String {
+        if model.state.plan[slot].steps.isEmpty { return "Nothing scheduled. Add steps in Routine." }
+        // An off day (every other day, set weekdays) or a gentle day.
+        if let next = Engine.next(model.state, slot: slot, today: model.today, horizon: 14, where: { _ in true }) {
+            return "Nothing today. Next: \(next.day.relative(to: model.today, evening: false))."
+        }
+        return "Nothing today."
     }
 
     private func compactTitle(_ inst: Instance) -> String {
@@ -363,9 +375,11 @@ struct SlotHero: View {
         case .done: return doneTime(inst)
         case .skipped: return "Skipped"
         default:
+            if inst.steps.isEmpty { return "Nothing today" }
             let steps = "\(inst.steps.count) step\(inst.steps.count == 1 ? "" : "s")"
             if slot == .body, let cue = model.state.plan.body.cue, !cue.isEmpty {
-                return "\(steps) · \(cue.lowercased()) · \(time.formatted)"
+                // Kept to one line: the cue says more than a step count.
+                return "\(cue) · \(time.formatted)"
             }
             return "\(steps) · \(time.formatted)"
         }

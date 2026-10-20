@@ -27,6 +27,25 @@ enum RoutineChoice: String, AppEnum {
         let h = Calendar.current.component(.hour, from: Date())
         return (h >= 14 || h < dayRolloverHour) ? .evening : .morning
     }
+
+    init(slot: Slot) {
+        switch slot {
+        case .pm: self = .evening
+        case .am: self = .morning
+        case .body: self = .body
+        }
+    }
+
+    /// "I did my routine" with no routine named: the current face routine,
+    /// or the body routine when that's what is set up for this time of day.
+    static func defaultSlot(_ state: AppState?) -> Slot {
+        let preferred = now.slot
+        guard let state else { return preferred }
+        let active = state.plan.activeSlots
+        if active.contains(preferred) { return preferred }
+        if active.contains(.body) && (now == .evening || !active.contains(.am)) { return .body }
+        return active.first ?? preferred
+    }
 }
 
 /// Log a routine as done without opening the app (widget button, Siri, Shortcuts).
@@ -47,8 +66,11 @@ struct MarkRoutineDoneIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let today = Day.routineDay()
-        let slot = (routine ?? .now).slot
         let state = SharedStore.currentState(today: today)
+        let slot = routine?.slot ?? RoutineChoice.defaultSlot(state)
+        if let state, !state.plan.activeSlots.contains(slot) {
+            return .result(dialog: "That routine isn’t set up in Barrier.")
+        }
         if let state, state.entry(today, slot)?.status == .done {
             switch slot {
             case .pm: return .result(dialog: "Already logged. Sleep well.")
@@ -81,6 +103,16 @@ struct TonightIntent: AppIntent {
         let today = Day.routineDay()
         guard let state = SharedStore.currentState(today: today), state.onboarded else {
             return .result(dialog: "Open Barrier to set up your routine first.")
+        }
+        let active = state.plan.activeSlots
+        // No evening routine: answer for the body routine if there is one.
+        if !active.contains(.pm) {
+            guard active.contains(.body) else { return .result(dialog: "There’s no evening routine set up in Barrier.") }
+            let body = Engine.instance(state, slot: .body, on: today, today: today)
+            if body.status == .done { return .result(dialog: "\(body.label) is done for today.") }
+            if body.steps.isEmpty { return .result(dialog: "Nothing for your \(body.label.lowercased()) today.") }
+            let list = ListFormatter.localizedString(byJoining: body.steps.map(\.product.name))
+            return .result(dialog: "\(body.label) today: \(list).")
         }
         let inst = Engine.instance(state, slot: .pm, on: today, today: today)
         if inst.status == .done {

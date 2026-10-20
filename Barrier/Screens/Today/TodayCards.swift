@@ -16,7 +16,7 @@ struct ReconcileCard: View {
             Text("\(inst.label). Did it happen?")
                 .font(.barrierH2)
                 .foregroundStyle(Palette.ink)
-            Text("Logging it keeps tonight right: Barrier never skips ahead.")
+            Text(inst.slot == .pm ? "Logging it keeps tonight right: Barrier never skips ahead." : "Logging it keeps the next one right: Barrier never skips ahead.")
                 .font(.footnote)
                 .foregroundStyle(Palette.ink3)
             HStack(spacing: 10) {
@@ -101,7 +101,7 @@ struct SkinCheckCard: View {
 
     var body: some View {
         let today = model.today
-        let hasBody = model.state.plan.body.enabled
+        let hasBody = model.hasBodyRoutine
         let place: Area = hasBody ? area : .face
         let existing = model.state.checkIn(on: today, area: place)
         let selected = Set(existing?.feel ?? [])
@@ -242,8 +242,10 @@ struct PhotoPromptCard: View {
     var body: some View {
         let s = model.state
         let today = model.today
-        let tookToday = s.photos.contains { $0.day == today }
-        let lastPhoto = s.photos.map(\.day).max()
+        // The weekly prompt is about the face; back photos don't count toward it.
+        let facePhotos = s.photos.filter { $0.place == .face }
+        let tookToday = facePhotos.contains { $0.day == today }
+        let lastPhoto = facePhotos.map(\.day).max()
         let photoDay = s.settings.photoDay >= 0 && today.weekday == s.settings.photoDay
         let overdue = (lastPhoto.map { $0.days(to: today) >= 8 } ?? true) && s.settings.photoDay >= 0
         if !tookToday && (photoDay || overdue) && !s.dismissed.contains("photo-\(today.iso)") {
@@ -253,8 +255,8 @@ struct PhotoPromptCard: View {
                     .foregroundStyle(Palette.hueInk(.mist))
                     .frame(width: 30)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(s.photos.isEmpty ? "Take your first photo" : "Photo night").font(.barrierH3).foregroundStyle(Palette.ink)
-                    Text(s.photos.isEmpty ? "Your “before”. In a few weeks you’ll be glad it exists." : "Same spot, same light. It takes 20 seconds.")
+                    Text(facePhotos.isEmpty ? "Take your first photo" : "Photo night").font(.barrierH3).foregroundStyle(Palette.ink)
+                    Text(facePhotos.isEmpty ? "Your “before”. In a few weeks you’ll be glad it exists." : "Same spot, same light. It takes 20 seconds.")
                         .font(.subheadline).foregroundStyle(Palette.ink2)
                     HStack(spacing: 10) {
                         Button("Open camera") { showCamera = true }

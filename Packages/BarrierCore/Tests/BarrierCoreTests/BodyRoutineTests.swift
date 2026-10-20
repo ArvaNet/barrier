@@ -104,3 +104,43 @@ final class BodyRoutineTests: XCTestCase {
         XCTAssertEqual(Engine.describe(step, in: sp, slot: .body), "Every other day")
     }
 }
+
+/// Regression tests for docs/review-3.md.
+final class ReviewThreeTests: XCTestCase {
+    let start = Day(2026, 10, 5)
+
+    func testEveryStepReadsInItsOwnUnit() {
+        let step = Step(productId: "x")
+        let sp = Plan.defaultBody(start)
+        XCTAssertEqual(Engine.describe(step, in: sp, slot: .body), "Every day")
+        XCTAssertEqual(Engine.describe(step, in: sp, slot: .pm), "Every night")
+        XCTAssertEqual(Engine.describe(step, in: sp, slot: .am), "Every morning")
+    }
+
+    func testBodyGentleDayKeepsItsName() {
+        var s = Presets.blankState(today: start)
+        s.plan.body.name = "Back"
+        s.setRecovery(start, .body, on: true)
+        XCTAssertEqual(s.entry(start, .body)?.label, "Back, gentle")
+    }
+
+    func testPhotoMilestoneNeedsTwoOfOneArea() {
+        var s = Presets.blankState(today: start)
+        s.onboarded = true
+        s.photos = [PhotoMeta(day: start), PhotoMeta(day: start, area: .body)]
+        XCTAssertNil(Milestones.reached(s, today: start).first { $0.id == "photos-2" })
+        s.photos.append(PhotoMeta(day: start.adding(7)))
+        XCTAssertNotNil(Milestones.reached(s, today: start.adding(7)).first { $0.id == "photos-2" })
+    }
+
+    func testDueDaysCountLoggedDaysFromBeforeAnEdit() {
+        var s = Presets.demoState(today: Day(2026, 11, 2))
+        let today = Day(2026, 11, 2)
+        s.editPlan(.body, today: today) { $0.plan.body.steps[0].amount = "A little" }
+        let tl = Engine.timeline(s, slot: .body, from: s.plan.createdAt, to: today, today: today)
+        let due = tl.filter { $0.status != .pending && Recaps.counts($0) }.count
+        let done = tl.filter { $0.status == .done }.count
+        XCTAssertGreaterThanOrEqual(due, done)
+        XCTAssertGreaterThan(due, 5)
+    }
+}

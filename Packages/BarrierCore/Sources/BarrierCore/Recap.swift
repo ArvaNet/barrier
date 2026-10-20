@@ -89,8 +89,8 @@ public enum Recaps {
         return r
     }
 
-    /// A day that was due, or one logged under an earlier plan.
-    private static func counts(_ i: Instance) -> Bool {
+    /// A day that was due, or one logged under an earlier plan. Shared with the report.
+    public static func counts(_ i: Instance) -> Bool {
         (i.status != .off && !i.steps.isEmpty) || i.entry?.status == .done || i.entry?.status == .skipped
     }
 }

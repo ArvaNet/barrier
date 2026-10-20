@@ -275,7 +275,7 @@ struct RitualFinish: View {
         let nodes = Engine.rotationNodes(model.state, slot: inst.slot, on: inst.day)
         let next = model.instance(inst.slot, on: inst.day.adding(1))
         let stats = Engine.stats(model.state, today: model.today)
-        let photoNight = inst.slot == .pm && model.state.settings.photoDay == inst.day.weekday && !model.state.photos.contains { $0.day == inst.day }
+        let photoNight = inst.slot == .pm && model.state.settings.photoDay == inst.day.weekday && !model.state.photos.contains { $0.day == inst.day && $0.place == .face }
         VStack(spacing: 18) {
             Spacer()
             if nodes.count > 1 {

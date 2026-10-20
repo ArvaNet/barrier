@@ -481,7 +481,7 @@ public enum Engine {
     public static func describe(_ step: Step, in sp: SlotPlan, slot: Slot = .pm) -> String {
         let word = slot.word
         switch step.on {
-        case .all: return slot == .pm ? "Every night" : "Every morning"
+        case .all: return "Every \(word)"
         case .weekdays(let days):
             let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
             let d = days.sorted()
@@ -492,7 +492,7 @@ public enum Engine {
             if n.isEmpty { return "Not scheduled" }
             if let gap = every(of: step, length: sp.length) {
                 switch gap {
-                case 1: return slot == .pm ? "Every night" : "Every morning"
+                case 1: return "Every \(word)"
                 case 2: return "Every other \(word)"
                 case 3: return "Every 3rd \(word)"
                 default: return "Every \(gap)th \(word)"

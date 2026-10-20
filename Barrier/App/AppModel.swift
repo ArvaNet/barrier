@@ -192,17 +192,29 @@ final class AppModel {
         let hasPM = active.contains(.pm)
         // Only a body routine set up: it leads.
         if !hasAM && !hasPM { return active.contains(.body) ? .body : .pm }
-        if !hasPM { return .am }
         let h = Calendar.current.component(.hour, from: now)
         let amOpen = hasAM && !instance(.am).isResolved
+        // Morning only, plus a body routine: once the morning is done, the body leads.
+        if !hasPM { return (amOpen || !active.contains(.body)) ? .am : .body }
         return (h >= dayRolloverHour && h < 14 && amOpen) ? .am : .pm
     }
 
     /// The other routines, shown as rows under the lead card, earliest first.
+    /// The body routine is left out on its off days (nothing due, nothing logged).
     var otherSlots: [Slot] {
         let lead = leadSlot
-        return state.plan.activeSlots.filter { $0 != lead }.sorted { state.plan[$0].time < state.plan[$1].time }
+        return state.plan.activeSlots
+            .filter { $0 != lead }
+            .filter { slot in
+                guard slot == .body else { return true }
+                let inst = instance(.body)
+                return !inst.steps.isEmpty || inst.entry != nil
+            }
+            .sorted { state.plan[$0].time < state.plan[$1].time }
     }
+
+    /// The body routine is set up with at least one step.
+    var hasBodyRoutine: Bool { state.plan.activeSlots.contains(.body) }
 
     // MARK: Actions
 

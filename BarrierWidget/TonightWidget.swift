@@ -16,6 +16,10 @@ struct TonightEntry: TimelineEntry {
     var pos = 1
     var cycleLen = 3
     var nextLabel: String?
+    /// "Tonight", "Morning", or the body routine's cue ("After shower").
+    var when: String = "Tonight"
+    /// Dark look: the evening routine, or an evening body routine.
+    var dusk = true
 
     static let placeholder = TonightEntry(date: Date(), configured: true)
 }
@@ -54,12 +58,23 @@ struct TonightProvider: TimelineProvider {
         if slot == .am, amOn, Engine.instance(state, slot: .am, on: today, today: today).isResolved, pmOn { slot = .pm }
         if slot == .am && !amOn { slot = .pm }
         if slot == .pm && !pmOn { slot = .am }
+        // No face routine set up: the widget is about the body routine.
+        if !amOn && !pmOn && state.plan.activeSlots.contains(.body) { slot = .body }
         let inst = Engine.instance(state, slot: slot, on: today, today: today)
         let next = Engine.instance(state, slot: slot, on: today.adding(1), today: today)
+        let sp = state.plan[slot]
+        let when: String
+        switch slot {
+        case .pm: when = "Tonight"
+        case .am: when = "Morning"
+        case .body: when = (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
+        }
+        let dusk = slot == .pm || (slot == .body && (sp.time.hour >= 17 || sp.time.hour < dayRolloverHour))
         return TonightEntry(
             date: date, configured: true, slot: slot, day: today, label: inst.label, hue: inst.hue,
-            steps: inst.steps.map(\.product.name), done: inst.isDone, time: state.plan[slot].time,
-            pos: inst.pos, cycleLen: inst.cycleLen, nextLabel: next.steps.isEmpty ? nil : next.label
+            steps: inst.steps.map(\.product.name), done: inst.isDone, time: sp.time,
+            pos: inst.pos, cycleLen: inst.cycleLen, nextLabel: next.steps.isEmpty ? nil : next.label,
+            when: when, dusk: dusk
         )
     }
 }
@@ -79,10 +94,18 @@ struct TonightWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: TonightEntry
 
-    private var isNight: Bool { entry.slot == .pm }
+    private var isNight: Bool { entry.dusk }
     private var bg: Color { isNight ? Palette.stage : Color(hex: 0xF4EEE8) }
     private var fg: Color { isNight ? Palette.stageInk : Color(hex: 0x2A231C) }
     private var fg2: Color { isNight ? Palette.stageInk2 : Color(hex: 0x6E6257) }
+    private var symbol: String {
+        switch entry.slot {
+        case .pm: return "moon.fill"
+        case .am: return "sun.max.fill"
+        case .body: return "figure.stand"
+        }
+    }
+
     private var link: URL? { URL(string: "barrier://ritual/\(entry.slot.rawValue)/\(entry.day.iso)") }
 
     var body: some View {
@@ -112,7 +135,7 @@ struct TonightWidgetView: View {
     }
 
     private var kicker: String {
-        entry.done ? (isNight ? "Tonight · done" : "Morning · done") : (isNight ? "Tonight · \(entry.time.short)" : "Morning · \(entry.time.short)")
+        entry.done ? "\(entry.when) · done" : "\(entry.when) · \(entry.time.short)"
     }
 
     private var small: some View {
@@ -166,7 +189,7 @@ struct TonightWidgetView: View {
                 if entry.done {
                     Label("Done", systemImage: "checkmark.circle.fill").font(.caption.weight(.semibold)).foregroundStyle(entry.hue.color)
                 } else {
-                    Button(intent: MarkRoutineDoneIntent(routine: isNight ? .evening : .morning)) {
+                    Button(intent: MarkRoutineDoneIntent(routine: RoutineChoice(slot: entry.slot))) {
                         Label("Done", systemImage: "checkmark").font(.caption.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 28)
                     }
@@ -182,7 +205,7 @@ struct TonightWidgetView: View {
 
     private var rectangular: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(isNight ? "TONIGHT" : "THIS MORNING").font(.system(size: 11, weight: .semibold))
+            Text(entry.when.uppercased()).font(.system(size: 11, weight: .semibold))
             Text(entry.label).font(.headline).lineLimit(1)
             Text(entry.done ? "Done ✓" : "\(entry.steps.count) steps · \(entry.time.short)").font(.caption).lineLimit(1)
         }
@@ -197,18 +220,18 @@ struct TonightWidgetView: View {
                 Image(systemName: "checkmark").font(.title3.weight(.bold))
             } else if entry.cycleLen > 1 {
                 VStack(spacing: 0) {
-                    Image(systemName: isNight ? "moon.fill" : "sun.max.fill").font(.caption)
+                    Image(systemName: symbol).font(.caption)
                     Text("\(entry.pos + 1)/\(entry.cycleLen)").font(.caption2.weight(.semibold))
                 }
             } else {
-                Image(systemName: isNight ? "moon.fill" : "sun.max.fill").font(.title3)
+                Image(systemName: symbol).font(.title3)
             }
         }
         .containerBackground(.clear, for: .widget)
     }
 
     private var inline: some View {
-        Text(entry.done ? "\(isNight ? "Tonight" : "Morning") done ✓" : "\(entry.label) · \(entry.time.short)")
+        Text(entry.done ? "\(entry.slot == .body ? entry.label : entry.when) done ✓" : "\(entry.label) · \(entry.time.short)")
             .containerBackground(.clear, for: .widget)
     }
 }

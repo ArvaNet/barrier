@@ -127,7 +127,8 @@ struct ReportData {
             bodyWhen = "\(bp.cue ?? "Daily"), around \(bp.time.formatted)."
             bodySteps = lines(.body)
             let btl = s.plan.createdAt <= today ? Engine.timeline(s, slot: .body, from: s.plan.createdAt, to: today, today: today) : []
-            bodyDue = btl.filter { $0.status != .off && $0.status != .pending && !$0.steps.isEmpty }.count
+            // Same rule as the weekly recap: days logged under an earlier plan count too.
+            bodyDue = btl.filter { $0.status != .pending && Recaps.counts($0) }.count
             bodyDone = btl.filter { $0.status == .done }.count
         }
         rotation = s.plan.pm.length > 1 ? "Evening repeats every \(s.plan.pm.length) nights." : nil
@@ -151,13 +152,19 @@ struct ReportData {
         questions = s.questions.sorted { !$0.answered && $1.answered }
         notes = s.plan.dermNotes
         ifIrritated = s.plan.ifIrritated
-        // First, a middle one, and the latest few.
-        let sorted = s.photos.sorted { $0.at < $1.at }
+        // Per area: the first and the latest are always there (before and after),
+        // then recent ones fill up to six. Face first, then body.
         var pick: [PhotoMeta] = []
-        if let f = sorted.first { pick.append(f) }
-        if sorted.count > 2 { pick.append(sorted[sorted.count / 2]) }
-        for p in sorted.suffix(4) where !pick.contains(p) { pick.append(p) }
-        photos = Array(pick.suffix(6)).compactMap { m in store.image(m.id).map { (m, $0) } }
+        let byArea = Area.allCases.map { a in s.photos.filter { $0.place == a }.sorted { $0.at < $1.at } }.filter { !$0.isEmpty }
+        for list in byArea {
+            if let f = list.first { pick.append(f) }
+            if let l = list.last, !pick.contains(l) { pick.append(l) }
+        }
+        for list in byArea {
+            for p in list.reversed() where pick.count < 6 && !pick.contains(p) { pick.append(p) }
+        }
+        let ordered = pick.prefix(6).sorted { a, b in a.place == b.place ? a.at < b.at : a.place == .face }
+        photos = ordered.compactMap { m in store.image(m.id).map { (m, $0) } }
     }
 }
 
@@ -185,18 +192,13 @@ struct ReportPageOne: View {
                     if !data.amSteps.isEmpty {
                         block("Morning routine") { steps(data.amSteps) }
                     }
-                    if let name = data.bodyName {
-                        block("\(name) routine") {
-                            if let w = data.bodyWhen { small(w) }
-                            steps(data.bodySteps)
-                        }
-                    }
                     if !data.products.isEmpty {
                         block("Treatments") {
                             ForEach(data.products, id: \.id) { p in
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(p.name).font(.system(size: 10, weight: .semibold))
-                                    small([p.from.map { "since \($0.short)" }, p.until.map { "until \($0.short)" }, p.note].compactMap { $0 }.joined(separator: " · "))
+                                    Text([p.from.map { "since \($0.short)" }, p.until.map { "until \($0.short)" }, p.note].compactMap { $0 }.joined(separator: " · "))
+                                        .font(.system(size: 9.5)).foregroundStyle(Paper.ink2).lineLimit(2)
                                 }
                             }
                         }
@@ -204,6 +206,13 @@ struct ReportPageOne: View {
                 }
                 .frame(width: 250, alignment: .leading)
                 VStack(alignment: .leading, spacing: 14) {
+                    // The body routine sits on the right: the left column is the long one.
+                    if let name = data.bodyName {
+                        block("\(name) routine") {
+                            if let w = data.bodyWhen { small(w) }
+                            steps(data.bodySteps)
+                        }
+                    }
                     block("How it went") {
                         stat("\(data.nightsDone) of \(data.nightsDue)", "evenings done since \(data.from.short)")
                         if data.last28.due >= 5 && data.nightsDue > data.last28.due { stat("\(data.last28.done) of \(data.last28.due)", "evenings, last 4 weeks") }
@@ -217,7 +226,8 @@ struct ReportPageOne: View {
                     }
                     block("Skin log") {
                         if data.checkins.isEmpty { small("No check-ins yet.") }
-                        ForEach(data.checkins, id: \.self) { c in
+                        // Fewer rows when the body block shares the column, so the page never overflows.
+                        ForEach(data.checkins.prefix(data.bodyName == nil ? 12 : 7), id: \.self) { c in
                             HStack(alignment: .firstTextBaseline, spacing: 6) {
                                 Text(c.day.short).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(Paper.ink3).frame(width: 40, alignment: .leading)
                                 Text((c.place == .body ? "\(data.bodyName ?? "Body"): " : "") + ([c.feel.map(\.label).joined(separator: ", ")] + [c.note].compactMap { $0 }).joined(separator: ": "))

@@ -30,11 +30,11 @@ Finish line: a third routine ("Body", user-named, e.g. "Back") with its own time
 (rear camera + self-timer), face/back check-ins, report section. Tested, green CI with
 screenshots, pushed.
 
-- [ ] Core: Slot.body, Plan.body (old saves still load), SlotPlan name/cue, Area on photos + check-ins
-- [ ] Core: engine labels, reconcile, stats, reminders, recap, presets, demo data + tests
-- [ ] App: Today row, ritual, routine editor (third segment), onboarding page
-- [ ] App: camera face/back (rear camera, self-timer), photo areas, compare same-area
-- [ ] App: skin check-in face/back, progress dots + counts, report section
-- [ ] Notifications: body category (Skip today), intent case, widget unaffected
-- [ ] Fact-checked body tips (docs/body-facts.md)
+- [x] Core: Slot.body, Plan.body (old saves still load), SlotPlan name/cue, Area on photos + check-ins
+- [x] Core: engine labels, reconcile, stats, reminders, recap, presets, demo data + tests
+- [x] App: Today row, ritual, routine editor (third segment), onboarding page
+- [x] App: camera face/back (rear camera, self-timer), photo areas, compare same-area
+- [x] App: skin check-in face/back, progress dots + counts, report section
+- [x] Notifications: body category (Skip today), intent case, widget unaffected
+- [x] Fact-checked body tips (docs/body-facts.md)
 - [ ] CI green + screenshots reviewed, review pass, pushed, vault note

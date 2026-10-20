@@ -14,6 +14,8 @@ struct ProgressScreen: View {
     @State private var pickerItem: PhotosPickerItem?
     /// Photo filter; nil = all areas.
     @State private var photoArea: Area?
+    /// An imported photo waiting for "Which area?".
+    @State private var pendingImport: UIImage?
 
     var body: some View {
         let today = model.today
@@ -33,7 +35,17 @@ struct ProgressScreen: View {
         .sheet(item: $detailDay) { d in
             DayDetailSheet(day: d).barrier(model).presentationDetents([.medium, .large])
         }
-        .fullScreenCover(isPresented: $showCamera) { CameraScreen(initialArea: photoArea ?? .face).barrier(model) }
+        .fullScreenCover(isPresented: $showCamera) { CameraScreen(initialArea: effectiveArea ?? .face).barrier(model) }
+        .confirmationDialog("Which area is this photo?", isPresented: Binding(get: { pendingImport != nil }, set: { if !$0 { pendingImport = nil } }), titleVisibility: .visible) {
+            Button("Face") {
+                if let img = pendingImport { saveImport(img, area: .face) }
+                pendingImport = nil
+            }
+            Button(model.state.plan.body.displayName) {
+                if let img = pendingImport { saveImport(img, area: .body) }
+                pendingImport = nil
+            }
+        }
         .sheet(item: $compare) { pair in CompareView(pair: pair).barrier(model) }
         .sheet(item: $viewing) { photo in PhotoDetail(photo: photo).barrier(model) }
         .onChange(of: pickerItem) { _, item in importPhoto(item) }
@@ -96,7 +108,7 @@ struct ProgressScreen: View {
         let from = max(first, model.state.plan.createdAt)
         let pm = from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .pm, from: from, to: min(end, today.adding(30)), today: today) : []
         let am = from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .am, from: from, to: min(end, today.adding(30)), today: today) : []
-        let body = model.state.plan.body.enabled && from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .body, from: from, to: min(end, today.adding(30)), today: today) : []
+        let body = model.hasBodyRoutine && from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .body, from: from, to: min(end, today.adding(30)), today: today) : []
         let pmBy = Dictionary(pm.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let amBy = Dictionary(am.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let bodyBy = Dictionary(body.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
@@ -134,7 +146,7 @@ struct ProgressScreen: View {
             HStack(spacing: 14) {
                 legend(filled: true, "Done")
                 legend(filled: false, "Planned")
-                if model.state.plan.body.enabled {
+                if model.hasBodyRoutine {
                     HStack(spacing: 5) {
                         Circle().fill(Hue.lilac.color).frame(width: 5, height: 5)
                         Text(model.state.plan.body.displayName)
@@ -161,7 +173,7 @@ struct ProgressScreen: View {
                 HStack(spacing: 3) {
                     dot(am, small: true)
                     dot(pm, small: false)
-                    if model.state.plan.body.enabled { dot(body, small: true) }
+                    if model.hasBodyRoutine { dot(body, small: true) }
                 }
                 .frame(height: 9)
             }
@@ -202,14 +214,16 @@ struct ProgressScreen: View {
     // MARK: Photos
 
     private var photosCard: some View {
-        let showAreas = model.state.plan.body.enabled || model.state.photos.contains { $0.place == .body }
-        let photos = model.state.photos.filter { photoArea == nil || $0.place == photoArea }.sorted { $0.at > $1.at }
+        let showAreas = showsAreas
+        let filter = effectiveArea
+        let photos = model.state.photos.filter { filter == nil || $0.place == filter }.sorted { $0.at > $1.at }
+        let canCompare = Area.allCases.contains { a in photos.filter { $0.place == a }.count >= 2 }
         let cols = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Kicker("Photos")
                 Spacer()
-                if photos.count >= 2 {
+                if canCompare {
                     Button(selecting ? "Cancel" : "Compare") {
                         selecting.toggle()
                         selected = []
@@ -287,18 +301,35 @@ struct ProgressScreen: View {
         guard let item else { return }
         Task {
             if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) {
-                let meta = PhotoMeta(day: model.today, area: photoArea ?? .face)
-                do {
-                    try model.photos.save(img, id: meta.id)
-                    model.update { $0.photos.append(meta) }
-                    model.show("Photo added.")
-                } catch {
-                    model.show("Couldn’t save that photo.")
+                if showsAreas && effectiveArea == nil {
+                    // Under "All", ask which area it is: it can't be changed later.
+                    pendingImport = img
+                } else {
+                    saveImport(img, area: effectiveArea ?? .face)
                 }
             }
             pickerItem = nil
         }
     }
+
+    private func saveImport(_ img: UIImage, area: Area) {
+        let meta = PhotoMeta(day: model.today, area: area)
+        do {
+            try model.photos.save(img, id: meta.id)
+            model.update { $0.photos.append(meta) }
+            model.show("Photo added.")
+        } catch {
+            model.show("Couldn’t save that photo.")
+        }
+    }
+
+    /// Face/body choice shows when there's a body routine or body photos.
+    private var showsAreas: Bool {
+        model.hasBodyRoutine || model.state.photos.contains { $0.place == .body }
+    }
+
+    /// The filter, ignored when area choice isn't shown.
+    private var effectiveArea: Area? { showsAreas ? photoArea : nil }
 
     private func areaName(_ a: Area) -> String {
         a == .face ? "Face" : model.state.plan.body.displayName

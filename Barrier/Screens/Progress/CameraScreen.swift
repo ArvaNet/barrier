@@ -25,7 +25,7 @@ struct CameraScreen: View {
     @State private var lastPhoto: UIImage?
     @State private var started = false
 
-    private var hasBody: Bool { model.state.plan.body.enabled }
+    private var hasBody: Bool { model.hasBodyRoutine }
     private var bodyName: String { model.state.plan.body.displayName }
 
     var body: some View {
@@ -70,7 +70,8 @@ struct CameraScreen: View {
             cancelTimer()
             captured = nil
             loadGhost()
-            Task { await camera.switchTo(position(for: new)) }
+            // With access denied, keep the "Open Settings" message rather than "No camera here".
+            if camera.state == .running { Task { await camera.switchTo(position(for: new)) } }
         }
         .onDisappear {
             cancelTimer()

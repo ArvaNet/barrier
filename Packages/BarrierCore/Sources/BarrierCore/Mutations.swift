@@ -66,7 +66,11 @@ public extension AppState {
         if on {
             var e = prev ?? Entry(day: day, slot: slot, status: .open)
             e.recovery = true
-            e.label = slot == .pm ? "Recovery night" : "Gentle morning"
+            switch slot {
+            case .pm: e.label = "Recovery night"
+            case .am: e.label = "Gentle morning"
+            case .body: e.label = "\(plan.body.displayName), gentle"
+            }
             e.hue = .sage
             upsert(e)
         } else if let p = prev {
