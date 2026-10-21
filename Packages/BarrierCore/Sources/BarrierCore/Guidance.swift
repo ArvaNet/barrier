@@ -47,7 +47,7 @@ public enum Guidance {
         public static let all: [Source] = [aadRetinoid, aad20s, aadSunscreen, aadAcneTreat, aadExfoliate, aadPhotos, aadGuideline, ccRetinol, dermnetRetinoids, nhsAdapalene, tretLabel, bpoStudy, bowe]
     }
 
-    public static let disclaimer = "Barrier helps you follow the routine your dermatologist gave you. It doesn’t diagnose or give medical advice, and your dermatologist’s instructions always come first."
+    public static let disclaimer = "Tendwell helps you follow the routine your dermatologist gave you. It doesn’t diagnose or give medical advice, and your dermatologist’s instructions always come first."
 
     public static func conflict(_ id: ConflictID) -> Note {
         switch id {

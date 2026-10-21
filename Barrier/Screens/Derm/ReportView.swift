@@ -86,7 +86,7 @@ struct ReportView: View {
         var views: [AnyView] = [AnyView(ReportSummaryPage(data: data)), AnyView(ReportRoutinePage(data: data))]
         if !data.photos.isEmpty || !data.procedures.isEmpty { views.append(AnyView(ReportPhotosPage(data: data))) }
         let size = CGSize(width: 595, height: 842)
-        let name = sample ? "Barrier sample report.pdf" : "Barrier report \(model.today.iso).pdf"
+        let name = sample ? "Tendwell sample report.pdf" : "Tendwell report \(model.today.iso).pdf"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         var box = CGRect(origin: .zero, size: size)
         guard let ctx = CGContext(url as CFURL, mediaBox: &box, nil) else { return }
@@ -280,11 +280,11 @@ struct ReportData {
         photoContext = context
     }
 
-    var kicker: String { sample ? "BARRIER · SAMPLE REPORT" : "BARRIER · SKIN ROUTINE REPORT" }
+    var kicker: String { sample ? "TENDWELL · SAMPLE REPORT" : "TENDWELL · SKIN ROUTINE REPORT" }
 
     var footer: String {
         sample ? "Sample report with made-up data, for illustration. Not a real patient."
-            : "Logged by the patient in Barrier on \(today.long). Not a medical record."
+            : "Logged by the patient in Tendwell on \(today.long). Not a medical record."
     }
 
     /// "the last 14 weeks" or "since Sep 28".
@@ -494,7 +494,7 @@ struct ReportSummaryPage: View {
                 if c.due > 0 { Paper.stat("\(c.done) of \(c.due)", "\(unit) done") }
             }
             if !anyDue && data.scoreLines.isEmpty {
-                Paper.small("Started in Barrier on \(data.from.short). Nothing logged yet; this fills in day by day.")
+                Paper.small("Started in Tendwell on \(data.from.short). Nothing logged yet; this fills in day by day.")
             }
             if let f = data.filledIn {
                 Paper.line("\(f.from.short)–\(f.to.short) filled in afterwards by the patient.")
@@ -619,7 +619,7 @@ struct ReportPhotosPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(data.sample ? data.kicker : hasProcedures ? "BARRIER · PROCEDURES AND PHOTOS" : "BARRIER · PROGRESS PHOTOS")
+            Text(data.sample ? data.kicker : hasProcedures ? "TENDWELL · PROCEDURES AND PHOTOS" : "TENDWELL · PROGRESS PHOTOS")
                 .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.ink3)
             Text(title).font(Typeface.display(22, weight: 430))
             if hasProcedures { procedureList }

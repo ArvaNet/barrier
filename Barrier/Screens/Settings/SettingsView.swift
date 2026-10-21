@@ -59,7 +59,7 @@ struct SettingsView: View {
                 if let data = try? Data(contentsOf: url), let b = try? Backup.decode(data) {
                     pendingImport = b
                 } else {
-                    model.show("That file isn’t a Barrier backup.")
+                    model.show("That file isn’t a Tendwell backup.")
                 }
             }
             .confirmationDialog("Replace everything with this backup?", isPresented: Binding(get: { pendingImport != nil }, set: { if !$0 { pendingImport = nil } }), titleVisibility: .visible) {
@@ -88,7 +88,7 @@ struct SettingsView: View {
             switch model.notificationStatus {
             case .denied:
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Notifications are off for Barrier", systemImage: "bell.slash").font(.subheadline.weight(.semibold))
+                    Label("Notifications are off for Tendwell", systemImage: "bell.slash").font(.subheadline.weight(.semibold))
                     Text("Turn them on in iPhone Settings so reminders can reach you.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Button {
@@ -176,7 +176,7 @@ struct Backup: Codable {
     }
 
     func write() -> URL? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Barrier backup \(Day.routineDay().iso).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Tendwell backup \(Day.routineDay().iso).json")
         guard let data = try? StateCoder.encoder().encode(self) else { return nil }
         do {
             try data.write(to: url, options: .atomic)

@@ -128,7 +128,7 @@ struct TonightWidgetView: View {
     private var setup: some View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: "moon.stars").font(.title3)
-            Text("Open Barrier to set up your routine.").font(.footnote.weight(.medium))
+            Text("Open Tendwell to set up your routine.").font(.footnote.weight(.medium))
         }
         .foregroundStyle(Palette.stageInk)
         .containerBackground(Palette.stage, for: .widget)

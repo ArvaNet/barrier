@@ -101,7 +101,7 @@ struct ProceduresSection: View {
             Text("Procedures")
         } footer: {
             Text(upcoming.isEmpty && past.isEmpty
-                 ? "Subcision, laser, peels, microneedling, injections. Barrier reminds you the evening before and pairs your before and after photos."
+                 ? "Subcision, laser, peels, microneedling, injections. Tendwell reminds you the evening before and pairs your before and after photos."
                  : "Tap one for its notes and before and after photos.")
         }
     }
@@ -266,7 +266,7 @@ struct ProcedureSheet: View {
         if after == nil {
             // Only the latest procedure on an area gets the photo reminders.
             let latest = Procedures.past(model.state, today: today.adding(1)).first { $0.place == saved.place }?.id == saved.id
-            return latest ? "Take an after photo in the same light. Barrier reminds you at 4 weeks, 12 weeks and 6 months." : "Take an after photo in the same light."
+            return latest ? "Take an after photo in the same light. Tendwell reminds you at 4 weeks, 12 weeks and 6 months." : "Take an after photo in the same light."
         }
         return Procedures.scarTreatment(saved.name) ? Guidance.procedureGradual.body
             : "Paired by date: the last photo before, and the latest one since (or the one before your next session)."

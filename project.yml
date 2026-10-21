@@ -52,7 +52,7 @@ targets:
     info:
       path: Barrier/Info.plist
       properties:
-        CFBundleDisplayName: Barrier
+        CFBundleDisplayName: Tendwell
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         BarrierAppGroup: $(APP_GROUP)
@@ -63,7 +63,7 @@ targets:
           - UIInterfaceOrientationPortrait
         UIAppFonts:
           - Fraunces.ttf
-        NSCameraUsageDescription: Barrier uses the camera for your progress photos. They stay on this iPhone.
+        NSCameraUsageDescription: Tendwell uses the camera for your progress photos. They stay on this iPhone.
         NSPhotoLibraryAddUsageDescription: Lets you save a progress photo or your report to Photos.
         NSSupportsLiveActivities: true
         UIBackgroundModes:
@@ -104,7 +104,7 @@ targets:
     info:
       path: BarrierWidget/Info.plist
       properties:
-        CFBundleDisplayName: Barrier
+        CFBundleDisplayName: Tendwell
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         BarrierAppGroup: $(APP_GROUP)

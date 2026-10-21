@@ -1,4 +1,4 @@
-# Barrier design spec (native iOS)
+# Tendwell design spec (native iOS, code name Barrier)
 
 The app version of the Barrier design system (vault: Projects/Barrier-DESIGN.md), held to
 Apple's Human Interface Guidelines. Native first; the brand lives in a few deliberate places.

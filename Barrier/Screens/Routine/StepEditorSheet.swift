@@ -92,7 +92,7 @@ struct StepEditorSheet: View {
                     Text("When")
                 } footer: {
                     if case .every(let n) = freq, n > 1 {
-                        Text("Barrier counts \(target.slot.word)s you actually do. Miss one and the next \(target.slot.word) picks up where you left off.")
+                        Text("Tendwell counts \(target.slot.word)s you actually do. Miss one and the next \(target.slot.word) picks up where you left off.")
                     }
                 }
                 Section {

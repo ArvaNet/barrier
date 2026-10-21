@@ -328,7 +328,7 @@ public struct TreatmentTimeline: Sendable {
     public var photos: [Int]
     /// Procedures from before the timeline starts, latest first (two at most).
     public var earlier: [(day: Day, name: String)] = []
-    /// Days at the start before the routine began ("Before Barrier").
+    /// Days at the start before the routine began ("Before Tendwell").
     public var beforeDays: Int = 0
     /// The body routine's name, for the back skin row and break labels.
     public var bodyName: String = "Body"

@@ -74,7 +74,7 @@ public enum Reminders {
             return (title, "\(names.isEmpty ? "Cleanse and moisturize" : names). No actives tonight.")
         }
         let title = inst.label == "Morning routine" ? "Morning routine" : "This morning: \(inst.label)"
-        return (title, names.isEmpty ? "Open Barrier for your steps." : names)
+        return (title, names.isEmpty ? "Open Tendwell for your steps." : names)
     }
 
     public static func nudgeCopy(_ inst: Instance, sp: SlotPlan? = nil) -> (title: String, body: String) {
@@ -96,9 +96,9 @@ public enum Reminders {
 
     static func generic(_ slot: Slot, sp: SlotPlan? = nil) -> (String, String) {
         switch slot {
-        case .pm: return ("Evening routine", "Open Barrier to see tonight’s steps.")
-        case .am: return ("Morning routine", "Open Barrier to see this morning’s steps.")
-        case .body: return (sp.map(bodyTitle) ?? "Body routine", "Open Barrier to see today’s steps.")
+        case .pm: return ("Evening routine", "Open Tendwell to see tonight’s steps.")
+        case .am: return ("Morning routine", "Open Tendwell to see this morning’s steps.")
+        case .body: return (sp.map(bodyTitle) ?? "Body routine", "Open Tendwell to see today’s steps.")
         }
     }
 
@@ -207,7 +207,7 @@ public enum Reminders {
             result.append(PlannedReminder(
                 id: "keepalive", kind: .keepAlive, slot: nil, day: lastDay, fire: keep, offsetMin: 0,
                 title: "Keep your reminders coming",
-                body: "Open Barrier once to plan the next two weeks.", link: "today", actionable: false
+                body: "Open Tendwell once to plan the next two weeks.", link: "today", actionable: false
             ))
         }
         return result.sorted { at($0) < at($1) }

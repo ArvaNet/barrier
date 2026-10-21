@@ -92,7 +92,7 @@ struct DermView: View {
             }
         } footer: {
             if fu == nil {
-                Text("Add your next visit below and Barrier reminds you the evening before, with the report ready.")
+                Text("Add your next visit below and Tendwell reminds you the evening before, with the report ready.")
             }
         }
     }
@@ -207,7 +207,7 @@ struct DermView: View {
         } header: {
             Text("Your dermatologist’s words")
         } footer: {
-            Text("Barrier shows the irritation plan when you log red or stinging skin.")
+            Text("Tendwell shows the irritation plan when you log red or stinging skin.")
         }
     }
 

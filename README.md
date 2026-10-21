@@ -1,4 +1,6 @@
-# Barrier
+# Tendwell
+
+*Code name and repo: Barrier. The app is called Tendwell on the phone; targets, bundle ID and folders keep the code name.*
 
 The routine your dermatologist gave you, remembered. An iPhone app that tells
 you exactly what to put on your skin tonight, reminds you at the right time,
@@ -23,7 +25,7 @@ and adjusts when life gets in the way.
   your clinic asked for, and before/after photos paired by date.
 - **Ready for the follow-up.** Questions to ask, your dermatologist's own
   words, and a PDF report with your procedures and photos.
-- Home and Lock Screen widget with a Done button. Siri: "What's tonight in Barrier".
+- Home and Lock Screen widget with a Done button. Siri: "What's tonight in Tendwell".
 
 Everything stays on the phone (and its iCloud backup).
 
@@ -53,7 +55,7 @@ Xcode. A paid developer account removes that limit and enables TestFlight.
   `com.yourname.barrier`, then run `xcodegen generate` (or edit the bundle
   identifiers in both targets' build settings).
 - **Reminders don't show at night**: if you use a Sleep or Do Not Disturb
-  Focus, add Barrier to its allowed apps (Settings → Focus → Sleep → Apps).
+  Focus, add Tendwell to its allowed apps (Settings → Focus → Sleep → Apps).
 - **After adding or removing source files**: run `xcodegen generate`
   (`brew install xcodegen`). CI warns when the committed project is stale.
 
@@ -81,5 +83,5 @@ Xcode. A paid developer account removes that limit and enables TestFlight.
 CI (GitHub Actions) runs the core tests on Linux, builds the app for the iOS
 Simulator, and takes screenshots of every screen with demo data.
 
-Barrier helps you follow your dermatologist's plan. It doesn't diagnose or
+Tendwell helps you follow your dermatologist's plan. It doesn't diagnose or
 give medical advice.

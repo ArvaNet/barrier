@@ -83,8 +83,8 @@ struct TimelineStrip: View {
             let w = CGFloat(data.beforeDays) * dayW
             ZStack(alignment: .topLeading) {
                 Boxes(rects: [CGRect(x: labelW, y: rowsTop - 3, width: w, height: eventY + 6 - (rowsTop - 3))], corner: 3).fill(colors.before)
-                if w > textWidth("Before Barrier") + 4 {
-                    leading("Before Barrier", x: labelW + 3, y: topH / 2, color: colors.ink3, maxWidth: w)
+                if w > textWidth("Before Tendwell") + 4 {
+                    leading("Before Tendwell", x: labelW + 3, y: topH / 2, color: colors.ink3, maxWidth: w)
                 }
             }
         }

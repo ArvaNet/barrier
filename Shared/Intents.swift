@@ -51,7 +51,7 @@ enum RoutineChoice: String, AppEnum {
 /// Log a routine as done without opening the app (widget button, Siri, Shortcuts).
 struct MarkRoutineDoneIntent: AppIntent {
     static var title: LocalizedStringResource = "Mark routine done"
-    static var description = IntentDescription("Logs your evening or morning routine as done in Barrier.")
+    static var description = IntentDescription("Logs your evening or morning routine as done in Tendwell.")
     static var openAppWhenRun: Bool = false
 
     /// Empty means "whichever routine is current" (morning before 2 p.m.).
@@ -69,7 +69,7 @@ struct MarkRoutineDoneIntent: AppIntent {
         let state = SharedStore.currentState(today: today)
         let slot = routine?.slot ?? RoutineChoice.defaultSlot(state)
         if let state, !state.plan.activeSlots.contains(slot) {
-            return .result(dialog: "That routine isn’t set up in Barrier.")
+            return .result(dialog: "That routine isn’t set up in Tendwell.")
         }
         if let state, state.entry(today, slot)?.status == .done {
             switch slot {
@@ -102,12 +102,12 @@ struct TonightIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let today = Day.routineDay()
         guard let state = SharedStore.currentState(today: today), state.onboarded else {
-            return .result(dialog: "Open Barrier to set up your routine first.")
+            return .result(dialog: "Open Tendwell to set up your routine first.")
         }
         let active = state.plan.activeSlots
         // No evening routine: answer for the body routine if there is one.
         if !active.contains(.pm) {
-            guard active.contains(.body) else { return .result(dialog: "There’s no evening routine set up in Barrier.") }
+            guard active.contains(.body) else { return .result(dialog: "There’s no evening routine set up in Tendwell.") }
             let body = Engine.instance(state, slot: .body, on: today, today: today)
             if body.status == .done { return .result(dialog: "\(body.label) is done for today.") }
             if body.steps.isEmpty { return .result(dialog: "Nothing for your \(body.label.lowercased()) today.") }

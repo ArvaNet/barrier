@@ -80,7 +80,7 @@ struct OnboardingView: View {
                 .font(.barrierLargeTitle).tracking(-0.5)
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Barrier tells you exactly what to do tonight, reminds you at the right time, and adjusts when life gets in the way.")
+            Text("Tendwell tells you exactly what to do tonight, reminds you at the right time, and adjusts when life gets in the way.")
                 .font(.body)
                 .foregroundStyle(Palette.ink2)
                 .padding(.top, 14)
@@ -230,7 +230,7 @@ struct OnboardingView: View {
                         TextField("Dermatologist’s name (optional)", text: $followUpWith)
                     }
                 } footer: {
-                    Text("Barrier reminds you the evening before and has a report ready.")
+                    Text("Tendwell reminds you the evening before and has a report ready.")
                 }
                 Section {
                     TextField("What your dermatologist said, e.g. skip tretinoin for 2 nights", text: Binding(
@@ -272,7 +272,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Palette.ink2)
                 .padding(.top, 24)
                 .padding(.bottom, 20)
-            Text("Let Barrier remind you").font(.barrierLargeTitle).tracking(-0.5).foregroundStyle(Palette.ink)
+            Text("Let Tendwell remind you").font(.barrierLargeTitle).tracking(-0.5).foregroundStyle(Palette.ink)
             VStack(alignment: .leading, spacing: 14) {
                 if pm.enabled && !pm.steps.isEmpty {
                     bullet("moon.stars", "Evenings at \(pm.time.formatted), with tonight’s exact steps.")

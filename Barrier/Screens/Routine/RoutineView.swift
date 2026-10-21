@@ -38,10 +38,10 @@ struct RoutineView: View {
                     if FillInSheet.available(model.state, today: model.today) {
                         Section {
                             Button { showFillIn = true } label: {
-                                Label("Fill in the weeks before Barrier…", systemImage: "calendar.badge.plus")
+                                Label("Fill in the weeks before Tendwell…", systemImage: "calendar.badge.plus")
                             }
                         } footer: {
-                            Text("Followed it before you set up Barrier? Add those weeks so your timeline and report start when you did.")
+                            Text("Followed it before you set up Tendwell? Add those weeks so your timeline and report start when you did.")
                         }
                     }
                     Section {
@@ -259,7 +259,7 @@ struct SlotEditorSections: View {
                 confirmTonight = nil
             }
         } message: {
-            Text("Use this to line Barrier up with what you actually did. History stays as it is.")
+            Text("Use this to line Tendwell up with what you actually did. History stays as it is.")
         }
     }
 }
@@ -484,7 +484,7 @@ struct RoutineHistorySection: View {
         } header: {
             Text("History")
         } footer: {
-            Text("Barrier notes what changed and when (one entry per day), so your dermatologist can see it in the report.")
+            Text("Tendwell notes what changed and when (one entry per day), so your dermatologist can see it in the report.")
         }
     }
 

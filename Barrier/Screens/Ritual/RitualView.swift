@@ -234,7 +234,7 @@ struct RitualView: View {
                 Text(dry ? "Let your skin dry completely" : "Let it absorb")
                     .font(.barrierH2)
                 Text("Up next · \(next.product.name)").font(.subheadline).foregroundStyle(hint)
-                Text("You can lock your phone. Barrier will ping you.")
+                Text("You can lock your phone. Tendwell will ping you.")
                     .font(.footnote).foregroundStyle(hint).padding(.top, 4)
             }
             .multilineTextAlignment(.center)

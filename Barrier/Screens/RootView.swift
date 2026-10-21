@@ -32,7 +32,7 @@ struct RootView: View {
         .sheet(isPresented: $model.showSettings) {
             SettingsView().barrier(model)
         }
-        .alert("Barrier couldn’t read your saved data", isPresented: Binding(
+        .alert("Tendwell couldn’t read your saved data", isPresented: Binding(
             get: { model.loadFailed && !loadAlertDismissed },
             set: { if !$0 { loadAlertDismissed = true } }
         )) {

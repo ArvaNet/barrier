@@ -16,7 +16,7 @@ struct ReconcileCard: View {
             Text("\(inst.label). Did it happen?")
                 .font(.barrierH2)
                 .foregroundStyle(Palette.ink)
-            Text(inst.slot == .pm ? "Logging it keeps tonight right: Barrier never skips ahead." : "Logging it keeps the next one right: Barrier never skips ahead.")
+            Text(inst.slot == .pm ? "Logging it keeps tonight right: Tendwell never skips ahead." : "Logging it keeps the next one right: Tendwell never skips ahead.")
                 .font(.footnote)
                 .foregroundStyle(Palette.ink3)
             HStack(spacing: 10) {
@@ -472,7 +472,7 @@ struct FollowUpCard: View {
             }
         } else if s.plan.followUp == nil && !s.dismissed.contains("followup-hint") {
             TodayCard(kicker: "Follow-up", title: "Got a visit booked?") {
-                Text("Add the date and Barrier gets a report ready for it.").font(.subheadline).foregroundStyle(Palette.ink2)
+                Text("Add the date and Tendwell gets a report ready for it.").font(.subheadline).foregroundStyle(Palette.ink2)
                 CardActions {
                     Button("Add date") { model.tab = .derm }
                         .buttonStyle(SecondaryButtonStyle(compact: true))

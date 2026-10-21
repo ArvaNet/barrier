@@ -144,7 +144,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
     func sendTest() {
         let content = UNMutableNotificationContent()
         content.title = "Reminders are on"
-        content.body = "This is how Barrier will tap you on the shoulder. Long-press a reminder for Done and Not tonight."
+        content.body = "This is how Tendwell will tap you on the shoulder. Long-press a reminder for Done and Not tonight."
         content.sound = .default
         content.categoryIdentifier = Self.routineCategory
         content.userInfo = ["kind": "test", "link": "today"]

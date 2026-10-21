@@ -5,7 +5,7 @@ import Foundation
 // A slot (morning or evening) runs a rotation of `length` positions. The
 // rotation advances one position per night that actually happened. A night
 // with actives that was skipped or never logged does NOT advance it, so the
-// next night picks up where you left off ("Barrier never skips ahead").
+// next night picks up where you left off ("Tendwell never skips ahead").
 // Nights without actives (recovery) advance even when unlogged: the skin
 // rested either way.
 

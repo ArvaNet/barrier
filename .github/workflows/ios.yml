@@ -41,8 +41,9 @@ jobs:
       - name: Generate project
         run: |
           xcodegen generate
-          if [ -n "$(git status --porcelain Barrier.xcodeproj)" ]; then
-            echo "::warning::The committed Barrier.xcodeproj is out of date. Run xcodegen generate (or copy it from this run's xcodeproj artifact) and commit."
+          # The project and both Info.plist files are committed, so the Mac can open the project without XcodeGen.
+          if [ -n "$(git status --porcelain Barrier.xcodeproj Barrier/Info.plist BarrierWidget/Info.plist)" ]; then
+            echo "::warning::The committed project or Info.plist files are out of date. Run xcodegen generate (or copy them from this run's xcodeproj artifact) and commit."
           fi
 
       - name: Core tests (macOS)
@@ -163,5 +164,7 @@ jobs:
           name: xcodeproj
           path: |
             Barrier.xcodeproj
+            Barrier/Info.plist
+            BarrierWidget/Info.plist
             build.log
           if-no-files-found: ignore
