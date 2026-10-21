@@ -80,6 +80,7 @@ struct TodayView: View {
 
 struct SlotHero: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var slot: Slot
     var big: Bool
     @Binding var notTonight: Instance?
@@ -120,16 +121,25 @@ struct SlotHero: View {
                     .padding(.top, 6)
             }
 
-            switch inst.status {
-            case .done:
-                doneBanner(inst)
-            case .skipped:
-                skippedBanner(inst)
-            default:
-                stepsList(inst)
-                notes(inst)
-                actions(inst)
+            // "Done" settles into place: the steps fade out, the done row fades in.
+            Group {
+                switch inst.status {
+                case .done:
+                    doneBanner(inst)
+                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                case .skipped:
+                    skippedBanner(inst)
+                        .transition(.opacity)
+                default:
+                    VStack(alignment: .leading, spacing: 0) {
+                        stepsList(inst)
+                        notes(inst)
+                        actions(inst)
+                    }
+                    .transition(.opacity)
+                }
             }
+            .animation(Motion.ui(reduceMotion), value: inst.status)
         }
     }
 

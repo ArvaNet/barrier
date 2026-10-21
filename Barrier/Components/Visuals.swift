@@ -280,43 +280,74 @@ struct WelcomeOrbit: View {
     /// The first-load settle: the ring starts one night back and turns into place.
     @State private var settle: Double = 90
 
-    private let nights: [(String, Hue)] = [("Exfoliate", .gold), ("Retinoid", .clay), ("Recovery", .sage), ("Recovery", .mist)]
+    private static let nights: [(name: String, hue: Hue)] = [("Exfoliate", .gold), ("Retinoid", .clay), ("Recovery", .sage), ("Recovery", .mist)]
+
+    private var radius: CGFloat { size * 0.36 }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
-            let spin = reduceMotion ? 0 : (t.truncatingRemainder(dividingBy: 60) / 60) * 360
-            let r = size * 0.36
-            ZStack {
-                Circle().stroke(Palette.stageInk.opacity(0.16), lineWidth: 1).frame(width: r * 2, height: r * 2)
-                ForEach(Array(nights.enumerated()), id: \.offset) { i, n in
-                    let deg = Double(i) * 90 - 90 + spin + settle
-                    let a = deg * .pi / 180
-                    let current = i == 0
-                    let d: CGFloat = current ? size * 0.13 : size * 0.075
-                    ZStack {
-                        if current {
-                            Circle().stroke(n.1.color.opacity(0.4), lineWidth: 1.5).frame(width: d * 1.7, height: d * 1.7)
-                            Circle().fill(n.1.color).frame(width: d, height: d)
-                        } else {
-                            Circle().strokeBorder(n.1.color, lineWidth: 1.6).frame(width: d, height: d)
-                        }
-                    }
-                    .offset(x: cos(a) * r, y: sin(a) * r)
-                    Text(current ? "Tonight · \(n.0)" : n.0)
-                        .font(.caption.weight(current ? .semibold : .regular))
-                        .foregroundStyle(current ? Palette.stageInk : Palette.stageInk2)
-                        .fixedSize()
-                        .offset(x: cos(a) * (r + d / 2 + 30), y: sin(a) * (r + d / 2 + 16))
-                }
-            }
-            .frame(width: size + 120, height: size + 30)
+            ring(spin: spin(at: ctx.date))
         }
         .accessibilityElement()
         .accessibilityLabel("A four-night routine: exfoliate, retinoid, then two recovery nights.")
         .onAppear {
             guard settle != 0 else { return }
-            if reduceMotion { settle = 0 } else { withAnimation(.spring(response: 0.7, dampingFraction: 1)) { settle = 0 } }
+            if reduceMotion {
+                settle = 0
+            } else {
+                withAnimation(.spring(response: 0.7, dampingFraction: 1)) { settle = 0 }
+            }
+        }
+    }
+
+    private func spin(at date: Date) -> Double {
+        if reduceMotion { return 0 }
+        let t = date.timeIntervalSinceReferenceDate
+        return t.truncatingRemainder(dividingBy: 60) / 60 * 360
+    }
+
+    private func ring(spin: Double) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Palette.stageInk.opacity(0.16), lineWidth: 1)
+                .frame(width: radius * 2, height: radius * 2)
+            ForEach(0..<WelcomeOrbit.nights.count, id: \.self) { i in
+                node(i, spin: spin)
+            }
+        }
+        .frame(width: size + 120, height: size + 30)
+    }
+
+    private func node(_ i: Int, spin: Double) -> some View {
+        let night = WelcomeOrbit.nights[i]
+        let degrees: Double = Double(i) * 90 - 90 + spin + settle
+        let a: Double = degrees * Double.pi / 180
+        let current = i == 0
+        let d: CGFloat = current ? size * 0.13 : size * 0.075
+        let x = CGFloat(cos(a)) * radius
+        let y = CGFloat(sin(a)) * radius
+        let lx = CGFloat(cos(a)) * (radius + d / 2 + 30)
+        let ly = CGFloat(sin(a)) * (radius + d / 2 + 16)
+        return ZStack {
+            dot(night.hue, current: current, d: d)
+                .offset(x: x, y: y)
+            Text(current ? "Tonight · \(night.name)" : night.name)
+                .font(.caption.weight(current ? .semibold : .regular))
+                .foregroundStyle(current ? Palette.stageInk : Palette.stageInk2)
+                .fixedSize()
+                .offset(x: lx, y: ly)
+        }
+    }
+
+    @ViewBuilder
+    private func dot(_ hue: Hue, current: Bool, d: CGFloat) -> some View {
+        if current {
+            ZStack {
+                Circle().stroke(hue.color.opacity(0.4), lineWidth: 1.5).frame(width: d * 1.7, height: d * 1.7)
+                Circle().fill(hue.color).frame(width: d, height: d)
+            }
+        } else {
+            Circle().strokeBorder(hue.color, lineWidth: 1.6).frame(width: d, height: d)
         }
     }
 }

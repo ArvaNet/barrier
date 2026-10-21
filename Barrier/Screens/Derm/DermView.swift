@@ -87,13 +87,13 @@ struct DermView: View {
                 .padding(.top, 2)
             }
             .padding(.vertical, 8)
+            .task(id: model.state.log.count + model.state.history.count + model.state.checkins.count + model.state.procedures.count) {
+                thumbnail = renderThumbnail()
+            }
         } footer: {
             if fu == nil {
                 Text("Add your next visit below and Barrier reminds you the evening before, with the report ready.")
             }
-        }
-        .task(id: model.state.log.count + model.state.history.count + model.state.checkins.count + model.state.procedures.count) {
-            thumbnail = renderThumbnail()
         }
     }
 
