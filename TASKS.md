@@ -81,4 +81,4 @@ design critique (docs/design-review.md) fixed; before/after screenshots compared
 - [x] Phase 3, screens: Today (6 cards max, "Also today", one check-in, one "for you"), ritual focus layout, Progress order + rings hero, Derm report hero, report preview, onboarding
 - [x] Phase 4, impress: Tonight done moment, bedtime dim, finish with tomorrow, welcome orbit with motion, day-one states
 - [x] Review of all 42 after-shots: dusk button contrast (fill token), stats label collision, day-one rings + report, report preview fade, separators, Settings action icons, onboarding bottom fade, done checkmark on the orbit
-- [ ] CI green, before/after reviewed, pushed, vault note
+- [x] CI green, before/after reviewed, pushed, vault note
