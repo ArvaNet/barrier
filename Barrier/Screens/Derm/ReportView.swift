@@ -168,6 +168,8 @@ struct ReportData {
     var allChanges: [PlanChange] = []
     /// When the change log starts (nil without one).
     var logStart: Day?
+    /// Days logged afterwards (the weeks before Barrier), so the report can say so.
+    var filledIn: (from: Day, to: Day)?
 
     @MainActor
     init(state s: AppState, today: Day, photos store: PhotoStore, sample: Bool = false) {
@@ -235,6 +237,7 @@ struct ReportData {
         timeline = span
         allChanges = PlanHistory.changes(s)
         logStart = s.history.first?.day
+        filledIn = s.filledInSpan
         for area in Scores.areas(s) {
             let list = s.scores.filter { $0.place == area && $0.day >= span.from }.sorted { $0.day < $1.day }
             guard let first = list.first else { continue }
@@ -487,6 +490,9 @@ struct ReportSummaryPage: View {
             }
             if !anyDue && data.scoreLines.isEmpty {
                 Paper.small("Started in Barrier on \(data.from.short). Nothing logged yet; this fills in day by day.")
+            }
+            if let f = data.filledIn {
+                Paper.line("\(f.from.short)–\(f.to.short) filled in afterwards by the patient.")
             }
             if data.recovery > 0 { Paper.stat("\(data.recovery)", "recovery nights for irritation") }
             if !data.scoreLines.isEmpty {

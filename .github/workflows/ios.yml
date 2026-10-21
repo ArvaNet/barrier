@@ -142,6 +142,9 @@ jobs:
           shot 40-starter-today -starter -hour 20
           shot 41-starter-progress -starter -hour 11 -screen progress
           shot 42-starter-derm -starter -hour 11 -screen derm
+          shot 43-fill-in -starter -hour 11 -screen fill-in
+          shot 44-filled-progress -starter -hour 11 -screen filled-progress
+          shot 45-filled-report -starter -hour 11 -screen filled-report
           cp ~/Library/Logs/DiagnosticReports/Barrier* shots/ 2>/dev/null || true
           ls -la shots
 

@@ -320,6 +320,8 @@ public struct Entry: Codable, Hashable, Sendable {
     /// Step ids ticked, for partial routines.
     public var steps: [String]?
     public var at: Date
+    /// Logged afterwards (the weeks before Barrier), not on the day.
+    public var filledIn: Bool?
 
     public init(day: Day, slot: Slot, status: EntryStatus, recovery: Bool? = nil, pos: Int? = nil, label: String? = nil, hue: Hue? = nil, steps: [String]? = nil, at: Date = Date()) {
         self.day = day

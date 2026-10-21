@@ -14,6 +14,7 @@ struct RoutineView: View {
     @State private var adding: Slot?
     @State private var showTemplates = false
     @State private var showPause = false
+    @State private var showFillIn = false
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,15 @@ struct RoutineView: View {
                     PausesSection(showPause: $showPause)
                     RoutineHistorySection()
                         .id("history")
+                    if FillInSheet.available(model.state, today: model.today) {
+                        Section {
+                            Button { showFillIn = true } label: {
+                                Label("Fill in the weeks before Barrier…", systemImage: "calendar.badge.plus")
+                            }
+                        } footer: {
+                            Text("Followed it before you set up Barrier? Add those weeks so your timeline and report start when you did.")
+                        }
+                    }
                     Section {
                         Button { showTemplates = true } label: {
                             Label("Start over from a template…", systemImage: "rectangle.stack")
@@ -73,6 +83,9 @@ struct RoutineView: View {
             }
             .sheet(isPresented: $showPause) {
                 PauseSheet().barrier(model).presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showFillIn) {
+                FillInSheet(start: FillInSheet.suggestedStart(model.state, today: model.today)).barrier(model)
             }
             .confirmationDialog("Start over from a template", isPresented: $showTemplates, titleVisibility: .visible) {
                 ForEach(Presets.Template.allCases) { t in

@@ -57,7 +57,8 @@ struct RootView: View {
         switch screen {
         case "routine", "routine-body", "routine-history", "step-editor", "add-product", "pause": model.tab = .routine
         case "ritual-body": model.open(.ritual(.body, model.today))
-        case "progress", "progress-bottom": model.tab = .progress
+        case "progress", "progress-bottom", "fill-in", "filled-progress": model.tab = .progress
+        case "filled-report": model.open(.report)
         case "derm", "procedure", "procedure-compare", "sample-report", "procedure-new": model.tab = .derm
         case "report", "report-photos", "report-routine": model.open(.report)
         case "settings": model.showSettings = true

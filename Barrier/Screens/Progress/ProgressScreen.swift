@@ -17,6 +17,7 @@ struct ProgressScreen: View {
     /// An imported photo waiting for "Which area?".
     @State private var pendingImport: PendingImport?
     @State private var showLegend = false
+    @State private var showFillIn = false
 
     var body: some View {
         let today = model.today
@@ -50,6 +51,13 @@ struct ProgressScreen: View {
         .sheet(item: $compare) { pair in CompareView(pair: pair).barrier(model) }
         .sheet(item: $viewing) { photo in PhotoDetail(photo: photo).barrier(model) }
         .onChange(of: pickerItem) { _, item in importPhoto(item) }
+        .sheet(isPresented: $showFillIn) {
+            FillInSheet(start: FillInSheet.suggestedStart(model.state, today: model.today)).barrier(model)
+        }
+        .onAppear {
+            // Screenshot hook: `-screen fill-in`.
+            if model.launch.screen == "fill-in", FillInSheet.available(model.state, today: model.today) { showFillIn = true }
+        }
     }
 
     // MARK: Summary
@@ -109,8 +117,26 @@ struct ProgressScreen: View {
                     .font(.footnote).foregroundStyle(Palette.ink3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // New to Barrier but not to the routine: the weeks before can count too.
+            if offerFillIn {
+                Button {
+                    showFillIn = true
+                } label: {
+                    Label("Followed it before? Fill in those weeks", systemImage: "calendar.badge.plus")
+                }
+                .buttonStyle(TertiaryButtonStyle())
+                .frame(maxWidth: .infinity)
+                .padding(.top, -4)
+            }
         }
         .card()
+    }
+
+    /// The first four weeks, until something's been filled in.
+    private var offerFillIn: Bool {
+        let s = model.state
+        return FillInSheet.available(s, today: model.today) && s.filledInSpan == nil
+            && s.plan.createdAt.days(to: model.today) < 28
     }
 
     // MARK: Timeline

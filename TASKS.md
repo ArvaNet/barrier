@@ -82,3 +82,16 @@ design critique (docs/design-review.md) fixed; before/after screenshots compared
 - [x] Phase 4, impress: Tonight done moment, bedtime dim, finish with tomorrow, welcome orbit with motion, day-one states
 - [x] Review of all 42 after-shots: dusk button contrast (fill token), stats label collision, day-one rings + report, report preview fade, separators, Settings action icons, onboarding bottom fade, done checkmark on the orbit
 - [x] CI green, before/after reviewed, pushed, vault note
+
+# Fill in the weeks before Barrier (2026-10-21)
+
+Finish line: someone who followed the routine on paper can say since when and tap the days they
+missed; those weeks show in rings, calendar, timeline and report (marked as filled in afterwards);
+tonight doesn't change; skin notes can be added for any past day; core tests; CI green.
+
+- [x] Core: `fillIn(since:missed:today:)` moves the start, ease-in and treatment start dates, replays the rotation so tonight stays, marks entries `filledIn` (FillIn.swift, 9 tests)
+- [x] "Before Barrier" sheet: date + a calendar per routine, tap to mark missed, Undo on the toast
+- [x] Ways in: Progress card (first four weeks), Routine tab row
+- [x] Day detail: skin chips for any day up to today
+- [x] Report: "Oct 1–Oct 20 filled in afterwards by the patient."
+- [ ] CI green, screenshots 43-45 checked

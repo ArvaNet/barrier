@@ -66,6 +66,12 @@ final class AppModel {
             var s = Presets.apply(.retinoid, to: Presets.blankState(today: today), today: today)
             s.onboarded = true
             if let theme = launch.theme { s.settings.theme = theme }
+            // `-screen filled-…`: three weeks on paper before Barrier, filled in.
+            if launch.screen?.hasPrefix("filled-") == true {
+                s.recordPlan(today: today)
+                s.fillIn(since: today.adding(-21), missed: [.pm: [today.adding(-9), today.adding(-8)], .am: [today.adding(-4)]], today: today)
+                s.checkIn(today.adding(-10), feel: [.dry, .flaky])
+            }
             state = s
         } else if launch.fresh {
             state = Presets.blankState(today: today)
