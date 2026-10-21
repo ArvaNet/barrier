@@ -95,3 +95,7 @@ tonight doesn't change; skin notes can be added for any past day; core tests; CI
 - [x] Day detail: skin chips for any day up to today
 - [x] Report: "Oct 1–Oct 20 filled in afterwards by the patient."
 - [x] CI green, screenshots 43-45 checked (evening first in the picker; report "Now" line notes the ease-in)
+
+# Reliability pass (2026-10-21)
+
+- [x] Stress test (FuzzTests.swift): 150 simulated users, 40-140 days each, with logging, skips, recovery nights, pauses, procedure breaks, plan edits and fill-ins. Checks: no treatment on any rest night, the rotation never skips ahead, one day agrees with the range, stats and timeline counts add up, reminders unique/within the iOS limit/never in the past, save file stable. Zero problems found; a planted bug is caught (3,085 problems).
