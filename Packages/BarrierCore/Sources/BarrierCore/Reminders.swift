@@ -6,7 +6,10 @@ import Foundation
 // shift if one is skipped and nobody opens the app.
 
 public enum ReminderKind: String, Sendable, Codable {
-    case main, nudge, spf, followUp, keepAlive, timer
+    case main, nudge, spf, followUp, keepAlive, timer, procedure
+
+    /// One-offs that must never be crowded out by routine reminders.
+    var isOneOff: Bool { self == .followUp || self == .procedure || self == .keepAlive }
 }
 
 public struct PlannedReminder: Hashable, Sendable, Identifiable {
@@ -37,8 +40,9 @@ public enum Reminders {
         return sp.displayName
     }
 
-    public static func bodyCopy(_ inst: Instance, sp: SlotPlan) -> (title: String, body: String) {
+    public static func bodyCopy(_ inst: Instance, sp: SlotPlan, breakFor: Procedure? = nil) -> (title: String, body: String) {
         if inst.rest == .pause {
+            if let p = breakFor { return (bodyTitle(sp), "Actives break (\(p.name)). Just the basics today.") }
             return (bodyTitle(sp), "Plan paused. Just the basics today.")
         }
         if let a = inst.steps.first(where: \.active) {
@@ -49,7 +53,12 @@ public enum Reminders {
         return (bodyTitle(sp), "\(stepNames(inst)). Tap Done when it’s on.")
     }
 
-    public static func mainCopy(_ inst: Instance, photoNight: Bool) -> (title: String, body: String) {
+    public static func mainCopy(_ inst: Instance, photoNight: Bool, breakFor: Procedure? = nil) -> (title: String, body: String) {
+        if inst.rest == .pause, let p = breakFor {
+            let names = stepNames(inst)
+            let line = "Actives break (\(p.name))" + (names.isEmpty ? ". Just the basics." : ": \(names).")
+            return (inst.slot == .pm ? "Simple night" : "Simple morning", line)
+        }
         if inst.rest == .pause {
             return inst.slot == .pm
                 ? ("Simple night", "Plan paused. Just cleanse and moisturize.")
@@ -124,9 +133,10 @@ public enum Reminders {
                 let photoNight = slot == .pm && settings.photoDay >= 0 && inst.day.weekday == settings.photoDay
                 if fireDate > now {
                     let specific = ahead < specificDays && !uncertain
+                    let brk = inst.rest == .pause ? Procedures.breakFor(state, slot: slot, on: inst.day) : nil
                     let c = slot == .body
-                        ? (specific ? bodyCopy(inst, sp: sp) : generic(slot, sp: sp))
-                        : (specific ? mainCopy(inst, photoNight: photoNight) : generic(slot))
+                        ? (specific ? bodyCopy(inst, sp: sp, breakFor: brk) : generic(slot, sp: sp))
+                        : (specific ? mainCopy(inst, photoNight: photoNight, breakFor: brk) : generic(slot))
                     out.append(PlannedReminder(
                         id: "\(inst.day.iso):\(slot.rawValue):main", kind: .main, slot: slot, day: inst.day, fire: fire,
                         offsetMin: 0, title: c.0, body: c.1, link: link, actionable: true
@@ -175,23 +185,68 @@ public enum Reminders {
             }
         }
 
+        out += procedureReminders(state, today: today, now: now, calendar: calendar)
+
+        func at(_ r: PlannedReminder) -> Date {
+            r.fire.date(calendar: calendar).addingTimeInterval(TimeInterval(r.offsetMin * 60))
+        }
+        // 58 leaves room under iOS's 64 for a wait timer, snoozes and a test reminder.
+        // One-offs (follow-up, procedures, keep-alive) always fit; routine reminders fill the rest.
+        let limit = 58
+        let oneOffs = out.filter { $0.kind.isOneOff }.sorted { at($0) < at($1) }.prefix(limit - 1)
+        let routine = out.filter { !$0.kind.isOneOff }.sorted { at($0) < at($1) }
+        let kept = Array(routine.prefix(limit - 1 - oneOffs.count))
+
         // If the app isn't opened for ~two weeks, the reminders would quietly run out.
-        let lastDay = today.adding(horizonDays - 2)
+        // Ask the day before the last kept routine reminder, in case the cap cut the tail.
+        var lastDay = today.adding(horizonDays - 2)
+        if kept.count < routine.count, let last = kept.last?.day { lastDay = min(lastDay, last.adding(-1)) }
+        var result = Array(oneOffs) + kept
         let keep = DayTime(lastDay, ClockTime(12, 0))
         if keep.date(calendar: calendar) > now {
-            out.append(PlannedReminder(
+            result.append(PlannedReminder(
                 id: "keepalive", kind: .keepAlive, slot: nil, day: lastDay, fire: keep, offsetMin: 0,
                 title: "Keep your reminders coming",
                 body: "Open Barrier once to plan the next two weeks.", link: "today", actionable: false
             ))
         }
+        return result.sorted { at($0) < at($1) }
+    }
 
-        let sorted = out.sorted { a, b in
-            let da = a.fire.date(calendar: calendar).addingTimeInterval(TimeInterval(a.offsetMin * 60))
-            let db = b.fire.date(calendar: calendar).addingTimeInterval(TimeInterval(b.offsetMin * 60))
-            return da < db
+    /// The evening before a procedure, and the "after" photo check-ins.
+    static func procedureReminders(_ state: AppState, today: Day, now: Date, calendar: Calendar) -> [PlannedReminder] {
+        var out: [PlannedReminder] = []
+        let end = today.adding(horizonDays)
+        for p in Procedures.upcoming(state, today: today.adding(1)) where p.day <= end {
+            let fire = DayTime(p.day.adding(-1), ClockTime(18, 0))
+            guard fire.date(calendar: calendar) > now else { continue }
+            let hasBefore = Procedures.recentBefore(p, in: state) != nil
+            out.append(PlannedReminder(
+                id: "\(p.day.iso):proc:\(p.id)", kind: .procedure, slot: nil, day: p.day, fire: fire, offsetMin: 0,
+                title: "\(p.name) tomorrow",
+                body: hasBefore ? "Your before photo is ready. Follow your clinic’s instructions for tomorrow."
+                    : "If you can, take a before photo in good light. Follow your clinic’s instructions for tomorrow.",
+                link: "today", actionable: false
+            ))
         }
-        // 58 leaves room under iOS's 64 for a wait timer, snoozes and a test reminder.
-        return Array(sorted.prefix(58))
+        // "After" photos: only for the latest procedure on each area.
+        for area in Area.allCases {
+            guard let p = Procedures.past(state, today: today.adding(1)).first(where: { $0.place == area }) else { continue }
+            for w in Procedures.photoWeeks {
+                let day = p.day.adding(w * 7)
+                guard day >= today, day <= end, !state.dismissed.contains("proc:\(p.id):w\(w)") else { continue }
+                // A later session on this area is booked: its own before photo comes first.
+                if state.procedures.contains(where: { $0.place == area && $0.day > p.day && $0.day <= day.adding(Procedures.aheadDays) }) { continue }
+                let fire = DayTime(day, ClockTime(12, 0))
+                guard fire.date(calendar: calendar) > now else { continue }
+                out.append(PlannedReminder(
+                    id: "\(day.iso):procphoto:\(p.id)", kind: .procedure, slot: nil, day: day, fire: fire, offsetMin: 0,
+                    title: "\(w) weeks since \(p.name)",
+                    body: "Today or tonight, a photo in the same light as your before one makes the change easy to see.",
+                    link: "today", actionable: false
+                ))
+            }
+        }
+        return Array(out.sorted { $0.fire.date(calendar: calendar) < $1.fire.date(calendar: calendar) }.prefix(4))
     }
 }

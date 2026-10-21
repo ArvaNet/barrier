@@ -114,6 +114,10 @@ jobs:
           shot 15-today-morning-lead -demo -hour 7
           shot 16-routine-body -demo -hour 21 -screen routine-body
           shot 17-ritual-body -demo -hour 21 -screen ritual-body
+          shot 18-procedure -demo -hour 11 -screen procedure
+          shot 19-procedure-compare -demo -hour 11 -screen procedure-compare
+          shot 20-report-photos -demo -hour 11 -screen report-photos
+          shot 21-today-procedure -demo -hour 15 -screen today-procedure
           cp ~/Library/Logs/DiagnosticReports/Barrier* shots/ 2>/dev/null || true
           ls -la shots
 

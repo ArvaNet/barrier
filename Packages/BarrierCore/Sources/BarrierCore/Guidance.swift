@@ -167,6 +167,47 @@ public enum Guidance {
         return Tip(id: t.id, text: t.text, source: t.source, needs: [], anyOf: false)
     }
 
+    // MARK: Procedures (docs/procedure-facts.md)
+
+    public static let aadMicroneedling = Source(label: "AAD: microneedling for scars", url: "https://www.aad.org/public/cosmetic/scars-stretch-marks/microneedling-fade-scars")
+    public static let aadLaserScar = Source(label: "AAD: laser treatment for scars", url: "https://www.aad.org/public/cosmetic/scars-stretch-marks/laser-treatment-scar")
+    public static let aadScarCare = Source(label: "AAD: caring for acne scars", url: "https://www.aad.org/public/diseases/acne/derm-treat/scars/self-care")
+    public static let aadScarTreat = Source(label: "AAD: acne scar treatments", url: "https://www.aad.org/public/diseases/acne/derm-treat/scars/treatment")
+    public static let dermnetSubcision = Source(label: "DermNet: subcision", url: "https://dermnetnz.org/topics/subcision")
+    public static let nhsIsotretinoin = Source(label: "NHS: isotretinoin side effects", url: "https://www.nhs.uk/medicines/isotretinoin-capsules/side-effects-of-isotretinoin-capsules/")
+
+    public static let procedureBreak = Note(
+        title: "Pausing actives around a procedure",
+        body: "Some clinics ask you to pause retinoids for a while before or after a procedure, and others don’t. Only pause if your clinic tells you to, and follow their dates.",
+        sources: [aadMicroneedling, aadLaserScar]
+    )
+
+    public static let procedureSun = Note(
+        title: "Sun after a procedure",
+        body: "Sun protection matters before and after procedures. Many clinics advise avoiding tanning and wearing a broad-spectrum sunscreen of SPF 30 or higher every day on treated skin. Follow your clinic’s instructions on how long.",
+        sources: [aadLaserScar, aadScarCare]
+    )
+
+    public static let procedureGradual = Note(
+        title: "Results take time",
+        body: "Scar treatments usually work gradually over weeks to months, and many people need more than one session. Your clinic will tell you how many and how far apart.",
+        sources: [aadMicroneedling, aadScarTreat, dermnetSubcision]
+    )
+
+    public static let procedurePhotos = Note(
+        title: "Before and after photos",
+        body: "Photos in the same natural light can help you and your dermatologist see how a treatment is working over time. If you can, take one before your procedure.",
+        sources: [S.aadPhotos]
+    )
+
+    public static let isotretinoin = Note(
+        title: "Taking isotretinoin?",
+        body: "If you take or recently took isotretinoin tablets, tell your clinic before any procedure.",
+        sources: [nhsIsotretinoin]
+    )
+
+    public static let procedureContact = "Follow your clinic’s aftercare. Contact your clinic if something looks or feels wrong."
+
     public static let backPhotoTips = "Ask someone, or use the timer. Window light in front of you, plain background."
 
     public static func tip(for kinds: Set<ProductKind>, dayNumber: Int) -> Tip {

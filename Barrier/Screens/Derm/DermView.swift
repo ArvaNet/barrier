@@ -5,12 +5,15 @@ struct DermView: View {
     @Environment(AppModel.self) private var model
     @State private var newQuestion = ""
     @FocusState private var questionFocused: Bool
+    @State private var editing: ProcedureEdit?
+    @State private var compare: ComparePair?
 
     var body: some View {
         @Bindable var model = model
         NavigationStack {
             List {
                 followUpSection
+                ProceduresSection(editing: $editing)
                 questionsSection
                 notesSection
                 Section {
@@ -34,6 +37,23 @@ struct DermView: View {
             .sheet(isPresented: $model.showReport) {
                 ReportView().barrier(model)
             }
+            .sheet(item: $editing) { e in ProcedureSheet(edit: e).barrier(model) }
+            .sheet(item: $compare) { pair in CompareView(pair: pair).barrier(model) }
+            .onAppear(perform: applyLaunchScreen)
+        }
+    }
+
+    /// Screenshot hooks: `-screen procedure` and `-screen procedure-compare` open the demo peel.
+    private func applyLaunchScreen() {
+        guard let screen = model.launch.screen, let peel = model.state.procedures.first(where: { $0.id == "demo-peel" }) else { return }
+        switch screen {
+        case "procedure":
+            if editing == nil { editing = ProcedureEdit(procedure: peel, isNew: false) }
+        case "procedure-compare":
+            if compare == nil, let b = Procedures.beforePhoto(peel, in: model.state), let a = Procedures.afterPhoto(peel, in: model.state) {
+                compare = .procedure(peel, before: b, after: a)
+            }
+        default: break
         }
     }
 
@@ -161,7 +181,7 @@ struct DermView: View {
     }
 
     private var guides: [Note] {
-        [
+        var out = [
             Guidance.irritation,
             Note(title: "When to call your dermatologist", body: Guidance.callYourDerm, sources: Guidance.irritation.sources),
             Guidance.easeIn,
@@ -170,5 +190,11 @@ struct DermView: View {
             Guidance.conflict(.bpoTretinoin),
             Guidance.skinCycling,
         ]
+        // Procedure notes only once there's a procedure to go with them.
+        if !model.state.procedures.isEmpty {
+            out += [Guidance.procedureBreak, Guidance.procedureSun, Guidance.procedureGradual, Guidance.procedurePhotos]
+            if Procedures.takesIsotretinoin(model.state) { out.append(Guidance.isotretinoin) }
+        }
+        return out
     }
 }

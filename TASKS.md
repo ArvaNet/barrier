@@ -38,3 +38,17 @@ screenshots, pushed.
 - [x] Notifications: body category (Skip today), intent case, widget unaffected
 - [x] Fact-checked body tips (docs/body-facts.md)
 - [x] CI green + screenshots reviewed, review pass (docs/review-3.md, all fixed), pushed, vault note
+
+# Procedures (subcision, laser, peels, microneedling, injections)
+
+Finish line: procedures logged, reminded, paired with before/after photos, linked to
+actives breaks, shown on Today, Calendar, Derm and the report. Tested, green CI with
+screenshots, reviewed, pushed.
+
+- [x] Fact-check aftercare wording (docs/procedure-facts.md)
+- [x] Core: Procedure model (old saves still load), quick names, upcoming/recent, before/after pick
+- [x] Core: linked actives break (pause), day-before reminder, recovery-day notes, photo prompts + tests (72 tests)
+- [ ] App: Derm section (upcoming + past), add/edit sheet, before/after compare
+- [ ] App: Today card (upcoming, days after, photo nudge), calendar marker, day detail
+- [ ] App: report "Procedures and photos" page, demo data, CI screenshots
+- [ ] CI green + screenshots reviewed, review pass (docs/review-4.md, all fixed), pushed, vault note

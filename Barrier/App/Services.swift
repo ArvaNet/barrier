@@ -8,11 +8,18 @@ import UIKit
 /// Progress photos live only on this iPhone (and in its iCloud backup).
 final class PhotoStore: @unchecked Sendable {
     private let fm = FileManager.default
+    private let base: URL
+
+    /// `demo`: a throwaway folder, so screenshot runs never touch real photos.
+    init(demo: Bool = false) {
+        base = demo
+            ? fm.temporaryDirectory.appendingPathComponent("DemoPhotos", isDirectory: true)
+            : fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Photos", isDirectory: true)
+    }
 
     private var root: URL {
-        let u = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Photos", isDirectory: true)
-        try? fm.createDirectory(at: u, withIntermediateDirectories: true)
-        return u
+        try? fm.createDirectory(at: base, withIntermediateDirectories: true)
+        return base
     }
 
     func url(_ id: String, thumb: Bool = false) -> URL {

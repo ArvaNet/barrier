@@ -43,7 +43,7 @@ final class AppModel {
     /// readable again or the user chooses to start fresh / restore.
     var loadFailed = false
     let launch: LaunchOptions
-    let photos = PhotoStore()
+    let photos: PhotoStore
 
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var scheduleTask: Task<Void, Never>?
@@ -52,6 +52,7 @@ final class AppModel {
 
     init(launch: LaunchOptions) {
         self.launch = launch
+        self.photos = PhotoStore(demo: launch.demo)
         let now = launch.fixedNow ?? Date()
         self.now = now
         let today = Day.routineDay(now)
@@ -71,7 +72,9 @@ final class AppModel {
                 loadFailed = true
             }
         }
-        if !launch.demo {
+        if launch.demo {
+            DemoPhotos.ensure(state.photos, in: photos)
+        } else {
             inboxObserver = DarwinObserver(name: SharedStore.inboxNotification) { [weak self] in
                 Task { @MainActor in self?.ingestInbox() }
             }

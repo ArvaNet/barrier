@@ -81,12 +81,13 @@ public enum Engine {
         max(1, sp.length) + phase(sp, on: day).extraRest
     }
 
-    public static func isPaused(_ state: AppState, _ day: Day) -> Bool {
-        state.pauses.contains { $0.from <= day && day <= $0.to }
+    /// Paused that day. With a slot: only pauses that apply to that routine.
+    public static func isPaused(_ state: AppState, _ day: Day, slot: Slot? = nil) -> Bool {
+        activePause(state, day, slot: slot) != nil
     }
 
-    public static func activePause(_ state: AppState, _ day: Day) -> Pause? {
-        state.pauses.first { $0.from <= day && day <= $0.to }
+    public static func activePause(_ state: AppState, _ day: Day, slot: Slot? = nil) -> Pause? {
+        state.pauses.first { $0.covers(day) && (slot.map($0.applies) ?? true) }
     }
 
     static func inWindow(_ p: Product, _ day: Day) -> Bool {
@@ -229,7 +230,7 @@ public enum Engine {
             if pos >= cl || pos < 0 { pos = 0 }
 
             let e = entry(d)
-            let paused = isPaused(state, d)
+            let paused = isPaused(state, d, slot: slot)
             let restPos = pos >= sp.length
             let rest: RestReason? = paused ? .pause : (e?.recovery == true ? .inserted : (restPos ? .rotation : nil))
             let full = dueSteps(sp, products: products, day: d, pos: pos, restMode: false)

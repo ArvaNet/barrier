@@ -57,8 +57,8 @@ struct RootView: View {
         case "routine", "routine-body": model.tab = .routine
         case "ritual-body": model.open(.ritual(.body, model.today))
         case "progress", "progress-bottom": model.tab = .progress
-        case "derm": model.tab = .derm
-        case "report": model.open(.report)
+        case "derm", "procedure", "procedure-compare": model.tab = .derm
+        case "report", "report-photos": model.open(.report)
         case "settings": model.showSettings = true
         case "ritual", "ritual-wait", "ritual-done": model.open(.ritual(.pm, model.today))
         case "ritual-am": model.open(.ritual(.am, model.today))
@@ -123,6 +123,10 @@ struct Page<Content: View>: View {
                 // Screenshot hook: `-screen today-bottom`.
                 if model.launch.screen?.hasSuffix("-bottom") == true {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("page-bottom", anchor: .bottom) }
+                }
+                // `-screen today-procedure`: the procedure card at the top.
+                if model.launch.screen == "today-procedure" {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("procedure", anchor: .top) }
                 }
             }
         }

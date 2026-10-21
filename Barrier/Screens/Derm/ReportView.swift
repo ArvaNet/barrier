@@ -11,22 +11,31 @@ struct ReportView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    if pages.isEmpty {
-                        ProgressView().padding(.top, 80)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 16) {
+                        if pages.isEmpty {
+                            ProgressView().padding(.top, 80)
+                        }
+                        ForEach(Array(pages.enumerated()), id: \.offset) { i, img in
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFit()
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                                .id(i)
+                        }
+                        Text("Logged by you in Barrier. Not a medical record.")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
-                    ForEach(Array(pages.enumerated()), id: \.offset) { _, img in
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFit()
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-                    }
-                    Text("Logged by you in Barrier. Not a medical record.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    .padding(20)
                 }
-                .padding(20)
+                .onChange(of: pages.count) { _, n in
+                    // Screenshot hook: `-screen report-photos` shows page 2.
+                    if n > 1 && model.launch.screen == "report-photos" {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { proxy.scrollTo(n - 1, anchor: .top) }
+                    }
+                }
             }
             .background(Palette.bg.ignoresSafeArea())
             .navigationTitle("Report")
@@ -47,7 +56,7 @@ struct ReportView: View {
     private func render() {
         let data = ReportData(state: model.state, today: model.today, photos: model.photos)
         var views: [AnyView] = [AnyView(ReportPageOne(data: data))]
-        if !data.photos.isEmpty { views.append(AnyView(ReportPhotosPage(data: data))) }
+        if !data.photos.isEmpty || !data.procedures.isEmpty { views.append(AnyView(ReportPhotosPage(data: data))) }
         let size = CGSize(width: 595, height: 842)
         pages = views.compactMap { v in
             let r = ImageRenderer(content: v.frame(width: size.width, height: size.height).environment(\.colorScheme, .light))
@@ -89,7 +98,12 @@ struct ReportData {
     var byLabel: [(String, Int)]
     var skipped: Int
     var recovery: Int
-    var pauses: [Pause]
+    /// "Paused Oct 1–Oct 4: traveling", "Actives break Oct 7–Oct 15: Subcision".
+    var pauseLines: [String]
+    /// Past ones (latest 4) and the next one booked, oldest first. Five at most, so page 2 never overflows.
+    var procedures: [Procedure]
+    /// "5 weeks after Subcision", by photo id.
+    var photoContext: [String: String]
     var checkins: [CheckIn]
     var questions: [Question]
     var notes: String?
@@ -147,24 +161,44 @@ struct ReportData {
         byLabel = st.byLabel.sorted { $0.value > $1.value }.map { ($0.key, $0.value) }
         skipped = st.skipped
         recovery = st.recoveryNights
-        pauses = s.pauses.filter { $0.from <= today }
+        pauseLines = s.pauses.filter { $0.from <= today }.sorted { $0.from < $1.from }.suffix(4).map { p in
+            let span = p.from == p.to ? p.from.short : "\(p.from.short)–\(p.to.short)"
+            if let id = p.procedureID, let proc = s.procedures.first(where: { $0.id == id }) {
+                return "Actives break \(span): \(proc.name)"
+            }
+            return "Paused \(span): \(p.reason.label.lowercased())"
+        }
+        let past = Procedures.past(s, today: today.adding(1)).prefix(4).reversed()
+        procedures = Array(past) + Procedures.upcoming(s, today: today.adding(1)).prefix(1)
         checkins = Array(s.checkins.sorted { $0.day > $1.day }.prefix(12))
         questions = s.questions.sorted { !$0.answered && $1.answered }
         notes = s.plan.dermNotes
         ifIrritated = s.plan.ifIrritated
-        // Per area: the first and the latest are always there (before and after),
-        // then recent ones fill up to six. Face first, then body.
+        // Up to six: the latest procedure's before and after on each area, then per
+        // area the first and the latest photo, then recent ones. Face first, then body.
         var pick: [PhotoMeta] = []
+        func add(_ m: PhotoMeta?) {
+            if let m, pick.count < 6, !pick.contains(m) { pick.append(m) }
+        }
+        for area in Area.allCases {
+            if let p = Procedures.past(s, today: today.adding(1)).first(where: { $0.place == area }) {
+                add(Procedures.beforePhoto(p, in: s))
+                add(Procedures.afterPhoto(p, in: s))
+            }
+        }
         let byArea = Area.allCases.map { a in s.photos.filter { $0.place == a }.sorted { $0.at < $1.at } }.filter { !$0.isEmpty }
         for list in byArea {
-            if let f = list.first { pick.append(f) }
-            if let l = list.last, !pick.contains(l) { pick.append(l) }
+            add(list.first)
+            add(list.last)
         }
         for list in byArea {
-            for p in list.reversed() where pick.count < 6 && !pick.contains(p) { pick.append(p) }
+            for p in list.reversed() { add(p) }
         }
-        let ordered = pick.prefix(6).sorted { a, b in a.place == b.place ? a.at < b.at : a.place == .face }
+        let ordered = pick.sorted { a, b in a.place == b.place ? a.at < b.at : a.place == .face }
         photos = ordered.compactMap { m in store.image(m.id).map { (m, $0) } }
+        var context: [String: String] = [:]
+        for m in ordered { context[m.id] = Procedures.context(m, in: s) }
+        photoContext = context
     }
 }
 
@@ -222,7 +256,7 @@ struct ReportPageOne: View {
                         if !data.byLabel.isEmpty {
                             small(data.byLabel.map { "\($0.0): \($0.1)" }.joined(separator: " · "))
                         }
-                        ForEach(data.pauses, id: \.id) { p in small("Paused \(p.from.short)–\(p.to.short): \(p.reason.label.lowercased())") }
+                        ForEach(data.pauseLines, id: \.self) { small($0) }
                     }
                     block("Skin log") {
                         if data.checkins.isEmpty { small("No check-ins yet.") }
@@ -312,31 +346,86 @@ struct ReportPageOne: View {
 struct ReportPhotosPage: View {
     var data: ReportData
 
+    private var hasProcedures: Bool { !data.procedures.isEmpty }
+    /// Smaller photos when the procedures list shares the page.
+    private var photoSize: CGSize { hasProcedures ? CGSize(width: 135, height: 180) : CGSize(width: 166, height: 221) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("BARRIER · PROGRESS PHOTOS").font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
-            Text("Photos, \(data.photos.first?.0.day.short ?? "") – \(data.photos.last?.0.day.short ?? "")").font(Typeface.display(22, weight: 430))
-            // Plain rows: lazy grids don't render inside ImageRenderer.
-            let rows = stride(from: 0, to: data.photos.count, by: 3).map { Array(data.photos[$0..<min($0 + 3, data.photos.count)]) }
-            VStack(alignment: .leading, spacing: 14) {
-                ForEach(0..<rows.count, id: \.self) { r in
-                    HStack(alignment: .top, spacing: 12) {
-                        ForEach(0..<rows[r].count, id: \.self) { c in
-                            let item = rows[r][c]
-                            VStack(alignment: .leading, spacing: 4) {
-                                Image(uiImage: item.1).resizable().scaledToFill().frame(width: 166, height: 221).clipped().clipShape(RoundedRectangle(cornerRadius: 6))
-                                Text(item.0.place == .body ? "\(data.bodyName ?? "Body") · \(item.0.day.long)" : item.0.day.long).font(.system(size: 9)).foregroundStyle(Paper.ink3)
-                            }
-                        }
-                    }
-                }
-            }
+            Text(hasProcedures ? "BARRIER · PROCEDURES AND PHOTOS" : "BARRIER · PROGRESS PHOTOS")
+                .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
+            Text(title).font(Typeface.display(22, weight: 430))
+            if hasProcedures { procedureList }
+            if !data.photos.isEmpty { photoRows }
             Spacer(minLength: 0)
-            Text("Taken by the patient at home. Lighting may vary.").font(.system(size: 8.5)).foregroundStyle(Paper.ink3)
+            Text("Logged and photographed by the patient at home. Lighting may vary. Not a medical record.")
+                .font(.system(size: 8.5)).foregroundStyle(Paper.ink3)
         }
         .padding(36)
         .frame(width: 595, height: 842, alignment: .topLeading)
         .background(Color.white)
         .foregroundStyle(Paper.ink)
+    }
+
+    private var title: String {
+        if hasProcedures { return data.photos.isEmpty ? "Procedures" : "Procedures and photos" }
+        return "Photos, \(data.photos.first?.0.day.short ?? "") – \(data.photos.last?.0.day.short ?? "")"
+    }
+
+    private var procedureList: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("PROCEDURES").font(.system(size: 8.5, weight: .bold)).tracking(1).foregroundStyle(Paper.ink3)
+            ForEach(data.procedures, id: \.id) { p in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(p.day.short).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(Paper.ink3).frame(width: 44, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 4) {
+                            Text(p.title).font(.system(size: 10.5, weight: .semibold))
+                            if p.day > data.today {
+                                Text("booked").font(.system(size: 9)).foregroundStyle(Paper.accent)
+                            }
+                        }
+                        let info = [p.place == .body ? (data.bodyName ?? "Body") : nil, p.spot, p.clinic, breakText(p)].compactMap { $0 }
+                        if !info.isEmpty {
+                            Text(info.joined(separator: " · ")).font(.system(size: 9)).foregroundStyle(Paper.ink2).lineLimit(1)
+                        }
+                        if let n = p.note {
+                            Text("Aftercare: \(n)").font(.system(size: 9)).foregroundStyle(Paper.ink2).lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func breakText(_ p: Procedure) -> String? {
+        guard let w = p.breakDays else { return nil }
+        return w.from == w.to ? "actives off \(w.from.short)" : "actives off \(w.from.short)–\(w.to.short)"
+    }
+
+    private var photoRows: some View {
+        // Plain rows: lazy grids don't render inside ImageRenderer.
+        let rows = stride(from: 0, to: data.photos.count, by: 3).map { Array(data.photos[$0..<min($0 + 3, data.photos.count)]) }
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(0..<rows.count, id: \.self) { r in
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(0..<rows[r].count, id: \.self) { c in
+                        let item = rows[r][c]
+                        VStack(alignment: .leading, spacing: 2) {
+                            Image(uiImage: item.1).resizable().scaledToFill()
+                                .frame(width: photoSize.width, height: photoSize.height).clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            Text(item.0.place == .body ? "\(data.bodyName ?? "Body") · \(item.0.day.long)" : item.0.day.long)
+                                .font(.system(size: 9)).foregroundStyle(Paper.ink3).lineLimit(1)
+                            if let c = data.photoContext[item.0.id] {
+                                Text(c).font(.system(size: 9, weight: .semibold)).foregroundStyle(Paper.ink2).lineLimit(1)
+                            }
+                        }
+                        .frame(width: photoSize.width, alignment: .leading)
+                    }
+                }
+            }
+        }
+        .padding(.top, hasProcedures ? 4 : 0)
     }
 }

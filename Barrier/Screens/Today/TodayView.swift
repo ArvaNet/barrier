@@ -5,7 +5,7 @@ struct TodayView: View {
     @Environment(AppModel.self) private var model
     @State private var detailDay: Day?
     @State private var notTonight: Instance?
-    @State private var showCamera = false
+    @State private var cameraArea: Area?
 
     var body: some View {
         let today = model.today
@@ -23,6 +23,10 @@ struct TodayView: View {
                 ForEach(model.otherSlots) { slot in
                     SlotHero(slot: slot, big: false, notTonight: $notTonight)
                 }
+                ForEach(Array(Procedures.moments(model.state, today: today).prefix(2).enumerated()), id: \.element) { i, m in
+                    ProcedureCard(moment: m, camera: $cameraArea)
+                        .id(i == 0 ? "procedure" : m.procedure.id)
+                }
                 WeekCard(onTap: { detailDay = $0 })
                 if let m = Milestones.unseen(model.state, today: today) {
                     MilestoneCard(milestone: m)
@@ -30,7 +34,7 @@ struct TodayView: View {
                 RecapCard()
                 SkinCheckCard()
                 JourneyCard()
-                PhotoPromptCard(showCamera: $showCamera)
+                PhotoPromptCard(camera: $cameraArea)
                 FollowUpCard()
                 TipCard()
             }
@@ -42,8 +46,8 @@ struct TodayView: View {
         .sheet(item: $notTonight) { inst in
             NotTonightSheet(inst: inst).barrier(model).presentationDetents([.medium, .large])
         }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraScreen().barrier(model)
+        .fullScreenCover(item: $cameraArea) { area in
+            CameraScreen(initialArea: area).barrier(model)
         }
     }
 
@@ -135,7 +139,9 @@ struct SlotHero: View {
 
     private func subtitle(_ inst: Instance) -> String? {
         var parts: [String] = []
-        if inst.rest == .pause {
+        if inst.rest == .pause, let p = Procedures.breakFor(model.state, slot: slot, on: inst.day) {
+            parts.append("Actives break for \(p.name). Basics only.")
+        } else if inst.rest == .pause {
             parts.append("Plan paused. Basics only.")
         } else if inst.rest == .inserted {
             parts.append("Actives off so your skin can settle.")

@@ -379,12 +379,82 @@ public struct Pause: Codable, Identifiable, Hashable, Sendable {
     /// Inclusive.
     public var to: Day
     public var reason: PauseReason
+    /// Only the routines for this area. nil = every routine.
+    public var area: Area?
+    /// The actives break set by a procedure. It moves with the procedure.
+    public var procedureID: String?
 
-    public init(id: String = makeID(), from: Day, to: Day, reason: PauseReason) {
+    public init(id: String = makeID(), from: Day, to: Day, reason: PauseReason, area: Area? = nil, procedureID: String? = nil) {
         self.id = id
         self.from = from
         self.to = to
         self.reason = reason
+        self.area = area
+        self.procedureID = procedureID
+    }
+
+    public func covers(_ day: Day) -> Bool { from <= day && day <= to }
+
+    /// Whether this pause applies to a routine.
+    public func applies(to slot: Slot) -> Bool { area == nil || area == slot.area }
+}
+
+/// A treatment done at a clinic: subcision, a laser session, a peel.
+public struct Procedure: Codable, Identifiable, Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var day: Day
+    /// nil = face.
+    public var area: Area?
+    /// Where exactly ("Cheeks", "Upper back").
+    public var spot: String?
+    /// Clinic or doctor.
+    public var clinic: String?
+    /// Session 2 of 3. nil = a single treatment.
+    public var session: Int?
+    /// Planned sessions in the series, if known.
+    public var sessions: Int?
+    /// The clinic's aftercare instructions, in their words.
+    public var note: String?
+    /// Days without actives before and after, as the clinic said. Both nil = no break.
+    public var breakBefore: Int?
+    public var breakAfter: Int?
+    public var at: Date
+
+    public init(id: String = makeID(), name: String, day: Day, area: Area = .face, spot: String? = nil, clinic: String? = nil,
+                session: Int? = nil, sessions: Int? = nil, note: String? = nil, breakBefore: Int? = nil, breakAfter: Int? = nil, at: Date = Date()) {
+        self.id = id
+        self.name = name
+        self.day = day
+        self.area = area == .face ? nil : area
+        self.spot = spot
+        self.clinic = clinic
+        self.session = session
+        self.sessions = sessions
+        self.note = note
+        self.breakBefore = breakBefore
+        self.breakAfter = breakAfter
+        self.at = at
+    }
+
+    public var place: Area { area ?? .face }
+
+    /// The actives break, if the clinic asked for one.
+    public var breakDays: (from: Day, to: Day)? {
+        guard breakBefore != nil || breakAfter != nil else { return nil }
+        return (day.adding(-max(0, breakBefore ?? 0)), day.adding(max(0, breakAfter ?? 0)))
+    }
+
+    /// "session 2 of 3", "session 2", or nil for a single treatment.
+    public var sessionText: String? {
+        guard let n = session else { return nil }
+        if let total = sessions, total >= n { return "session \(n) of \(total)" }
+        return "session \(n)"
+    }
+
+    /// "Subcision, session 2 of 3".
+    public var title: String {
+        sessionText.map { "\(name), \($0)" } ?? name
     }
 }
 
@@ -474,6 +544,7 @@ public struct AppState: Codable, Hashable, Sendable {
     public var checkins: [CheckIn] = []
     public var pauses: [Pause] = []
     public var photos: [PhotoMeta] = []
+    public var procedures: [Procedure] = []
     public var questions: [Question] = []
     public var settings: Settings = Settings()
     /// One-off cards and notes the user hid.
@@ -485,7 +556,7 @@ public struct AppState: Codable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case version, onboarded, plan, products, log, checkins, pauses, photos, questions, settings, dismissed, milestonesSeen
+        case version, onboarded, plan, products, log, checkins, pauses, photos, procedures, questions, settings, dismissed, milestonesSeen
     }
 
     public init(from decoder: Decoder) throws {
@@ -499,6 +570,7 @@ public struct AppState: Codable, Hashable, Sendable {
         checkins = c.lossyArray(CheckIn.self, forKey: .checkins)
         pauses = c.lossyArray(Pause.self, forKey: .pauses)
         photos = c.lossyArray(PhotoMeta.self, forKey: .photos)
+        procedures = c.lossyArray(Procedure.self, forKey: .procedures)
         questions = c.lossyArray(Question.self, forKey: .questions)
         settings = (try? c.decodeIfPresent(Settings.self, forKey: .settings)) ?? Settings()
         dismissed = (try? c.decodeIfPresent([String].self, forKey: .dismissed)) ?? []

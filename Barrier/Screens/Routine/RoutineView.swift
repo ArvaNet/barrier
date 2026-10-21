@@ -377,7 +377,7 @@ struct PausesSection: View {
                 HStack {
                     Image(systemName: p.reason == .travel ? "airplane" : "pause.circle").foregroundStyle(Palette.hueInk(.mist))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(p.reason.label)
+                        Text(label(p))
                         Text(p.from == p.to ? p.from.short : "\(p.from.short) – \(p.to.short)").font(.footnote).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -398,6 +398,13 @@ struct PausesSection: View {
         } footer: {
             Text("Traveling, a procedure, or skin that needs a rest. Reminders switch to the basics and the rotation waits.")
         }
+    }
+
+    /// "Traveling", or "Actives break: Subcision" for a procedure's break.
+    private func label(_ p: Pause) -> String {
+        guard let id = p.procedureID, let proc = model.state.procedures.first(where: { $0.id == id }) else { return p.reason.label }
+        let scope = p.area == .body ? " (\(model.state.plan.body.displayName))" : ""
+        return "Actives break: \(proc.name)\(scope)"
     }
 }
 

@@ -112,6 +112,7 @@ struct ProgressScreen: View {
         let pmBy = Dictionary(pm.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let amBy = Dictionary(am.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let bodyBy = Dictionary(body.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
+        let procBy = Dictionary(model.state.procedures.filter { $0.day >= first && $0.day <= end }.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let cells: [Day?] = Array(repeating: nil, count: lead) + (0..<count).map { first.adding($0) }
         let rows: [[Day?]] = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0 + 7, cells.count)]) }
         let letters = ["M", "T", "W", "T", "F", "S", "S"]
@@ -135,7 +136,7 @@ struct ProgressScreen: View {
                     HStack(spacing: 2) {
                         ForEach(0..<7, id: \.self) { c in
                             if c < rows[r].count, let d = rows[r][c] {
-                                calendarCell(d, today: today, pm: pmBy[d], am: amBy[d], body: bodyBy[d])
+                                calendarCell(d, today: today, pm: pmBy[d], am: amBy[d], body: bodyBy[d], procedure: procBy[d])
                             } else {
                                 Color.clear.frame(maxWidth: .infinity, minHeight: 44)
                             }
@@ -152,6 +153,12 @@ struct ProgressScreen: View {
                         Text(model.state.plan.body.displayName)
                     }
                 }
+                if !procBy.isEmpty {
+                    HStack(spacing: 5) {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous).strokeBorder(Palette.accent, lineWidth: 1.4).frame(width: 10, height: 10)
+                        Text("Procedure")
+                    }
+                }
                 Spacer()
             }
             .font(.caption)
@@ -160,7 +167,7 @@ struct ProgressScreen: View {
         .card()
     }
 
-    private func calendarCell(_ d: Day, today: Day, pm: Instance?, am: Instance?, body: Instance?) -> some View {
+    private func calendarCell(_ d: Day, today: Day, pm: Instance?, am: Instance?, body: Instance?, procedure: Procedure?) -> some View {
         let isToday = d == today
         return Button {
             detailDay = d
@@ -183,9 +190,14 @@ struct ProgressScreen: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Palette.surface2)
                 }
             }
+            .overlay {
+                if procedure != nil {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.accent, lineWidth: 1.4)
+                }
+            }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(d.long)\(pm?.isDone == true ? ", evening done" : "")\(am?.isDone == true ? ", morning done" : "")\(body?.isDone == true ? ", \(model.state.plan.body.displayName.lowercased()) done" : "")")
+        .accessibilityLabel("\(d.long)\(procedure.map { ", \($0.name)" } ?? "")\(pm?.isDone == true ? ", evening done" : "")\(am?.isDone == true ? ", morning done" : "")\(body?.isDone == true ? ", \(model.state.plan.body.displayName.lowercased()) done" : "")")
     }
 
     @ViewBuilder
@@ -391,6 +403,9 @@ struct ProgressScreen: View {
 struct ComparePair: Identifiable {
     var before: PhotoMeta
     var after: PhotoMeta
+    /// For a procedure: its name, and a caption that says how long after.
+    var title: String? = nil
+    var caption: String? = nil
     var id: String { before.id + after.id }
 }
 
@@ -439,6 +454,10 @@ struct PhotoDetail: View {
                     Image(uiImage: img).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 16))
                 } else {
                     ContentUnavailableView("Photo missing", systemImage: "photo")
+                }
+                // "5 weeks after Subcision": where this photo sits among procedures.
+                if let context = Procedures.context(photo, in: model.state) {
+                    Text(context).font(.subheadline).foregroundStyle(Palette.ink3).padding(.top, 8)
                 }
                 Spacer()
             }
@@ -490,8 +509,8 @@ struct CompareView: View {
                             .overlay(Image(systemName: "arrow.left.and.right").font(.caption.weight(.bold)).foregroundStyle(.black))
                             .shadow(color: .black.opacity(0.3), radius: 6)
                             .offset(x: g.size.width * split - 18, y: g.size.height / 2 - 18)
-                        label(pair.before.day.short).padding(10)
-                        label(pair.after.day.short).padding(10).frame(maxWidth: .infinity, alignment: .trailing)
+                        label(pair.title == nil ? pair.before.day.short : "Before · \(pair.before.day.short)").padding(10)
+                        label(pair.title == nil ? pair.after.day.short : "After · \(pair.after.day.short)").padding(10).frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .frame(width: g.size.width, height: g.size.height)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -506,8 +525,9 @@ struct CompareView: View {
                     }
                 }
                 .aspectRatio(3 / 4, contentMode: .fit)
-                Text("\(pair.before.day.days(to: pair.after.day)) days apart. Drag to compare.")
+                Text(pair.caption ?? "\(pair.before.day.days(to: pair.after.day)) days apart. Drag to compare.")
                     .font(.subheadline).foregroundStyle(Palette.ink3)
+                    .multilineTextAlignment(.center)
                 Spacer()
             }
             .padding()
@@ -516,7 +536,7 @@ struct CompareView: View {
                 before = model.photos.image(pair.before.id)?.resized(maxSide: 1400)
                 after = model.photos.image(pair.after.id)?.resized(maxSide: 1400)
             }
-            .navigationTitle("Before and after")
+            .navigationTitle(pair.title ?? "Before and after")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }

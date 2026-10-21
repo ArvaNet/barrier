@@ -184,6 +184,24 @@ public enum Presets {
                                steps: [Step(productId: back.id, amount: "Thin layer on affected areas", how: "On clean, dry skin")],
                                anchor: Anchor(day: start, pos: 0), name: "Back", cue: "After shower")
         s.onboarded = true
+        // Procedures: a peel before the plan, subcision six days ago with an actives
+        // break the clinic asked for, and the next session booked.
+        let derm = "Dr. Petrauskienė"
+        s.saveProcedure(Procedure(id: "demo-peel", name: "Chemical peel", day: start.adding(-30), spot: "Cheeks and forehead", clinic: derm,
+                                  note: "Gentle cleanser and moisturizer only until the peeling stops."), today: start)
+        s.saveProcedure(Procedure(id: "demo-sub-1", name: "Subcision", day: today.adding(-6), spot: "Both cheeks", clinic: derm, session: 1, sessions: 3,
+                                  note: "Bruising is normal. No makeup for 24 hours. Cold packs if it’s sore.", breakBefore: 3, breakAfter: 5), today: start)
+        s.saveProcedure(Procedure(id: "demo-sub-2", name: "Subcision", day: today.adding(22), spot: "Both cheeks", clinic: derm, session: 2, sessions: 3,
+                                  breakBefore: 3, breakAfter: 5), today: start)
+        // Photo files for these are drawn by the app in demo mode.
+        s.photos = [
+            PhotoMeta(id: "demo-face-0", day: start.adding(-31), at: start.adding(-31).date().addingTimeInterval(10 * 3600)),
+            PhotoMeta(id: "demo-face-1", day: start, at: start.date().addingTimeInterval(21 * 3600)),
+            PhotoMeta(id: "demo-face-2", day: today.adding(-9), at: today.adding(-9).date().addingTimeInterval(11 * 3600)),
+            PhotoMeta(id: "demo-back-0", day: start.adding(9), at: start.adding(9).date().addingTimeInterval(20 * 3600), area: .body),
+            PhotoMeta(id: "demo-back-1", day: today.adding(-2), at: today.adding(-2).date().addingTimeInterval(20 * 3600), area: .body),
+        ]
+        s.milestonesSeen = ["photos-2"]
         for i in 0..<23 {
             let d = start.adding(i)
             if i >= 9 && i % 5 != 2 {
@@ -200,6 +218,7 @@ public enum Presets {
             CheckIn(day: start.adding(4), feel: [.dry, .flaky]),
             CheckIn(day: start.adding(8), feel: [.red, .stinging], note: "Burned a bit around the nose"),
             CheckIn(day: start.adding(13), feel: [.dry]),
+            CheckIn(day: today.adding(-5), feel: [.red], note: "Bruising on both cheeks after subcision"),
             CheckIn(day: start.adding(19), feel: [.calm]),
             CheckIn(day: start.adding(22), feel: [.calm, .breakout], note: "Two small spots on the chin"),
             CheckIn(day: start.adding(12), feel: [.breakout], note: "Upper back, a few new spots", area: .body),

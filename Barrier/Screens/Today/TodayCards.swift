@@ -35,22 +35,30 @@ struct PauseBanner: View {
     var pause: Pause
 
     var body: some View {
+        let procedure = pause.procedureID.flatMap { id in model.state.procedures.first { $0.id == id } }
         HStack(spacing: 12) {
             Image(systemName: pause.reason == .travel ? "airplane" : "pause.circle")
                 .font(.title3)
                 .foregroundStyle(Palette.hueInk(.mist))
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(pause.reason.label) until \(pause.to.short)").font(.subheadline.weight(.semibold))
-                Text("Basics only. Your rotation waits right where it was.").font(.footnote).foregroundStyle(Palette.ink3)
+                Text(procedure == nil ? "\(pause.reason.label) until \(pause.to.short)" : "Actives break until \(pause.to.short)")
+                    .font(.subheadline.weight(.semibold))
+                Text(detail(procedure)).font(.footnote).foregroundStyle(Palette.ink3)
             }
             Spacer()
             Button("End") {
                 model.update { $0.endPause(pause.id, today: model.today) }
-                model.show("Welcome back. The plan is on again.")
+                model.show(procedure == nil ? "Welcome back. The plan is on again." : "Actives are back on.")
             }
             .buttonStyle(SecondaryButtonStyle(compact: true))
         }
         .card(padding: 14, tint: true)
+    }
+
+    private func detail(_ p: Procedure?) -> String {
+        guard let p else { return "Basics only. Your rotation waits right where it was." }
+        let scope = pause.area == .body ? "\(model.state.plan.body.displayName) routine: basics only" : "Basics only"
+        return "For \(p.name), as your clinic asked. \(scope)."
     }
 }
 
@@ -237,7 +245,7 @@ struct JourneyCard: View {
 
 struct PhotoPromptCard: View {
     @Environment(AppModel.self) private var model
-    @Binding var showCamera: Bool
+    @Binding var camera: Area?
 
     var body: some View {
         let s = model.state
@@ -248,7 +256,7 @@ struct PhotoPromptCard: View {
         let lastPhoto = facePhotos.map(\.day).max()
         let photoDay = s.settings.photoDay >= 0 && today.weekday == s.settings.photoDay
         let overdue = (lastPhoto.map { $0.days(to: today) >= 8 } ?? true) && s.settings.photoDay >= 0
-        if !tookToday && (photoDay || overdue) && !s.dismissed.contains("photo-\(today.iso)") {
+        if !tookToday && (photoDay || overdue) && !s.dismissed.contains("photo-\(today.iso)") && !procedureAsks(s, today) {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "camera.aperture")
                     .font(.system(size: 22))
@@ -259,7 +267,7 @@ struct PhotoPromptCard: View {
                     Text(facePhotos.isEmpty ? "Your “before”. In a few weeks you’ll be glad it exists." : "Same spot, same light. It takes 20 seconds.")
                         .font(.subheadline).foregroundStyle(Palette.ink2)
                     HStack(spacing: 10) {
-                        Button("Open camera") { showCamera = true }
+                        Button("Open camera") { camera = .face }
                             .buttonStyle(SecondaryButtonStyle(compact: true))
                         Button("Not today") { model.update { $0.dismiss("photo-\(today.iso)") } }
                             .font(.subheadline.weight(.medium))
@@ -269,6 +277,18 @@ struct PhotoPromptCard: View {
                 }
             }
             .card()
+        }
+    }
+
+    /// A procedure card on Today already asks for a face photo.
+    private func procedureAsks(_ s: AppState, _ today: Day) -> Bool {
+        Procedures.moments(s, today: today).prefix(2).contains { m in
+            guard m.procedure.place == .face else { return false }
+            switch m {
+            case .photo: return true
+            case .upcoming(let p, _): return Procedures.recentBefore(p, in: s) == nil
+            case .after: return false
+            }
         }
     }
 }

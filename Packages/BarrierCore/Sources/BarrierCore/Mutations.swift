@@ -103,6 +103,18 @@ public extension AppState {
     /// End a pause so the routine is back on today.
     mutating func endPause(_ id: String, today: Day) {
         guard let i = pauses.firstIndex(where: { $0.id == id }) else { return }
+        // A procedure's break: change the procedure, so editing it later doesn't bring the break back.
+        if let pid = pauses[i].procedureID, let j = procedures.firstIndex(where: { $0.id == pid }) {
+            let day = procedures[j].day
+            if today > day {
+                procedures[j].breakAfter = day.days(to: today.adding(-1))
+            } else {
+                procedures[j].breakBefore = nil
+                procedures[j].breakAfter = nil
+            }
+            syncBreak(pid, today: today)
+            return
+        }
         if today <= pauses[i].from {
             pauses.remove(at: i)
         } else {

@@ -97,6 +97,11 @@ struct PauseSheet: View {
                     Text("Reminders switch to the basics (cleanse, moisturize, sunscreen). When the pause ends, your rotation continues exactly where it stopped.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    if reason == .procedure {
+                        Text("Booked a procedure? Add it under Derm, Procedures instead: it sets the break from your clinic’s dates, reminds you the evening before and pairs your before and after photos.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .navigationTitle("Pause the plan")
@@ -124,10 +129,25 @@ struct DayDetailSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     var day: Day
+    @State private var editing: ProcedureEdit?
 
     var body: some View {
         NavigationStack {
             List {
+                ForEach(Procedures.on(model.state, day)) { p in
+                    Section("Procedure") {
+                        Button {
+                            editing = ProcedureEdit(procedure: p, isNew: false)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(p.title).font(.headline).foregroundStyle(Palette.ink)
+                                let info = [p.spot, p.clinic].compactMap { $0 }.joined(separator: " · ")
+                                if !info.isEmpty { Text(info).font(.subheadline).foregroundStyle(.secondary) }
+                                if let n = p.note { Text(n).font(.subheadline).foregroundStyle(.secondary) }
+                            }
+                        }
+                    }
+                }
                 ForEach([Slot.pm, .am, .body], id: \.self) { slot in
                     let sp = model.state.plan[slot]
                     // The body routine starts later than the plan: no empty sections before it.
@@ -155,6 +175,7 @@ struct DayDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
+            .sheet(item: $editing) { e in ProcedureSheet(edit: e).barrier(model) }
         }
     }
 
