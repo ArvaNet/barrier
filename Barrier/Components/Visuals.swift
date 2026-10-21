@@ -189,7 +189,7 @@ struct StepRingView: View {
                     .rotationEffect(.degrees(-90))
             }
             Image(systemName: symbol)
-                .font(.system(size: size * 0.2, weight: .light))
+                .font(.system(size: size * 0.24, weight: .light))
                 .foregroundStyle(hue.color)
                 .contentTransition(.symbolEffect(.replace))
         }
@@ -205,7 +205,7 @@ extension ProductKind {
         case .cleanser: return "bubbles.and.sparkles"
         case .retinoid: return "moon.stars"
         case .exfoliant: return "sparkles"
-        case .treatment: return "eyedropper.halffull"
+        case .treatment: return "eyedropper"
         case .serum: return "drop"
         case .moisturizer: return "humidity"
         case .spf: return "sun.max"
