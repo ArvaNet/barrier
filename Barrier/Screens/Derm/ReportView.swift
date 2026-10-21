@@ -213,7 +213,12 @@ struct ReportData {
             for st in sp.steps {
                 guard let p = products[st.productId], p.kind.isActive || p.kind == .oral, !now.contains(where: { $0.hasPrefix(p.name + " ") }) else { continue }
                 let place = slot == .body ? " (\(bp.displayName))" : ""
-                now.append("\(p.name) \(PlanHistory.lowered(Engine.describe(st, in: sp, slot: slot)))\(place)")
+                // "Every night" while easing in isn't every night yet: say so.
+                var ease = ""
+                if p.kind.isActive, let e = sp.easeIn, !e.phases.isEmpty, e.start.adding(e.totalDays) > today {
+                    ease = ", easing in until \(e.start.adding(e.totalDays).short)"
+                }
+                now.append("\(p.name) \(PlanHistory.lowered(Engine.describe(st, in: sp, slot: slot)))\(place)\(ease)")
             }
         }
         nowLine = now.isEmpty ? nil : now.joined(separator: " · ")

@@ -11,7 +11,8 @@ public extension AppState {
     /// The routines a fill-in covers: on, with steps, and there from the plan's start
     /// (a back routine added later has nothing to fill in before it began).
     func fillInSlots() -> [Slot] {
-        Slot.allCases.filter { slot in
+        // Evening first, as everywhere in the app.
+        [Slot.pm, .am, .body].filter { slot in
             let sp = plan[slot]
             return sp.enabled && !sp.steps.isEmpty && (slot != .body || sp.anchor.day <= plan.createdAt)
         }

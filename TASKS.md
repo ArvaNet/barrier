@@ -94,4 +94,4 @@ tonight doesn't change; skin notes can be added for any past day; core tests; CI
 - [x] Ways in: Progress card (first four weeks), Routine tab row
 - [x] Day detail: skin chips for any day up to today
 - [x] Report: "Oct 1–Oct 20 filled in afterwards by the patient."
-- [ ] CI green, screenshots 43-45 checked
+- [x] CI green, screenshots 43-45 checked (evening first in the picker; report "Now" line notes the ease-in)
