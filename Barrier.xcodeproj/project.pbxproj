@@ -14,6 +14,7 @@
 		19CA0654000AD8352E1398BE /* TimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5F00503A613EB83C736277D /* TimerLiveActivity.swift */; };
 		1AF950D81C9DC13C5B581129 /* BarrierWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8377D4536271C7135B04CA97 /* BarrierWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1B597BFF309C1089789B2616 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 23CE6B3650E48720A130F903 /* Assets.xcassets */; };
+		22E0B3BF47C7F0B37301BC3A /* ProcedureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */; };
 		3102CA74B7474C7990036A5E /* ProgressScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033E5CEE7509285637D4A5AB /* ProgressScreen.swift */; };
 		32FEFB8C8B62F7FD727EC0C9 /* BarrierWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A95B6CBE432A170E6168D85E /* BarrierWidgetBundle.swift */; };
 		3AC41B86FB262C977062BED7 /* Fraunces.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 458B15AA882EF8242AB7970B /* Fraunces.ttf */; };
@@ -28,6 +29,7 @@
 		71D6FFCE54C426C6B6863F2B /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2F46CDE35699A825E3D3EF5 /* Palette.swift */; };
 		729FD23ADDB5D71C80059E46 /* DermView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7229435848F0251D2BE91F0 /* DermView.swift */; };
 		751E74E620FF81EE69ABF2B8 /* ReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB97D55836FB9845BBB2A7D /* ReportView.swift */; };
+		81EB28051F4F29A64477C5A8 /* DemoPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F62B0B3F4C5E3391C86381 /* DemoPhotos.swift */; };
 		83E9D4C487EFD88DFDFAB8FD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3FD65A6CDA95F1D6B16B673 /* RootView.swift */; };
 		8B66CC73ABE6E3271C38030F /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94985275BA38D677F52BC4B3 /* SharedStore.swift */; };
 		8C16F678C5841F86BDBFEF70 /* TodayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55CCF9D8ECF4FC2251BB930B /* TodayCards.swift */; };
@@ -82,6 +84,7 @@
 		0DB97D55836FB9845BBB2A7D /* ReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportView.swift; sourceTree = "<group>"; };
 		23CE6B3650E48720A130F903 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2EC47024112BCEB2169D6822 /* Barrier.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Barrier.entitlements; sourceTree = "<group>"; };
+		37F62B0B3F4C5E3391C86381 /* DemoPhotos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoPhotos.swift; sourceTree = "<group>"; };
 		398753E40ACF4EBF01B3B253 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		3F82CBE61516303F7378A1BA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		43DA6C50BBDF30732F34FBB7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -108,6 +111,7 @@
 		B7229435848F0251D2BE91F0 /* DermView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DermView.swift; sourceTree = "<group>"; };
 		C4571244BD96B4C214DDC87F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		C5F00503A613EB83C736277D /* TimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerLiveActivity.swift; sourceTree = "<group>"; };
+		CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcedureViews.swift; sourceTree = "<group>"; };
 		D2F46CDE35699A825E3D3EF5 /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
 		E3FD65A6CDA95F1D6B16B673 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		E6A961FEB6D1E25EDE235B06 /* StepEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepEditorSheet.swift; sourceTree = "<group>"; };
@@ -180,6 +184,7 @@
 			isa = PBXGroup;
 			children = (
 				B7229435848F0251D2BE91F0 /* DermView.swift */,
+				CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */,
 				0DB97D55836FB9845BBB2A7D /* ReportView.swift */,
 			);
 			path = Derm;
@@ -233,6 +238,7 @@
 			children = (
 				0A06A5FA5495A6A1FB8A4EDB /* AppModel.swift */,
 				FA2C4EC17B9D3BC77B7ADAD7 /* BarrierApp.swift */,
+				37F62B0B3F4C5E3391C86381 /* DemoPhotos.swift */,
 				398753E40ACF4EBF01B3B253 /* NotificationService.swift */,
 				5FF4107EA4067841A68422F9 /* Services.swift */,
 			);
@@ -443,11 +449,13 @@
 				5D2B37E71E2EB06E98F2F354 /* AppModel.swift in Sources */,
 				9A4E822389ED54773ED5473B /* BarrierApp.swift in Sources */,
 				719AE651A0CF615C245C166D /* CameraScreen.swift in Sources */,
+				81EB28051F4F29A64477C5A8 /* DemoPhotos.swift in Sources */,
 				729FD23ADDB5D71C80059E46 /* DermView.swift in Sources */,
 				D4600E2B7621C2DF984A2BA8 /* Intents.swift in Sources */,
 				6F8A867014F0E4E5BBFEF988 /* NotificationService.swift in Sources */,
 				0C3387CB7BBE9E5FB42222C1 /* OnboardingView.swift in Sources */,
 				AC9D4C3BA8D1B20A6D37C6B3 /* Palette.swift in Sources */,
+				22E0B3BF47C7F0B37301BC3A /* ProcedureViews.swift in Sources */,
 				3102CA74B7474C7990036A5E /* ProgressScreen.swift in Sources */,
 				751E74E620FF81EE69ABF2B8 /* ReportView.swift in Sources */,
 				92D3A3EBB8518C5F42924F9C /* RitualTimerAttributes.swift in Sources */,

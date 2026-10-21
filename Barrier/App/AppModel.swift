@@ -219,6 +219,9 @@ final class AppModel {
     /// The body routine is set up with at least one step.
     var hasBodyRoutine: Bool { state.plan.activeSlots.contains(.body) }
 
+    /// What the body area is called: the body routine's name ("Back"), or "Body" without one.
+    var bodyAreaName: String { hasBodyRoutine ? state.plan.body.displayName : "Body" }
+
     // MARK: Actions
 
     func markDone(_ inst: Instance, steps: [String]? = nil, quiet: Bool = false) {
@@ -250,6 +253,22 @@ final class AppModel {
         if ritual?.id != id { RitualMemory.shared.progress[id] = nil }
         TimerActivity.end(ritualID: id)
         NotificationService.shared.cancelTimer(ritualID: id)
+    }
+
+    /// End a pause or a procedure's break early, and say what happens next.
+    func endPause(_ pause: Pause) {
+        let proc = pause.procedureID.flatMap { id in state.procedures.first { $0.id == id } }
+        update { $0.endPause(pause.id, today: today) }
+        guard let proc else {
+            show(pause.from <= today ? "Welcome back. The plan is on again." : "Break removed.")
+            return
+        }
+        // Ended in the days before: the clinic's break from the procedure day on stays.
+        if let kept = state.pauses.first(where: { $0.procedureID == proc.id && $0.from > today }) {
+            show("Actives back on until \(kept.from.relative(to: today, evening: false)). The break after \(proc.name) stays.")
+        } else {
+            show(pause.from <= today ? "Actives are back on." : "Break removed.")
+        }
     }
 
     func undoEntry(_ inst: Instance) {

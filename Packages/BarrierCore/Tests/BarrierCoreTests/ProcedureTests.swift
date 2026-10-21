@@ -160,14 +160,36 @@ final class ProcedureTests: XCTestCase {
         XCTAssertNotEqual(Engine.instance(s, slot: .pm, on: today, today: today).rest, .pause)
     }
 
-    func testEndingABreakBeforeTheProcedureTurnsItOff() {
+    func testEndingABreakBeforeTheProcedureKeepsTheBreakAfter() {
         var s = base()
-        s.saveProcedure(Procedure(name: "Chemical peel", day: start.adding(5), breakBefore: 4, breakAfter: 3), today: start)
+        let laser = Procedure(name: "Fractional CO2 laser", day: start.adding(5), breakBefore: 4, breakAfter: 3)
+        s.saveProcedure(laser, today: start)
         let today = start.adding(3)
         s.endPause(s.pauses[0].id, today: today)
+        XCTAssertEqual(s.procedures[0].breakBefore, 0)
+        XCTAssertEqual(s.procedures[0].breakAfter, 3, "the clinic's days after stay")
+        let spans = s.pauses.map { [$0.from, $0.to] }.sorted { $0[0] < $1[0] }
+        XCTAssertEqual(spans, [[start.adding(1), start.adding(2)], [start.adding(5), start.adding(8)]])
+        XCTAssertNotEqual(Engine.instance(s, slot: .pm, on: today, today: today).rest, .pause, "actives back on until the laser")
+        XCTAssertEqual(Engine.instance(s, slot: .pm, on: laser.day, today: today).rest, .pause)
+    }
+
+    func testRemovingABreakThatHasNotStartedTurnsItOff() {
+        var s = base()
+        s.saveProcedure(Procedure(name: "Chemical peel", day: start.adding(5), breakBefore: 2, breakAfter: 3), today: start)
+        s.endPause(s.pauses[0].id, today: start)
         XCTAssertNil(s.procedures[0].breakBefore)
         XCTAssertNil(s.procedures[0].breakAfter)
+        XCTAssertTrue(s.pauses.isEmpty)
+    }
+
+    func testEndingOnTheProcedureDayEndsIt() {
+        var s = base()
+        s.saveProcedure(Procedure(name: "Chemical peel", day: start.adding(3), breakBefore: 2, breakAfter: 3), today: start)
+        let today = start.adding(3)
+        s.endPause(s.pauses[0].id, today: today)
         XCTAssertEqual(s.pauses.map(\.to), [start.adding(2)], "days already on the break stay in the history")
+        XCTAssertNotEqual(Engine.instance(s, slot: .pm, on: today, today: today).rest, .pause)
     }
 
     func testRemovingAProcedureKeepsPastBreakDays() {
@@ -213,13 +235,70 @@ final class ProcedureTests: XCTestCase {
         XCTAssertEqual(Procedures.beforePhoto(p, in: s)?.id, "pre")
         XCTAssertEqual(Procedures.afterPhoto(p, in: s)?.id, "post2")
         XCTAssertEqual(Procedures.recentBefore(p, in: s)?.id, "pre")
-        // A photo on the day itself counts as the before (the earliest one that day).
+        // Photos on the day itself: with one from the week before, they're "day of", not the before.
         s.photos.append(PhotoMeta(id: "dayof-late", day: p.day, at: at(p.day, 18)))
         s.photos.append(PhotoMeta(id: "dayof", day: p.day, at: at(p.day, 8)))
-        XCTAssertEqual(Procedures.beforePhoto(p, in: s)?.id, "dayof")
-        XCTAssertEqual(Procedures.context(s.photos.first { $0.id == "dayof" }!, in: s), "Before Subcision")
+        XCTAssertEqual(Procedures.beforePhoto(p, in: s)?.id, "pre")
+        XCTAssertEqual(Procedures.context(s.photos.first { $0.id == "pre" }!, in: s), "Before Subcision")
+        XCTAssertEqual(Procedures.context(s.photos.first { $0.id == "dayof-late" }!, in: s), "Day of Subcision")
         XCTAssertEqual(Procedures.context(s.photos.first { $0.id == "post1" }!, in: s), "10 days after Subcision")
         XCTAssertNil(Procedures.context(s.photos.first { $0.id == "back" }!, in: s), "a face procedure says nothing about back photos")
+        // Nothing in the week before: the earliest photo of the day is the before.
+        s.photos.removeAll { $0.id == "pre" }
+        XCTAssertEqual(Procedures.beforePhoto(p, in: s)?.id, "dayof")
+        XCTAssertEqual(Procedures.context(s.photos.first { $0.id == "dayof" }!, in: s), "Before Subcision")
+    }
+
+    func testTheEveningBeforeBeatsAPhotoAfterTheAppointment() {
+        var s = base()
+        let p = Procedure(name: "Subcision", day: start.adding(10))
+        s.saveProcedure(p, today: start)
+        // As the 6 PM reminder asks, then a photo of the fresh result that evening.
+        s.photos = [
+            PhotoMeta(id: "eve", day: p.day.adding(-1), at: at(p.day.adding(-1), 19)),
+            PhotoMeta(id: "fresh", day: p.day, at: at(p.day, 20)),
+        ]
+        XCTAssertEqual(Procedures.beforePhoto(p, in: s)?.id, "eve")
+        XCTAssertNil(Procedures.afterPhoto(p, in: s), "the day itself is never the after")
+    }
+
+    func testSameDayProceduresShareBeforeAndAfter() {
+        var s = base()
+        let sub = Procedure(name: "Subcision", day: start.adding(10), at: at(start, 9))
+        let laser = Procedure(name: "Fractional CO2 laser", day: start.adding(10), at: at(start, 10))
+        s.saveProcedure(sub, today: start)
+        s.saveProcedure(laser, today: start)
+        s.photos = [PhotoMeta(id: "b", day: start.adding(9)), PhotoMeta(id: "a", day: start.adding(40))]
+        for p in [sub, laser] {
+            XCTAssertEqual(Procedures.beforePhoto(p, in: s)?.id, "b")
+            XCTAssertEqual(Procedures.afterPhoto(p, in: s)?.id, "a")
+        }
+    }
+
+    func testAProcedureBreakWinsOverATravelPause() {
+        var s = base()
+        s.addPause(from: start, to: start.adding(6), reason: .travel)
+        s.saveProcedure(Procedure(name: "Chemical peel", day: start.adding(3), breakBefore: 1, breakAfter: 1), today: start)
+        XCTAssertEqual(Procedures.breakFor(s, slot: .pm, on: start.adding(3))?.name, "Chemical peel")
+        XCTAssertNotNil(Procedures.bannerPause(s, today: start.adding(3))?.procedureID)
+        XCTAssertNil(Procedures.bannerPause(s, today: start)?.procedureID, "the trip shows when only it covers today")
+    }
+
+    func testABackBreakWithoutABackRoutineShowsNoBanner() {
+        var s = base()
+        s.plan.body.enabled = false
+        s.saveProcedure(Procedure(name: "Cortisone injection", day: start, area: .body, breakBefore: 0, breakAfter: 2), today: start)
+        XCTAssertNil(Procedures.bannerPause(s, today: start))
+    }
+
+    func testScarAndSunNotes() {
+        XCTAssertFalse(Procedures.sunCare("Subcision"), "no sourced sun advice for subcision")
+        XCTAssertTrue(Procedures.scarTreatment("Subcision"))
+        XCTAssertFalse(Procedures.sunCare("IPL"))
+        XCTAssertFalse(Procedures.scarTreatment("Vascular laser"))
+        XCTAssertTrue(Procedures.sunCare("Vascular laser"))
+        XCTAssertEqual(Procedures.photoMark(4), "4 weeks")
+        XCTAssertEqual(Procedures.photoMark(26), "6 months")
     }
 
     func testAfterPhotoStopsAtTheNextSession() {
@@ -320,6 +399,10 @@ final class ProcedureTests: XCTestCase {
         let r = Reminders.plan(s, now: now, calendar: cal).first { $0.id.contains(":procphoto:") }
         XCTAssertEqual(r?.title, "4 weeks since Microneedling")
         XCTAssertEqual(r?.fire, DayTime(start.adding(28), ClockTime(12, 0)))
+        // A photo already taken that day: no reminder.
+        var taken = s
+        taken.photos.append(PhotoMeta(day: start.adding(28), at: at(start.adding(28), 8)))
+        XCTAssertNil(Reminders.plan(taken, now: at(start.adding(28), 9), calendar: cal).first { $0.id.contains(":procphoto:") })
         // Hidden on Today: no reminder either.
         s.dismiss("proc:\(p.id):w4")
         XCTAssertNil(Reminders.plan(s, now: now, calendar: cal).first { $0.id.contains(":procphoto:") })

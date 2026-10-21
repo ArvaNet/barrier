@@ -43,7 +43,7 @@ extension ComparePair {
     /// A procedure's before and after, titled for it.
     static func procedure(_ p: Procedure, before: PhotoMeta, after: PhotoMeta) -> ComparePair {
         let gap = Procedures.since(p.day.days(to: after.day)).lowercased()
-        return ComparePair(before: before, after: after, title: p.name, caption: "Before, and \(gap) \(p.name). Drag to compare.")
+        return ComparePair(before: before, after: after, title: p.name, caption: "Before and \(gap). Drag to compare.")
     }
 }
 
@@ -122,7 +122,7 @@ struct ProceduresSection: View {
 
     private func detail(_ p: Procedure, upcoming: Bool) -> String {
         let when = upcoming ? p.day.ahead(from: model.today) : p.day.ago(from: model.today)
-        let area = p.place == .body ? model.state.plan.body.displayName : nil
+        let area = p.place == .body ? model.bodyAreaName : nil
         return ([when, p.spot ?? area, p.clinic].compactMap { $0 }.filter { !$0.isEmpty }).joined(separator: " · ")
     }
 }
@@ -155,6 +155,8 @@ struct ProcedureSheet: View {
     private var trimmedName: String { p.name.trimmingCharacters(in: .whitespacesAndNewlines) }
     /// The saved version, for photos (the sheet's edits aren't saved yet).
     private var saved: Procedure? { model.state.procedures.first { $0.id == p.id } }
+    /// A break needs a routine to take actives out of: none for the body without a body routine.
+    private var breakApplies: Bool { p.place == .face || model.hasBodyRoutine }
 
     var body: some View {
         NavigationStack {
@@ -162,7 +164,7 @@ struct ProcedureSheet: View {
                 if let saved { photosSection(saved) }
                 detailsSection
                 seriesSection
-                breakSection
+                if breakApplies { breakSection }
                 aftercareSection
                 if Procedures.takesIsotretinoin(model.state) && p.day >= today {
                     Section {
@@ -231,7 +233,7 @@ struct ProcedureSheet: View {
             if let first = series.first, first.id != saved.id, let b = Procedures.beforePhoto(first, in: s), let a = after, b.id != a.id {
                 Button {
                     compare = ComparePair(before: b, after: a, title: saved.name,
-                                          caption: "Before session 1 (\(first.day.short)), and \(a.day.short). Drag to compare.")
+                                          caption: "Before session 1 (\(first.day.short)) and the latest (\(a.day.short)). Drag to compare.")
                 } label: {
                     Label("Compare with before session 1", systemImage: "clock.arrow.circlepath")
                 }
@@ -248,9 +250,12 @@ struct ProcedureSheet: View {
             return Guidance.procedurePhotos.body
         }
         if after == nil {
-            return "Take an after photo in the same light as the before one. Barrier asks again at 4, 12 and 26 weeks."
+            // Only the latest procedure on an area gets the photo reminders.
+            let latest = Procedures.past(model.state, today: today.adding(1)).first { $0.place == saved.place }?.id == saved.id
+            return latest ? "Take an after photo in the same light. Barrier reminds you at 4 weeks, 12 weeks and 6 months." : "Take an after photo in the same light."
         }
-        return Procedures.sunCare(saved.name) ? Guidance.procedureGradual.body : "Photos are paired by date: the last one before, and the latest since."
+        return Procedures.scarTreatment(saved.name) ? Guidance.procedureGradual.body
+            : "Paired by date: the last photo before, and the latest one since (or the one before your next session)."
     }
 
     @ViewBuilder
@@ -314,7 +319,7 @@ struct ProcedureSheet: View {
                 set: { p.area = $0 == .face ? nil : $0 }
             )) {
                 Text("Face").tag(Area.face)
-                Text(model.hasBodyRoutine ? bodyName : "Body").tag(Area.body)
+                Text(model.bodyAreaName).tag(Area.body)
             }
             .pickerStyle(.segmented)
             TextField("Where exactly (optional)", text: optional(\.spot))
@@ -395,10 +400,12 @@ struct ProcedureSheet: View {
                 }
             ))
             if hasBreak {
-                Stepper(p.breakBefore == 0 ? "Before: from the day itself" : "Before: \(p.breakBefore ?? 0) day\(p.breakBefore == 1 ? "" : "s")",
-                        value: Binding(get: { p.breakBefore ?? 0 }, set: { p.breakBefore = $0 }), in: 0...60)
-                Stepper(p.breakAfter == 0 ? "After: back on the next day" : "After: \(p.breakAfter ?? 0) day\(p.breakAfter == 1 ? "" : "s")",
-                        value: Binding(get: { p.breakAfter ?? 0 }, set: { p.breakAfter = $0 }), in: 0...90)
+                Stepper(p.breakBefore == 0 ? "Before: from the day itself" : "Before: \(span(p.breakBefore ?? 0))",
+                        onIncrement: { p.breakBefore = up(p.breakBefore ?? 0, max: 63) },
+                        onDecrement: { p.breakBefore = down(p.breakBefore ?? 0) })
+                Stepper(p.breakAfter == 0 ? "After: back on the next day" : "After: \(span(p.breakAfter ?? 0))",
+                        onIncrement: { p.breakAfter = up(p.breakAfter ?? 0, max: 91) },
+                        onDecrement: { p.breakAfter = down(p.breakAfter ?? 0) })
                 if let w = p.breakDays {
                     Text(breakSummary(from: w.from, to: w.to))
                         .font(.footnote)
@@ -417,6 +424,11 @@ struct ProcedureSheet: View {
         }
     }
 
+    /// Day by day up to two weeks, then a week at a time: clinics often say "4 weeks".
+    private func up(_ v: Int, max m: Int) -> Int { v < 14 ? v + 1 : min(m, (v / 7 + 1) * 7) }
+    private func down(_ v: Int) -> Int { v <= 14 ? max(0, v - 1) : max(14, (v - 1) / 7 * 7) }
+    private func span(_ d: Int) -> String { d >= 14 && d % 7 == 0 ? "\(d / 7) weeks" : "\(d) day\(d == 1 ? "" : "s")" }
+
     private func breakSummary(from: Day, to: Day) -> String {
         let routines = p.place == .face ? "your face routines" : "your \(bodyName.lowercased()) routine"
         let span = from == to ? "on \(from.short)" : "from \(from.short) to \(to.short)"
@@ -427,7 +439,7 @@ struct ProcedureSheet: View {
 
     private var aftercareSection: some View {
         Section {
-            TextField("In their words, e.g. no makeup for 24 hours", text: optional(\.note), axis: .vertical)
+            TextField("In their words, e.g. gentle cleanser only", text: optional(\.note), axis: .vertical)
                 .lineLimit(2...8)
         } header: {
             Text("Clinic’s aftercare")
@@ -470,7 +482,7 @@ struct ProcedureSheet: View {
             out.session = nil
             out.sessions = nil
         }
-        if !hasBreak {
+        if !hasBreak || !breakApplies {
             out.breakBefore = nil
             out.breakAfter = nil
         }
@@ -499,7 +511,8 @@ struct ProcedureCard: View {
             HStack(alignment: .firstTextBaseline) {
                 Kicker(kicker, color: isSoon ? Palette.accent : Palette.ink3)
                 Spacer()
-                if let id = moment.dismissID {
+                // The after-photo card hides with "Not now"; one way is enough.
+                if isAfter, let id = moment.dismissID {
                     Button {
                         model.update { $0.dismiss(id) }
                     } label: {
@@ -524,12 +537,17 @@ struct ProcedureCard: View {
         return false
     }
 
+    private var isAfter: Bool {
+        if case .after = moment { return true }
+        return false
+    }
+
     private var kicker: String {
         switch moment {
         case .upcoming(let p, let n):
             return n <= 1 ? p.day.ahead(from: model.today) : "\(p.day.ahead(from: model.today)) · \(p.day.weekdayShort)"
         case .after(_, let d): return "Day \(d) after"
-        case .photo(_, let w): return "\(w) weeks since"
+        case .photo(_, let w): return "\(Procedures.photoMark(w)) after"
         }
     }
 
@@ -544,7 +562,7 @@ struct ProcedureCard: View {
         switch moment {
         case .photo: return p.title
         default:
-            let area = p.place == .body ? model.state.plan.body.displayName : nil
+            let area = p.place == .body ? model.bodyAreaName : nil
             let parts = [p.spot ?? area, p.clinic].compactMap { $0 }.filter { !$0.isEmpty }
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
         }
@@ -554,7 +572,9 @@ struct ProcedureCard: View {
     private func content(_ p: Procedure) -> some View {
         let today = model.today
         switch moment {
-        case .upcoming:
+        case .upcoming(_, let n):
+            // On the day itself, the clinic's aftercare matters from the evening on.
+            if n == 0, let note = p.note { noteBox(note) }
             // A break already on shows in the banner at the top of Today.
             if let w = p.breakDays, w.from > today {
                 line("pause.circle", "Actives break from \(w.from.relative(to: today, evening: false)), as your clinic asked.")
@@ -562,29 +582,32 @@ struct ProcedureCard: View {
             if let b = Procedures.recentBefore(p, in: model.state) {
                 line("checkmark.circle", "Before photo taken \(b.day == today ? "today" : b.day.short).")
             } else {
-                line("camera", "If you can, take a before photo in good light.")
+                line("camera", n == 0 ? "Before your appointment, take a before photo if you can." : "If you can, take a before photo in good light.")
             }
             if Procedures.takesIsotretinoin(model.state) && p.day > today {
                 line("exclamationmark.circle", Guidance.isotretinoin.body)
             }
         case .after:
-            if let note = p.note {
-                HStack(spacing: 10) {
-                    RoundedRectangle(cornerRadius: 1.5).fill(Palette.accent.opacity(0.6)).frame(width: 3)
-                    Text(note).font(.subheadline).foregroundStyle(Palette.ink).fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.vertical, 2)
-            }
+            if let note = p.note { noteBox(note) }
             if Procedures.sunCare(p.name) {
-                line("sun.max", "Sun protection matters on treated skin. Follow your clinic on how long.")
+                line("sun.max", "Sun protection matters on treated skin. Follow your clinic’s advice on how long.")
             }
             line("cross.case", p.note == nil ? Guidance.procedureContact : "Contact your clinic if something looks or feels wrong.")
         case .photo:
-            line("camera.aperture", "A photo in the same light as your before one makes the change easy to see.")
-            if Procedures.sunCare(p.name) {
+            line("camera.aperture", "A photo in the same light as your before one makes any change easier to see.")
+            if Procedures.scarTreatment(p.name) {
                 line("clock", "Scar treatments usually work gradually over weeks to months.")
             }
         }
+    }
+
+    /// The clinic's own words, set apart.
+    private func noteBox(_ note: String) -> some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 1.5).fill(Palette.accent.opacity(0.6)).frame(width: 3)
+            Text(note).font(.subheadline).foregroundStyle(Palette.ink).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder

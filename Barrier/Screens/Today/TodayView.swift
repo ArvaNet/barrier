@@ -16,7 +16,7 @@ struct TodayView: View {
                 ForEach(Engine.needsReconcile(model.state, today: today).prefix(1), id: \.self) { inst in
                     ReconcileCard(inst: inst)
                 }
-                if let pause = Engine.activePause(model.state, today) {
+                if let pause = Procedures.bannerPause(model.state, today: today) {
                     PauseBanner(pause: pause)
                 }
                 SlotHero(slot: lead, big: true, notTonight: $notTonight)

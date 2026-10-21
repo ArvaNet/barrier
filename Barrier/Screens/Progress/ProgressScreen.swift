@@ -15,7 +15,7 @@ struct ProgressScreen: View {
     /// Photo filter; nil = all areas.
     @State private var photoArea: Area?
     /// An imported photo waiting for "Which area?".
-    @State private var pendingImport: UIImage?
+    @State private var pendingImport: PendingImport?
 
     var body: some View {
         let today = model.today
@@ -38,11 +38,11 @@ struct ProgressScreen: View {
         .fullScreenCover(isPresented: $showCamera) { CameraScreen(initialArea: effectiveArea ?? .face).barrier(model) }
         .confirmationDialog("Which area is this photo?", isPresented: Binding(get: { pendingImport != nil }, set: { if !$0 { pendingImport = nil } }), titleVisibility: .visible) {
             Button("Face") {
-                if let img = pendingImport { saveImport(img, area: .face) }
+                if let p = pendingImport { saveImport(p, area: .face) }
                 pendingImport = nil
             }
-            Button(model.state.plan.body.displayName) {
-                if let img = pendingImport { saveImport(img, area: .body) }
+            Button(model.bodyAreaName) {
+                if let p = pendingImport { saveImport(p, area: .body) }
                 pendingImport = nil
             }
         }
@@ -248,7 +248,7 @@ struct ProgressScreen: View {
                 Picker("Area", selection: $photoArea) {
                     Text("All").tag(Area?.none)
                     Text("Face").tag(Area?.some(.face))
-                    Text(model.state.plan.body.displayName).tag(Area?.some(.body))
+                    Text(model.bodyAreaName).tag(Area?.some(.body))
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: photoArea) { _, _ in
@@ -313,23 +313,26 @@ struct ProgressScreen: View {
         guard let item else { return }
         Task {
             if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) {
+                let pending = PendingImport(image: img, taken: PhotoDate.taken(data))
                 if showsAreas && effectiveArea == nil {
                     // Under "All", ask which area it is: it can't be changed later.
-                    pendingImport = img
+                    pendingImport = pending
                 } else {
-                    saveImport(img, area: effectiveArea ?? .face)
+                    saveImport(pending, area: effectiveArea ?? .face)
                 }
             }
             pickerItem = nil
         }
     }
 
-    private func saveImport(_ img: UIImage, area: Area) {
-        let meta = PhotoMeta(day: model.today, area: area)
+    /// Dated when it was taken, so a before photo imported later still pairs as the before.
+    private func saveImport(_ p: PendingImport, area: Area) {
+        let day = p.taken.map { Day.routineDay($0) } ?? model.today
+        let meta = PhotoMeta(day: day, at: p.taken ?? Date(), area: area)
         do {
-            try model.photos.save(img, id: meta.id)
+            try model.photos.save(p.image, id: meta.id)
             model.update { $0.photos.append(meta) }
-            model.show("Photo added.")
+            model.show(day == model.today ? "Photo added." : "Photo added, dated \(day.short).")
         } catch {
             model.show("Couldn’t save that photo.")
         }
@@ -344,7 +347,7 @@ struct ProgressScreen: View {
     private var effectiveArea: Area? { showsAreas ? photoArea : nil }
 
     private func areaName(_ a: Area) -> String {
-        a == .face ? "Face" : model.state.plan.body.displayName
+        a == .face ? "Face" : model.bodyAreaName
     }
 
     // MARK: Skin log
@@ -398,6 +401,12 @@ struct ProgressScreen: View {
     private func hue(for label: String) -> Hue {
         model.state.log.last { $0.label == label }?.hue ?? .sage
     }
+}
+
+/// A picked photo and when it was taken (from its metadata, if it has any).
+struct PendingImport {
+    var image: UIImage
+    var taken: Date?
 }
 
 struct ComparePair: Identifiable {

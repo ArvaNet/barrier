@@ -44,10 +44,21 @@ public enum Procedures {
     /// How far ahead Today shows an upcoming procedure.
     public static let aheadDays = 7
 
-    /// Laser, peels, needling and other scar treatments: the sun note applies.
+    /// Laser, peels and needling: the sun note applies (docs/procedure-facts.md §2).
     public static func sunCare(_ name: String) -> Bool {
         let n = name.lowercased()
-        return ["laser", "peel", "needling", "ipl", "subcision", "tca", "resurfacing", "dermabrasion"].contains { n.contains($0) }
+        return ["laser", "peel", "needling", "tca", "resurfacing"].contains { n.contains($0) }
+    }
+
+    /// Scar treatments: the "works gradually" note applies (§3). Not vascular or pico laser.
+    public static func scarTreatment(_ name: String) -> Bool {
+        let n = name.lowercased()
+        return ["subcision", "needling", "co2", "erbium", "fractional", "resurfacing", "peel", "tca"].contains { n.contains($0) }
+    }
+
+    /// "4 weeks", "12 weeks", "6 months".
+    public static func photoMark(_ weeks: Int) -> String {
+        weeks >= 26 ? "\(weeks / 26 * 6) months" : "\(weeks) weeks"
     }
 
     /// Isotretinoin by its generic or common brand names.
@@ -73,8 +84,9 @@ public enum Procedures {
     }
 
     /// The next procedure on the same area after this one.
+    /// Same-day procedures (subcision plus a laser) share one before and one after.
     static func next(after p: Procedure, in s: AppState) -> Procedure? {
-        s.procedures.filter { $0.place == p.place && $0.id != p.id && ($0.day > p.day || ($0.day == p.day && $0.at > p.at)) }
+        s.procedures.filter { $0.place == p.place && $0.day > p.day }
             .min { $0.day == $1.day ? $0.at < $1.at : $0.day < $1.day }
     }
 
@@ -88,9 +100,13 @@ public enum Procedures {
     /// The "before": a photo from the day itself (the earliest that day, usually
     /// taken before the appointment), otherwise the latest one before it.
     public static func beforePhoto(_ p: Procedure, in s: AppState) -> PhotoMeta? {
+        let latest: (PhotoMeta, PhotoMeta) -> Bool = { $0.day == $1.day ? $0.at < $1.at : $0.day < $1.day }
         let same = s.photos.filter { $0.place == p.place }
+        // A procedure has no time, so a photo from the day itself could be from after the
+        // appointment. The week before wins; the day itself only when there's nothing then.
+        if let week = same.filter({ $0.day < p.day && $0.day.days(to: p.day) <= 7 }).max(by: latest) { return week }
         if let onDay = same.filter({ $0.day == p.day }).min(by: { $0.at < $1.at }) { return onDay }
-        return same.filter { $0.day < p.day }.max { $0.day == $1.day ? $0.at < $1.at : $0.day < $1.day }
+        return same.filter { $0.day < p.day }.max(by: latest)
     }
 
     /// The "after": the latest photo since, up to the next session's "before".
@@ -123,21 +139,31 @@ public enum Procedures {
     /// How a photo relates to the procedures on the same area, for labels:
     /// "Before Subcision" or "5 weeks after Subcision".
     public static func context(_ photo: PhotoMeta, in s: AppState) -> String? {
-        let same = s.procedures.filter { $0.place == photo.place }
-        if let soon = same.filter({ $0.day >= photo.day && photo.day.days(to: $0.day) <= 7 }).min(by: { $0.day < $1.day }),
-           beforePhoto(soon, in: s)?.id == photo.id {
+        let same = s.procedures.filter { $0.place == photo.place }.sorted { $0.day < $1.day }
+        if let soon = same.first(where: { $0.day >= photo.day && photo.day.days(to: $0.day) <= 7 && beforePhoto($0, in: s)?.id == photo.id }) {
             return "Before \(soon.name)"
         }
-        if let last = same.filter({ $0.day < photo.day }).max(by: { $0.day < $1.day }) {
+        // On the day itself: "Day of Subcision".
+        if let last = same.last(where: { $0.day <= photo.day }) {
             return "\(since(last.day.days(to: photo.day))) \(last.name)"
         }
         return nil
     }
 
-    /// The procedure whose actives break covers this routine on this day.
+    /// The procedure whose actives break covers this routine on this day. A procedure's
+    /// break wins over a travel pause on the same days.
     public static func breakFor(_ s: AppState, slot: Slot, on day: Day) -> Procedure? {
-        guard let pause = Engine.activePause(s, day, slot: slot), let id = pause.procedureID else { return nil }
-        return s.procedures.first { $0.id == id }
+        for pause in s.pauses where pause.covers(day) && pause.applies(to: slot) {
+            if let id = pause.procedureID, let p = s.procedures.first(where: { $0.id == id }) { return p }
+        }
+        return nil
+    }
+
+    /// The pause to show on Today: only one that touches a routine in use, and a
+    /// procedure's break before any other.
+    public static func bannerPause(_ s: AppState, today: Day) -> Pause? {
+        let covering = s.pauses.filter { p in p.covers(today) && s.plan.activeSlots.contains { p.applies(to: $0) } }
+        return covering.first { $0.procedureID != nil } ?? covering.first
     }
 
     // MARK: Today

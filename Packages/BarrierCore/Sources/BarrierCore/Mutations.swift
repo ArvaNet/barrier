@@ -106,8 +106,13 @@ public extension AppState {
         // A procedure's break: change the procedure, so editing it later doesn't bring the break back.
         if let pid = pauses[i].procedureID, let j = procedures.firstIndex(where: { $0.id == pid }) {
             let day = procedures[j].day
+            let started = pauses[i].from < today
             if today > day {
                 procedures[j].breakAfter = day.days(to: today.adding(-1))
+            } else if started && today < day && procedures[j].breakAfter != nil {
+                // Ended during the days before: actives back on until the procedure,
+                // and the break the clinic asked for from the day itself stays.
+                procedures[j].breakBefore = 0
             } else {
                 procedures[j].breakBefore = nil
                 procedures[j].breakAfter = nil

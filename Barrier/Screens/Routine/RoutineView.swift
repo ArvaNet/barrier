@@ -381,9 +381,7 @@ struct PausesSection: View {
                         Text(p.from == p.to ? p.from.short : "\(p.from.short) – \(p.to.short)").font(.footnote).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button(p.from <= today ? "End" : "Remove") {
-                        model.update { $0.endPause(p.id, today: today) }
-                    }
+                    Button(p.from <= today ? "End" : "Remove") { model.endPause(p) }
                     .buttonStyle(.borderless)
                     .foregroundStyle(Palette.accent)
                 }
@@ -403,7 +401,7 @@ struct PausesSection: View {
     /// "Traveling", or "Actives break: Subcision" for a procedure's break.
     private func label(_ p: Pause) -> String {
         guard let id = p.procedureID, let proc = model.state.procedures.first(where: { $0.id == id }) else { return p.reason.label }
-        let scope = p.area == .body ? " (\(model.state.plan.body.displayName))" : ""
+        let scope = p.area == .body ? " (\(model.bodyAreaName))" : ""
         return "Actives break: \(proc.name)\(scope)"
     }
 }

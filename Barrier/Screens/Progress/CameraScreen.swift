@@ -11,11 +11,17 @@ struct CameraScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var area: Area
 
+    /// Opened for a body photo (e.g. a back procedure) without a body routine: still offer the choice.
+    private let openedForBody: Bool
+
     init(initialArea: Area = .face) {
         _area = State(initialValue: initialArea)
+        openedForBody = initialArea == .body
     }
     @State private var camera = CameraController()
     @State private var captured: UIImage?
+    /// When an imported photo was taken; nil for a photo taken here, now.
+    @State private var capturedAt: Date?
     @State private var ghostOpacity: Double = 0.35
     @State private var pickerItem: PhotosPickerItem?
     @State private var saving = false
@@ -26,7 +32,7 @@ struct CameraScreen: View {
     @State private var started = false
 
     private var hasBody: Bool { model.hasBodyRoutine }
-    private var bodyName: String { model.state.plan.body.displayName }
+    private var bodyName: String { model.bodyAreaName }
 
     var body: some View {
         ZStack {
@@ -82,6 +88,7 @@ struct CameraScreen: View {
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) {
                     captured = img.normalized()
+                    capturedAt = PhotoDate.taken(data)
                 }
                 pickerItem = nil
             }
@@ -128,7 +135,7 @@ struct CameraScreen: View {
                     .accessibilityLabel("Last photo overlay")
                 }
             }
-            if hasBody && captured == nil {
+            if (hasBody || openedForBody) && captured == nil {
                 Picker("Area", selection: $area) {
                     Text("Face").tag(Area.face)
                     Text(bodyName).tag(Area.body)
@@ -208,7 +215,10 @@ struct CameraScreen: View {
             return
         }
         guard area == .body else {
-            camera.capture { img in captured = img }
+            camera.capture { img in
+                captured = img
+                capturedAt = nil
+            }
             Haptics.tap(model.state.settings.haptics)
             return
         }
@@ -222,7 +232,10 @@ struct CameraScreen: View {
                 if Task.isCancelled { return }
             }
             countdown = nil
-            camera.capture { img in captured = img }
+            camera.capture { img in
+                captured = img
+                capturedAt = nil
+            }
             Haptics.success(model.state.settings.haptics)
         }
     }
@@ -253,13 +266,15 @@ struct CameraScreen: View {
     private func save() {
         guard let img = captured else { return }
         saving = true
-        let meta = PhotoMeta(day: model.today, area: area)
+        // An imported photo keeps the day it was taken, so it pairs with procedures correctly.
+        let day = capturedAt.map { Day.routineDay($0) } ?? model.today
+        let meta = PhotoMeta(day: day, at: capturedAt ?? Date(), area: area)
         let firstOfArea = !model.state.photos.contains { $0.place == area }
         Task {
             do {
                 try model.photos.save(img, id: meta.id)
                 model.update { $0.photos.append(meta) }
-                model.show(firstOfArea ? "Your “before” is saved." : "Photo saved.")
+                model.show(firstOfArea ? "Your “before” is saved." : day == model.today ? "Photo saved." : "Photo saved, dated \(day.short).")
                 dismiss()
             } catch {
                 model.show("Couldn’t save the photo.")

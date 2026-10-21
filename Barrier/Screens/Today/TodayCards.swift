@@ -46,10 +46,7 @@ struct PauseBanner: View {
                 Text(detail(procedure)).font(.footnote).foregroundStyle(Palette.ink3)
             }
             Spacer()
-            Button("End") {
-                model.update { $0.endPause(pause.id, today: model.today) }
-                model.show(procedure == nil ? "Welcome back. The plan is on again." : "Actives are back on.")
-            }
+            Button("End") { model.endPause(pause) }
             .buttonStyle(SecondaryButtonStyle(compact: true))
         }
         .card(padding: 14, tint: true)
@@ -88,7 +85,7 @@ struct WeekCard: View {
                     Text(next).font(.footnote).foregroundStyle(Palette.ink3)
                 }
             }
-            WeekStrip(days: days, today: today, onTap: onTap)
+            WeekStrip(days: days, today: today, onTap: onTap, marked: Set(model.state.procedures.map { $0.day }))
         }
         .card(padding: 14, tint: true)
     }

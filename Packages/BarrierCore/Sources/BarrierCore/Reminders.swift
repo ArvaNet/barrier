@@ -235,14 +235,16 @@ public enum Reminders {
             for w in Procedures.photoWeeks {
                 let day = p.day.adding(w * 7)
                 guard day >= today, day <= end, !state.dismissed.contains("proc:\(p.id):w\(w)") else { continue }
+                // Already taken (photo day fell on the same day): nothing to ask.
+                if state.photos.contains(where: { $0.place == area && $0.day >= day }) { continue }
                 // A later session on this area is booked: its own before photo comes first.
                 if state.procedures.contains(where: { $0.place == area && $0.day > p.day && $0.day <= day.adding(Procedures.aheadDays) }) { continue }
                 let fire = DayTime(day, ClockTime(12, 0))
                 guard fire.date(calendar: calendar) > now else { continue }
                 out.append(PlannedReminder(
                     id: "\(day.iso):procphoto:\(p.id)", kind: .procedure, slot: nil, day: day, fire: fire, offsetMin: 0,
-                    title: "\(w) weeks since \(p.name)",
-                    body: "Today or tonight, a photo in the same light as your before one makes the change easy to see.",
+                    title: "\(Procedures.photoMark(w)) since \(p.name)",
+                    body: "Today or tonight, a photo in the same light as your before one makes any change easier to see.",
                     link: "today", actionable: false
                 ))
             }

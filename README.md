@@ -16,8 +16,13 @@ and adjusts when life gets in the way.
   too) so tretinoin goes on dry skin.
 - **Proof it's working.** Weekly photos with a ghost of the last one for
   matching framing, before/after compare, growth rings, a skin log.
+- **Back and body too.** A third routine with its own name ("Back"), time or
+  "after shower" cue, reminders, back photos with a self-timer.
+- **Procedures.** Subcision, laser, peels, microneedling, injections: logged
+  with your clinic's notes, a reminder the evening before, the actives break
+  your clinic asked for, and before/after photos paired by date.
 - **Ready for the follow-up.** Questions to ask, your dermatologist's own
-  words, and a one-page PDF report.
+  words, and a PDF report with your procedures and photos.
 - Home and Lock Screen widget with a Done button. Siri: "What's tonight in Barrier".
 
 Everything stays on the phone (and its iCloud backup).
@@ -68,7 +73,8 @@ Xcode. A paid developer account removes that limit and enables TestFlight.
 - `BarrierWidget/`: widget and Live Activity.
 - `Shared/`: code used by both (App Group storage, intents, palette).
 - `project.yml`: XcodeGen spec; `xcodegen generate` rebuilds the project.
-- `docs/derm-facts.md`: the fact-check behind every piece of guidance.
+- `docs/derm-facts.md`, `docs/body-facts.md`, `docs/procedure-facts.md`: the
+  fact-checks behind every piece of guidance.
 - `prototype/web/`: the earlier web prototype (engine + push worker), kept for
   a possible Android/web version. Not used by the iPhone app.
 

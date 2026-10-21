@@ -1,5 +1,6 @@
 import ActivityKit
 import BackgroundTasks
+import ImageIO
 import BarrierCore
 import UIKit
 
@@ -12,9 +13,10 @@ final class PhotoStore: @unchecked Sendable {
 
     /// `demo`: a throwaway folder, so screenshot runs never touch real photos.
     init(demo: Bool = false) {
+        let files = FileManager.default
         base = demo
-            ? fm.temporaryDirectory.appendingPathComponent("DemoPhotos", isDirectory: true)
-            : fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Photos", isDirectory: true)
+            ? files.temporaryDirectory.appendingPathComponent("DemoPhotos", isDirectory: true)
+            : files.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Photos", isDirectory: true)
     }
 
     private var root: URL {
@@ -67,6 +69,25 @@ final class PhotoStore: @unchecked Sendable {
             let id = f.replacingOccurrences(of: "-thumb.jpg", with: "").replacingOccurrences(of: ".jpg", with: "")
             if !keep.contains(id) { try? fm.removeItem(at: root.appendingPathComponent(f)) }
         }
+    }
+}
+
+/// When an imported photo was taken, so it pairs with procedures by its real date.
+enum PhotoDate {
+    /// From the photo's own metadata. Only a past date within ten years counts.
+    static func taken(_ data: Data) -> Date? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else { return nil }
+        let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        let tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+        let raw = (exif?[kCGImagePropertyExifDateTimeOriginal] ?? exif?[kCGImagePropertyExifDateTimeDigitized] ?? tiff?[kCGImagePropertyTIFFDateTime]) as? String
+        guard let raw else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        guard let date = f.date(from: raw), date <= Date(), date > Date().addingTimeInterval(-10 * 365 * 86400) else { return nil }
+        return date
     }
 }
 

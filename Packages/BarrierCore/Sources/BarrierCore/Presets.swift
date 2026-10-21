@@ -190,7 +190,7 @@ public enum Presets {
         s.saveProcedure(Procedure(id: "demo-peel", name: "Chemical peel", day: start.adding(-30), spot: "Cheeks and forehead", clinic: derm,
                                   note: "Gentle cleanser and moisturizer only until the peeling stops."), today: start)
         s.saveProcedure(Procedure(id: "demo-sub-1", name: "Subcision", day: today.adding(-6), spot: "Both cheeks", clinic: derm, session: 1, sessions: 3,
-                                  note: "Bruising is normal. No makeup for 24 hours. Cold packs if it’s sore.", breakBefore: 3, breakAfter: 5), today: start)
+                                  note: "Gentle cleanser and moisturizer only. Call the clinic with any questions.", breakBefore: 3, breakAfter: 5), today: start)
         s.saveProcedure(Procedure(id: "demo-sub-2", name: "Subcision", day: today.adding(22), spot: "Both cheeks", clinic: derm, session: 2, sessions: 3,
                                   breakBefore: 3, breakAfter: 5), today: start)
         // Photo files for these are drawn by the app in demo mode.

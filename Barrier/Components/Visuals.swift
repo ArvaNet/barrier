@@ -166,6 +166,8 @@ struct WeekStrip: View {
     var days: [(day: Day, inst: Instance?)]
     var today: Day
     var onTap: (Day) -> Void
+    /// Procedure days get a clay outline, as in the calendar.
+    var marked: Set<Day> = []
 
     var body: some View {
         HStack(spacing: 4) {
@@ -193,9 +195,14 @@ struct WeekStrip: View {
                                 .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
                         }
                     }
+                    .overlay {
+                        if marked.contains(item.day) {
+                            RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(Palette.accent, lineWidth: 1.4)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(accessibility(item.day, item.inst))
+                .accessibilityLabel(accessibility(item.day, item.inst) + (marked.contains(item.day) ? ", procedure" : ""))
             }
         }
     }
