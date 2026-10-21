@@ -112,6 +112,12 @@ public extension Day {
         return hour < dayRolloverHour ? d.adding(-1) : d
     }
 
+    /// "Dec 1", in English like the rest of the app, without a formatter.
+    var monthDay: String {
+        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return "\(months[max(1, min(12, month)) - 1]) \(day)"
+    }
+
     /// Local midnight of this day.
     func date(calendar: Calendar = .barrier) -> Date {
         calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? Date()

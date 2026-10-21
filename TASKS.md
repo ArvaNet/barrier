@@ -52,3 +52,16 @@ screenshots, reviewed, pushed.
 - [x] App: Today card (upcoming, days after, photo nudge), calendar marker, day detail
 - [x] App: report "Procedures and photos" page, demo data, CI screenshots
 - [x] CI green + screenshots reviewed, review pass (docs/review-4.md, all fixed), pushed, vault note
+
+# Timeline, change log, skin score (for the dermatologist)
+
+Finish line: the report opens with a one-glance timeline (use per day, skin, weekly score,
+changes, procedures, photos, breaks), a dated list of routine changes, and a weekly one-tap
+skin score; the same timeline in Progress; a sample report to show the dermatologist.
+Tested, green CI with screenshots, reviewed, pushed.
+
+- [ ] Core: plan snapshots + change list (coalesced per day), weekly score, timeline data + tests
+- [ ] App: weekly score card on Today, routine history in Routine, timeline card in Progress
+- [ ] Report: page 1 "at a glance" (timeline, how it went, changes, questions), page 2 routine + skin log, page 3 procedures + photos
+- [ ] Sample report (demo data) from the Derm tab, demo history + scores, CI screenshots
+- [ ] CI green + screenshots reviewed, review pass (docs/review-5.md, all fixed), pushed, vault note

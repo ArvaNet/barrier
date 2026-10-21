@@ -72,6 +72,8 @@ final class AppModel {
                 loadFailed = true
             }
         }
+        // Saves from before the change log: today's routine is where it starts.
+        if state.onboarded && state.history.isEmpty { state.recordPlan(today: today) }
         if launch.demo {
             DemoPhotos.ensure(state.photos, in: photos)
         } else {
@@ -133,6 +135,8 @@ final class AppModel {
 
     func update(_ change: (inout AppState) -> Void) {
         change(&state)
+        // The change log: one entry per day the routine changed.
+        if state.onboarded { state.recordPlan(today: today) }
         changed()
     }
 

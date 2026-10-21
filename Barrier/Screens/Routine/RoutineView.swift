@@ -17,6 +17,7 @@ struct RoutineView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             List {
                 Section {
                     Picker("Routine", selection: $slot) {
@@ -30,6 +31,8 @@ struct RoutineView: View {
                 }
                 SlotEditorSections(slot: slot, editing: $editing, adding: $adding)
                 PausesSection(showPause: $showPause)
+                RoutineHistorySection()
+                    .id("history")
                 Section {
                     Button("Start over from a template…") { showTemplates = true }
                         .foregroundStyle(Palette.accent)
@@ -42,8 +45,12 @@ struct RoutineView: View {
             .background(Palette.bg.ignoresSafeArea())
             .navigationTitle("Routine")
             .onAppear {
-                // Screenshot hook: `-screen routine-body`.
+                // Screenshot hooks: `-screen routine-body`, `-screen routine-history`.
                 if model.launch.screen == "routine-body" { slot = .body }
+                if model.launch.screen == "routine-history" {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("history", anchor: .top) }
+                }
+            }
             }
             .toolbar { EditButton() }
             .sheet(item: $editing) { t in
@@ -403,6 +410,45 @@ struct PausesSection: View {
         guard let id = p.procedureID, let proc = model.state.procedures.first(where: { $0.id == id }) else { return p.reason.label }
         let scope = p.area == .body ? " (\(model.bodyAreaName))" : ""
         return "Actives break: \(proc.name)\(scope)"
+    }
+}
+
+// MARK: - History
+
+/// What changed in the routine and when, newest first. It goes in the report too.
+struct RoutineHistorySection: View {
+    @Environment(AppModel.self) private var model
+    @State private var showAll = false
+
+    var body: some View {
+        let changes = Array(PlanHistory.changes(model.state).reversed())
+        let shown = showAll ? changes : Array(changes.prefix(4))
+        Section {
+            if changes.isEmpty {
+                Text(startLine).font(.subheadline).foregroundStyle(.secondary)
+            }
+            ForEach(shown) { c in
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(c.day.short).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(c.lines, id: \.self) { Text($0).font(.subheadline) }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if changes.count > shown.count {
+                Button("Show all \(changes.count)") { showAll = true }
+            }
+        } header: {
+            Text("History")
+        } footer: {
+            Text("Barrier notes what changed and when (one entry per day), so your dermatologist can see it in the report.")
+        }
+    }
+
+    private var startLine: String {
+        guard let first = model.state.history.first else { return "Changes to your routine will show here." }
+        return "No changes since \(first.day.short). Changes to your routine will show here."
     }
 }
 

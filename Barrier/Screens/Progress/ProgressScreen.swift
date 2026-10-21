@@ -24,6 +24,7 @@ struct ProgressScreen: View {
             Page(spacing: 18) {
                 Text("Progress").font(.barrierTitle).foregroundStyle(Palette.ink).padding(.top, 6)
                 summary(stats)
+                timelineCard
                 ringsCard
                 calendarCard(today)
                 photosCard
@@ -77,6 +78,46 @@ struct ProgressScreen: View {
                 if stats.bodyDone > 0 {
                     Text("\(model.state.plan.body.displayName): \(stats.bodyDone) day\(stats.bodyDone == 1 ? "" : "s")").font(.footnote).foregroundStyle(Palette.ink3)
                 }
+            }
+        }
+        .card()
+    }
+
+    // MARK: Timeline
+
+    /// The last eight weeks at a glance: the same picture the report opens with.
+    private var timelineCard: some View {
+        let data = TreatmentTimeline.build(model.state, today: model.today, maxDays: 56)
+        let height = TimelineStrip(data: data, width: 0).height
+        let recent = Array(data.changes.suffix(3))
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Kicker("Timeline")
+                Spacer()
+                Text(data.days >= 56 ? "Last 8 weeks" : "Since \(data.from.short)").font(.footnote).foregroundStyle(Palette.ink3)
+            }
+            GeometryReader { g in
+                TimelineStrip(data: data, width: g.size.width)
+            }
+            .frame(height: height)
+            TimelineLegend()
+            if !recent.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(recent, id: \.number) { c in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            ZStack {
+                                Circle().fill(Palette.ink)
+                                Text("\(c.number)").font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.surface)
+                            }
+                            .frame(width: 13, height: 13)
+                            .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 3 }
+                            Text("\(c.change.day.short) · \(c.change.lines.joined(separator: "; "))")
+                                .font(.footnote).foregroundStyle(Palette.ink2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.top, 2)
             }
         }
         .card()

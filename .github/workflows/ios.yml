@@ -118,6 +118,10 @@ jobs:
           shot 19-procedure-compare -demo -hour 11 -screen procedure-compare
           shot 20-report-photos -demo -hour 11 -screen report-photos
           shot 21-today-procedure -demo -hour 15 -screen today-procedure
+          shot 22-today-score -demo -hour 15 -screen today-score
+          shot 23-report-routine -demo -hour 11 -screen report-routine
+          shot 24-routine-history -demo -hour 11 -screen routine-history
+          shot 25-sample-report -demo -hour 11 -screen sample-report
           cp ~/Library/Logs/DiagnosticReports/Barrier* shots/ 2>/dev/null || true
           ls -la shots
 

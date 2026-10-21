@@ -202,6 +202,21 @@ public enum Presets {
             PhotoMeta(id: "demo-back-1", day: today.adding(-2), at: today.adding(-2).date().addingTimeInterval(20 * 3600), area: .body),
         ]
         s.milestonesSeen = ["photos-2"]
+        // How the routine got here: the back lotion on day 9, azelaic acid mornings on day 12.
+        var noAze = s
+        noAze.plan.am.steps.removeAll { $0.productId == aze.id }
+        var start0 = noAze
+        start0.plan.body.enabled = false
+        s.history = [PlanSnapshot.of(start0, day: start), PlanSnapshot.of(noAze, day: start.adding(9)), PlanSnapshot.of(s, day: start.adding(12))]
+        // A weekly "overall" score; both are due again today.
+        s.scores = [
+            SkinScore(day: start, value: 2, at: start.date().addingTimeInterval(21 * 3600)),
+            SkinScore(day: start.adding(6), value: 2, at: start.adding(6).date().addingTimeInterval(21 * 3600)),
+            SkinScore(day: start.adding(12), value: 3, at: start.adding(12).date().addingTimeInterval(21 * 3600)),
+            SkinScore(day: start.adding(16), value: 4, at: start.adding(16).date().addingTimeInterval(21 * 3600)),
+            SkinScore(day: start.adding(9), value: 2, area: .body, at: start.adding(9).date().addingTimeInterval(21 * 3600)),
+            SkinScore(day: start.adding(16), value: 3, area: .body, at: start.adding(16).date().addingTimeInterval(21 * 3600)),
+        ].sorted { $0.day < $1.day }
         for i in 0..<23 {
             let d = start.adding(i)
             if i >= 9 && i % 5 != 2 {

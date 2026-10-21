@@ -1,11 +1,15 @@
 import BarrierCore
 import SwiftUI
 
-/// A one- or two-page report for the dermatologist: plan, adherence, skin log,
-/// questions and photos. Rendered as A4 PDF pages, previewed as images.
+/// The report for the dermatologist, as A4 PDF pages (previewed as images):
+/// 1. At a glance: the timeline, how it went, what changed, questions.
+/// 2. The routine and the skin log.
+/// 3. Procedures and photos (when there are any).
 struct ReportView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    /// Built from demo data, to show what a few months look like.
+    var sample = false
     @State private var pages: [UIImage] = []
     @State private var pdfURL: URL?
 
@@ -25,20 +29,21 @@ struct ReportView: View {
                                 .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
                                 .id(i)
                         }
-                        Text("Logged by you in Barrier. Not a medical record.")
+                        Text(sample ? "Sample data, for illustration. Not a real patient." : "Logged by you in Barrier. Not a medical record.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     .padding(20)
                 }
                 .onChange(of: pages.count) { _, n in
-                    // Screenshot hook: `-screen report-photos` shows page 2.
-                    if n > 1 && model.launch.screen == "report-photos" {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { proxy.scrollTo(n - 1, anchor: .top) }
+                    // Screenshot hooks: `-screen report-routine` (page 2), `-screen report-photos` (last page).
+                    let target = model.launch.screen == "report-photos" ? n - 1 : model.launch.screen == "report-routine" ? 1 : nil
+                    if let target, n > 1 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { proxy.scrollTo(target, anchor: .top) }
                     }
                 }
             }
             .background(Palette.bg.ignoresSafeArea())
-            .navigationTitle("Report")
+            .navigationTitle(sample ? "Sample report" : "Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
@@ -54,8 +59,18 @@ struct ReportView: View {
 
     @MainActor
     private func render() {
-        let data = ReportData(state: model.state, today: model.today, photos: model.photos)
-        var views: [AnyView] = [AnyView(ReportPageOne(data: data))]
+        let state: AppState
+        let store: PhotoStore
+        if sample {
+            state = Presets.demoState(today: model.today)
+            store = PhotoStore(demo: true)
+            DemoPhotos.ensure(state.photos, in: store)
+        } else {
+            state = model.state
+            store = model.photos
+        }
+        let data = ReportData(state: state, today: model.today, photos: store, sample: sample)
+        var views: [AnyView] = [AnyView(ReportSummaryPage(data: data)), AnyView(ReportRoutinePage(data: data))]
         if !data.photos.isEmpty || !data.procedures.isEmpty { views.append(AnyView(ReportPhotosPage(data: data))) }
         let size = CGSize(width: 595, height: 842)
         pages = views.compactMap { v in
@@ -63,7 +78,8 @@ struct ReportView: View {
             r.scale = 2
             return r.uiImage
         }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Barrier report \(model.today.iso).pdf")
+        let name = sample ? "Barrier sample report.pdf" : "Barrier report \(model.today.iso).pdf"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         var box = CGRect(origin: .zero, size: size)
         guard let ctx = CGContext(url as CFURL, mediaBox: &box, nil) else { return }
         for v in views {
@@ -83,6 +99,7 @@ struct ReportView: View {
 struct ReportData {
     struct StepLine: Hashable { var name: String; var detail: String }
 
+    var sample: Bool
     var today: Day
     var from: Day
     var followUp: FollowUp?
@@ -100,7 +117,7 @@ struct ReportData {
     var recovery: Int
     /// "Paused Oct 1–Oct 4: traveling", "Actives break Oct 7–Oct 15: Subcision".
     var pauseLines: [String]
-    /// Past ones (latest 4) and the next one booked, oldest first. Five at most, so page 2 never overflows.
+    /// Past ones (latest 4) and the next one booked, oldest first. Five at most, so page 3 never overflows.
     var procedures: [Procedure]
     /// "5 weeks after Subcision", by photo id.
     var photoContext: [String: String]
@@ -115,9 +132,16 @@ struct ReportData {
     var bodySteps: [StepLine] = []
     var bodyDone = 0
     var bodyDue = 0
+    /// The last up to 14 weeks, drawn on page 1.
+    var timeline: TreatmentTimeline
+    /// "Not great (Sep 28) → Good (Oct 14)", per area.
+    var scoreLines: [String] = []
+    /// When the change log starts (nil without one).
+    var historyStart: Day?
 
     @MainActor
-    init(state s: AppState, today: Day, photos store: PhotoStore) {
+    init(state s: AppState, today: Day, photos store: PhotoStore, sample: Bool = false) {
+        self.sample = sample
         self.today = today
         from = s.plan.createdAt
         followUp = s.plan.followUp
@@ -170,10 +194,22 @@ struct ReportData {
         }
         let past = Procedures.past(s, today: today.adding(1)).prefix(4).reversed()
         procedures = Array(past) + Procedures.upcoming(s, today: today.adding(1)).prefix(1)
-        checkins = Array(s.checkins.sorted { $0.day > $1.day }.prefix(12))
+        checkins = Array(s.checkins.sorted { $0.day > $1.day }.prefix(26))
         questions = s.questions.sorted { !$0.answered && $1.answered }
         notes = s.plan.dermNotes
         ifIrritated = s.plan.ifIrritated
+        timeline = TreatmentTimeline.build(s, today: today)
+        historyStart = s.history.first?.day
+        for area in Scores.areas(s) {
+            let list = s.scores.filter { $0.place == area && $0.day >= timeline.from }.sorted { $0.day < $1.day }
+            guard let first = list.first else { continue }
+            let name = area == .face ? "Face" : (bodyName ?? "Body")
+            if let last = list.last, list.count > 1 {
+                scoreLines.append("\(name): \(Scores.label(first.value)) (\(first.day.short)) → \(Scores.label(last.value)) (\(last.day.short))")
+            } else {
+                scoreLines.append("\(name): \(Scores.label(first.value)) (\(first.day.short))")
+            }
+        }
         // Up to six: the latest procedure's before and after on each area, then per
         // area the first and the latest photo, then recent ones. Face first, then body.
         var pick: [PhotoMeta] = []
@@ -200,6 +236,13 @@ struct ReportData {
         for m in ordered { context[m.id] = Procedures.context(m, in: s) }
         photoContext = context
     }
+
+    var kicker: String { sample ? "BARRIER · SAMPLE REPORT" : "BARRIER · SKIN ROUTINE REPORT" }
+
+    var footer: String {
+        sample ? "Sample data for illustration. Not a real patient."
+            : "Logged by the patient in Barrier on \(today.long). Not a medical record."
+    }
 }
 
 private enum Paper {
@@ -208,26 +251,185 @@ private enum Paper {
     static let ink3 = Color(hex: 0x6B7772)
     static let line = Color(hex: 0x1B2A26, alpha: 0.14)
     static let accent = Color(hex: 0xA6512E)
+    static let danger = Color(hex: 0xA4402F)
+
+    static func block<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title.uppercased()).font(.system(size: 8.5, weight: .bold)).tracking(1).foregroundStyle(ink3)
+            content()
+        }
+    }
+
+    static func steps(_ lines: [ReportData.StepLine]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { i, l in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(i + 1)").font(.system(size: 9).monospacedDigit()).foregroundStyle(ink3)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(l.name).font(.system(size: 10.5, weight: .semibold))
+                        Text(l.detail).font(.system(size: 9)).foregroundStyle(ink2)
+                    }
+                }
+            }
+        }
+    }
+
+    static func stat(_ big: String, _ label: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(big).font(.system(size: 13, weight: .semibold).monospacedDigit())
+            Text(label).font(.system(size: 9.5)).foregroundStyle(ink2)
+        }
+    }
+
+    static func small(_ s: String) -> some View {
+        Text(s).font(.system(size: 9.5)).foregroundStyle(ink2).fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A numbered marker, matching the timeline's routine-change markers.
+    static func number(_ n: Int) -> some View {
+        ZStack {
+            Circle().fill(ink)
+            Text("\(n)").font(.system(size: 6.5, weight: .bold)).foregroundStyle(.white)
+        }
+        .frame(width: 10, height: 10)
+    }
 }
 
-struct ReportPageOne: View {
-    var data: ReportData
+/// A page frame: kicker, title, optional subtitle, content, footer.
+private struct ReportPage<Content: View>: View {
+    var kicker: String
+    var title: String
+    var subtitle: String?
+    var footer: String
+    @ViewBuilder var content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            header
+            VStack(alignment: .leading, spacing: 4) {
+                Text(kicker).font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
+                Text(title).font(Typeface.display(24, weight: 430))
+                if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(Paper.ink2) }
+                Rectangle().fill(Paper.line).frame(height: 1).padding(.top, 6)
+            }
+            content()
+            Spacer(minLength: 0)
+            Text(footer).font(.system(size: 8.5)).foregroundStyle(Paper.ink3)
+        }
+        .padding(36)
+        .frame(width: 595, height: 842, alignment: .topLeading)
+        .background(Color.white)
+        .foregroundStyle(Paper.ink)
+    }
+}
+
+// MARK: - Page 1: at a glance
+
+struct ReportSummaryPage: View {
+    var data: ReportData
+
+    private var visit: String? {
+        data.followUp.map { "For the visit on \($0.day.long)\($0.with.map { " with \($0)" } ?? "")" }
+    }
+
+    var body: some View {
+        ReportPage(kicker: data.kicker, title: "\(data.from.short) – \(data.today.short)", subtitle: visit, footer: data.footer) {
+            Paper.block(data.timeline.days >= 98 ? "Timeline, last 14 weeks" : "Timeline, since \(data.timeline.from.short)") {
+                TimelineStrip(data: data.timeline, width: 523, colors: .paper, compact: true)
+                TimelineLegend(colors: .paper, compact: true).padding(.top, 2)
+            }
             HStack(alignment: .top, spacing: 22) {
                 VStack(alignment: .leading, spacing: 14) {
-                    block("Evening routine") {
-                        if let r = data.rotation { small(r) }
-                        if let e = data.easing { small(e) }
-                        steps(data.pmSteps)
+                    howItWent
+                    if !data.questions.isEmpty {
+                        Paper.block("Questions") {
+                            ForEach(data.questions.prefix(8), id: \.id) { q in
+                                HStack(alignment: .top, spacing: 6) {
+                                    Text(q.answered ? "✓" : "•").font(.system(size: 10, weight: .bold)).foregroundStyle(Paper.accent)
+                                    Text(q.text).font(.system(size: 10.5)).foregroundStyle(q.answered ? Paper.ink3 : Paper.ink)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(width: 250, alignment: .leading)
+                VStack(alignment: .leading, spacing: 14) {
+                    changes
+                    if data.notes != nil || data.ifIrritated != nil {
+                        Paper.block("Instructions noted") {
+                            if let a = data.notes { Paper.small(a).lineLimit(4) }
+                            if let b = data.ifIrritated { Paper.small("If irritated: \(b)").lineLimit(3) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var howItWent: some View {
+        Paper.block("How it went") {
+            Paper.stat("\(data.nightsDone) of \(data.nightsDue)", "evenings done since \(data.from.short)")
+            if data.last28.due >= 5 && data.nightsDue > data.last28.due { Paper.stat("\(data.last28.done) of \(data.last28.due)", "evenings, last 4 weeks") }
+            if data.morningsDone > 0 { Paper.stat("\(data.morningsDone)", "mornings logged") }
+            if let name = data.bodyName, data.bodyDue > 0 { Paper.stat("\(data.bodyDone) of \(data.bodyDue)", "\(name.lowercased()) days done") }
+            if data.recovery > 0 { Paper.stat("\(data.recovery)", "recovery nights for irritation") }
+            if !data.scoreLines.isEmpty {
+                Text("Overall skin, by the patient").font(.system(size: 9.5, weight: .semibold)).padding(.top, 3)
+                ForEach(data.scoreLines, id: \.self) { Paper.small($0) }
+            }
+            ForEach(data.pauseLines, id: \.self) { Paper.small($0) }
+        }
+    }
+
+    private var changes: some View {
+        // The latest eight, numbered as on the timeline.
+        let shown = Array(data.timeline.changes.suffix(8))
+        return Paper.block("Routine changes") {
+            if shown.isEmpty {
+                Paper.small(data.historyStart.map { "No changes since \($0.short)." } ?? "No changes logged.")
+            }
+            ForEach(shown, id: \.number) { c in
+                HStack(alignment: .top, spacing: 6) {
+                    Paper.number(c.number).padding(.top, 1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(c.change.day.short).font(.system(size: 9, weight: .semibold)).foregroundStyle(Paper.ink3)
+                        ForEach(c.change.lines.prefix(3), id: \.self) { line in
+                            Text(line).font(.system(size: 9.5)).foregroundStyle(Paper.ink).lineLimit(2)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Page 2: routine and skin log
+
+struct ReportRoutinePage: View {
+    var data: ReportData
+
+    var body: some View {
+        ReportPage(kicker: data.kicker, title: "Routine and skin log", subtitle: "As of \(data.today.long)", footer: data.footer) {
+            HStack(alignment: .top, spacing: 22) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if !data.pmSteps.isEmpty {
+                        Paper.block("Evening routine") {
+                            if let r = data.rotation { Paper.small(r) }
+                            if let e = data.easing { Paper.small(e) }
+                            Paper.steps(data.pmSteps)
+                        }
                     }
                     if !data.amSteps.isEmpty {
-                        block("Morning routine") { steps(data.amSteps) }
+                        Paper.block("Morning routine") { Paper.steps(data.amSteps) }
+                    }
+                    if let name = data.bodyName {
+                        Paper.block("\(name) routine") {
+                            if let w = data.bodyWhen { Paper.small(w) }
+                            Paper.steps(data.bodySteps)
+                        }
                     }
                     if !data.products.isEmpty {
-                        block("Treatments") {
+                        Paper.block("Treatments") {
                             ForEach(data.products, id: \.id) { p in
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(p.name).font(.system(size: 10, weight: .semibold))
@@ -239,109 +441,27 @@ struct ReportPageOne: View {
                     }
                 }
                 .frame(width: 250, alignment: .leading)
-                VStack(alignment: .leading, spacing: 14) {
-                    // The body routine sits on the right: the left column is the long one.
-                    if let name = data.bodyName {
-                        block("\(name) routine") {
-                            if let w = data.bodyWhen { small(w) }
-                            steps(data.bodySteps)
-                        }
+                Paper.block("Skin log") {
+                    if data.checkins.isEmpty { Paper.small("No check-ins yet.") }
+                    if !data.byLabel.isEmpty {
+                        Paper.small(data.byLabel.map { "\($0.0): \($0.1)" }.joined(separator: " · ")).padding(.bottom, 4)
                     }
-                    block("How it went") {
-                        stat("\(data.nightsDone) of \(data.nightsDue)", "evenings done since \(data.from.short)")
-                        if data.last28.due >= 5 && data.nightsDue > data.last28.due { stat("\(data.last28.done) of \(data.last28.due)", "evenings, last 4 weeks") }
-                        if data.morningsDone > 0 { stat("\(data.morningsDone)", "mornings logged") }
-                        if let name = data.bodyName, data.bodyDue > 0 { stat("\(data.bodyDone) of \(data.bodyDue)", "\(name.lowercased()) days done") }
-                        if data.recovery > 0 { stat("\(data.recovery)", "recovery nights for irritation") }
-                        if !data.byLabel.isEmpty {
-                            small(data.byLabel.map { "\($0.0): \($0.1)" }.joined(separator: " · "))
-                        }
-                        ForEach(data.pauseLines, id: \.self) { small($0) }
-                    }
-                    block("Skin log") {
-                        if data.checkins.isEmpty { small("No check-ins yet.") }
-                        // Fewer rows when the body block shares the column, so the page never overflows.
-                        ForEach(data.checkins.prefix(data.bodyName == nil ? 12 : 7), id: \.self) { c in
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text(c.day.short).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(Paper.ink3).frame(width: 40, alignment: .leading)
-                                Text((c.place == .body ? "\(data.bodyName ?? "Body"): " : "") + ([c.feel.map(\.label).joined(separator: ", ")] + [c.note].compactMap { $0 }).joined(separator: ": "))
-                                    .font(.system(size: 9.5, weight: c.feel.contains(where: \.isIrritation) ? .semibold : .regular))
-                                    .foregroundStyle(c.feel.contains(where: \.isIrritation) ? Color(hex: 0xA4402F) : Paper.ink)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+                    ForEach(data.checkins.prefix(24), id: \.self) { c in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(c.day.short).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(Paper.ink3).frame(width: 40, alignment: .leading)
+                            Text((c.place == .body ? "\(data.bodyName ?? "Body"): " : "") + ([c.feel.map(\.label).joined(separator: ", ")] + [c.note].compactMap { $0 }).joined(separator: ": "))
+                                .font(.system(size: 9.5, weight: c.feel.contains(where: \.isIrritation) ? .semibold : .regular))
+                                .foregroundStyle(c.feel.contains(where: \.isIrritation) ? Paper.danger : Paper.ink)
+                                .lineLimit(2)
                         }
                     }
                 }
             }
-            if !data.questions.isEmpty {
-                block("Questions") {
-                    ForEach(data.questions.prefix(8), id: \.id) { q in
-                        HStack(alignment: .top, spacing: 6) {
-                            Text(q.answered ? "✓" : "•").font(.system(size: 10, weight: .bold)).foregroundStyle(Paper.accent)
-                            Text(q.text).font(.system(size: 10.5)).foregroundStyle(q.answered ? Paper.ink3 : Paper.ink)
-                        }
-                    }
-                }
-            }
-            if data.notes != nil || data.ifIrritated != nil {
-                block("Instructions noted") {
-                    if let a = data.notes { small(a) }
-                    if let b = data.ifIrritated { small("If irritated: \(b)") }
-                }
-            }
-            Spacer(minLength: 0)
-            Text("Logged by the patient in Barrier on \(data.today.long). Not a medical record.")
-                .font(.system(size: 8.5)).foregroundStyle(Paper.ink3)
         }
-        .padding(36)
-        .frame(width: 595, height: 842, alignment: .topLeading)
-        .background(Color.white)
-        .foregroundStyle(Paper.ink)
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("BARRIER · SKIN ROUTINE REPORT").font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
-            Text("\(data.from.short) – \(data.today.short)").font(Typeface.display(26, weight: 430))
-            if let fu = data.followUp {
-                Text("For the visit on \(fu.day.long)\(fu.with.map { " with \($0)" } ?? "")").font(.system(size: 11)).foregroundStyle(Paper.ink2)
-            }
-            Rectangle().fill(Paper.line).frame(height: 1).padding(.top, 6)
-        }
-    }
-
-    private func block<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(title.uppercased()).font(.system(size: 8.5, weight: .bold)).tracking(1).foregroundStyle(Paper.ink3)
-            content()
-        }
-    }
-
-    private func steps(_ lines: [ReportData.StepLine]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { i, l in
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(i + 1)").font(.system(size: 9).monospacedDigit()).foregroundStyle(Paper.ink3)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(l.name).font(.system(size: 10.5, weight: .semibold))
-                        Text(l.detail).font(.system(size: 9)).foregroundStyle(Paper.ink2)
-                    }
-                }
-            }
-        }
-    }
-
-    private func stat(_ big: String, _ label: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(big).font(.system(size: 13, weight: .semibold).monospacedDigit())
-            Text(label).font(.system(size: 9.5)).foregroundStyle(Paper.ink2)
-        }
-    }
-
-    private func small(_ s: String) -> some View {
-        Text(s).font(.system(size: 9.5)).foregroundStyle(Paper.ink2).fixedSize(horizontal: false, vertical: true)
     }
 }
+
+// MARK: - Page 3: procedures and photos
 
 struct ReportPhotosPage: View {
     var data: ReportData
@@ -352,13 +472,13 @@ struct ReportPhotosPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(hasProcedures ? "BARRIER · PROCEDURES AND PHOTOS" : "BARRIER · PROGRESS PHOTOS")
+            Text(data.sample ? data.kicker : hasProcedures ? "BARRIER · PROCEDURES AND PHOTOS" : "BARRIER · PROGRESS PHOTOS")
                 .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
             Text(title).font(Typeface.display(22, weight: 430))
             if hasProcedures { procedureList }
             if !data.photos.isEmpty { photoRows }
             Spacer(minLength: 0)
-            Text("Logged and photographed by the patient at home. Lighting may vary. Not a medical record.")
+            Text(data.sample ? data.footer : "Logged and photographed by the patient at home. Lighting may vary. Not a medical record.")
                 .font(.system(size: 8.5)).foregroundStyle(Paper.ink3)
         }
         .padding(36)

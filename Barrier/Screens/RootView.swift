@@ -54,11 +54,11 @@ struct RootView: View {
         guard !didLaunchRoute, let screen = model.launch.screen else { return }
         didLaunchRoute = true
         switch screen {
-        case "routine", "routine-body": model.tab = .routine
+        case "routine", "routine-body", "routine-history": model.tab = .routine
         case "ritual-body": model.open(.ritual(.body, model.today))
         case "progress", "progress-bottom": model.tab = .progress
-        case "derm", "procedure", "procedure-compare": model.tab = .derm
-        case "report", "report-photos": model.open(.report)
+        case "derm", "procedure", "procedure-compare", "sample-report": model.tab = .derm
+        case "report", "report-photos", "report-routine": model.open(.report)
         case "settings": model.showSettings = true
         case "ritual", "ritual-wait", "ritual-done": model.open(.ritual(.pm, model.today))
         case "ritual-am": model.open(.ritual(.am, model.today))
@@ -124,9 +124,10 @@ struct Page<Content: View>: View {
                 if model.launch.screen?.hasSuffix("-bottom") == true {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("page-bottom", anchor: .bottom) }
                 }
-                // `-screen today-procedure`: the procedure card at the top.
-                if model.launch.screen == "today-procedure" {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("procedure", anchor: .top) }
+                // `-screen today-procedure`, `-screen today-score`: that card at the top.
+                if let screen = model.launch.screen, screen.hasPrefix("today-"), !screen.hasSuffix("-bottom") {
+                    let id = String(screen.dropFirst("today-".count))
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo(id, anchor: .top) }
                 }
             }
         }

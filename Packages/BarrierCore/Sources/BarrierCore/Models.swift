@@ -477,6 +477,53 @@ public struct PhotoMeta: Codable, Identifiable, Hashable, Sendable {
     public var place: Area { area ?? .face }
 }
 
+/// One-tap "how's your skin overall" (1 Rough … 5 Great), about once a week.
+public struct SkinScore: Codable, Hashable, Sendable {
+    public var day: Day
+    public var value: Int
+    /// nil = face.
+    public var area: Area?
+    public var at: Date
+
+    public init(day: Day, value: Int, area: Area = .face, at: Date = Date()) {
+        self.day = day
+        self.value = min(5, max(1, value))
+        self.area = area == .face ? nil : area
+        self.at = at
+    }
+
+    public var place: Area { area ?? .face }
+}
+
+/// One product in one routine, as it stood on a day (for the change log).
+public struct SnapshotItem: Codable, Hashable, Sendable {
+    public var slot: Slot
+    public var productID: String
+    public var name: String
+    /// "Every other night".
+    public var schedule: String
+    public var amount: String?
+    /// Last day of a course.
+    public var until: Day?
+}
+
+/// The routine as it stood at the end of a day it was edited.
+public struct PlanSnapshot: Codable, Hashable, Sendable {
+    public var day: Day
+    public var items: [SnapshotItem]
+    /// Slots easing in, with the end of the ease-in ("pm": "2026-11-01").
+    public var easing: [String: String]
+    /// Routine names by slot ("body": "Back").
+    public var names: [String: String]
+
+    public init(day: Day, items: [SnapshotItem], easing: [String: String] = [:], names: [String: String] = [:]) {
+        self.day = day
+        self.items = items
+        self.easing = easing
+        self.names = names
+    }
+}
+
 public struct Question: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var text: String
@@ -545,6 +592,9 @@ public struct AppState: Codable, Hashable, Sendable {
     public var pauses: [Pause] = []
     public var photos: [PhotoMeta] = []
     public var procedures: [Procedure] = []
+    public var scores: [SkinScore] = []
+    /// The routine at the end of each day it changed, oldest first (see History.swift).
+    public var history: [PlanSnapshot] = []
     public var questions: [Question] = []
     public var settings: Settings = Settings()
     /// One-off cards and notes the user hid.
@@ -556,7 +606,7 @@ public struct AppState: Codable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case version, onboarded, plan, products, log, checkins, pauses, photos, procedures, questions, settings, dismissed, milestonesSeen
+        case version, onboarded, plan, products, log, checkins, pauses, photos, procedures, scores, history, questions, settings, dismissed, milestonesSeen
     }
 
     public init(from decoder: Decoder) throws {
@@ -571,6 +621,8 @@ public struct AppState: Codable, Hashable, Sendable {
         pauses = c.lossyArray(Pause.self, forKey: .pauses)
         photos = c.lossyArray(PhotoMeta.self, forKey: .photos)
         procedures = c.lossyArray(Procedure.self, forKey: .procedures)
+        scores = c.lossyArray(SkinScore.self, forKey: .scores)
+        history = c.lossyArray(PlanSnapshot.self, forKey: .history)
         questions = c.lossyArray(Question.self, forKey: .questions)
         settings = (try? c.decodeIfPresent(Settings.self, forKey: .settings)) ?? Settings()
         dismissed = (try? c.decodeIfPresent([String].self, forKey: .dismissed)) ?? []

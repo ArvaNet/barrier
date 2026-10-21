@@ -7,6 +7,7 @@ struct DermView: View {
     @FocusState private var questionFocused: Bool
     @State private var editing: ProcedureEdit?
     @State private var compare: ComparePair?
+    @State private var showSample = false
 
     var body: some View {
         @Bindable var model = model
@@ -22,8 +23,13 @@ struct DermView: View {
                     } label: {
                         Label("Open your report", systemImage: "doc.text.magnifyingglass")
                     }
+                    Button {
+                        showSample = true
+                    } label: {
+                        Label("See a sample report", systemImage: "doc.richtext")
+                    }
                 } footer: {
-                    Text("What you used, how often, how your skin felt, and your photos, on one page to show or send.")
+                    Text("A timeline of what you used and how your skin felt, what changed and when, your procedures and photos. Ready to show or send. The sample is a few months of made-up data.")
                 }
                 guidanceSection
                 Section {
@@ -38,6 +44,7 @@ struct DermView: View {
                 ReportView().barrier(model)
             }
             .sheet(item: $editing) { e in ProcedureSheet(edit: e).barrier(model) }
+            .sheet(isPresented: $showSample) { ReportView(sample: true).barrier(model) }
             .sheet(item: $compare) { pair in CompareView(pair: pair).barrier(model) }
             .onAppear(perform: applyLaunchScreen)
         }
@@ -45,6 +52,7 @@ struct DermView: View {
 
     /// Screenshot hooks: `-screen procedure` and `-screen procedure-compare` open the demo peel.
     private func applyLaunchScreen() {
+        if model.launch.screen == "sample-report" && !showSample { showSample = true }
         guard let screen = model.launch.screen, let peel = model.state.procedures.first(where: { $0.id == "demo-peel" }) else { return }
         switch screen {
         case "procedure":

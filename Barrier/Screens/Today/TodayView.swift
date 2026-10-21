@@ -33,6 +33,8 @@ struct TodayView: View {
                 }
                 RecapCard()
                 SkinCheckCard()
+                SkinScoreCard()
+                    .id("score")
                 JourneyCard()
                 PhotoPromptCard(camera: $cameraArea)
                 FollowUpCard()

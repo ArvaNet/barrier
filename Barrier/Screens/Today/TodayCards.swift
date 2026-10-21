@@ -97,6 +97,64 @@ struct WeekCard: View {
     }
 }
 
+// MARK: - Weekly overall score
+
+/// "How's your skin overall?" about once a week, one tap. It becomes the
+/// trend line on the timeline and in the report.
+struct SkinScoreCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let s = model.state
+        let today = model.today
+        // Due areas, plus any answered today (so a wrong tap can be fixed).
+        let areas = Scores.areas(s).filter { a in Scores.isDue(s, area: a, today: today) || s.scores.contains { $0.day == today && $0.place == a } }
+        if !areas.isEmpty {
+            let allDone = areas.allSatisfy { a in s.scores.contains { $0.day == today && $0.place == a } }
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(s.scores.isEmpty ? "How’s your skin overall?" : "Your skin this week, overall").font(.barrierH3).foregroundStyle(Palette.ink)
+                    Text(allDone ? "Logged. Next one in a week." : "One tap. Week by week, it becomes a line your dermatologist can read.")
+                        .font(.footnote).foregroundStyle(Palette.ink3)
+                }
+                ForEach(areas) { area in
+                    VStack(alignment: .leading, spacing: 6) {
+                        if areas.count > 1 {
+                            Text(area == .face ? "Face" : model.bodyAreaName).font(.footnote.weight(.semibold)).foregroundStyle(Palette.ink2)
+                        }
+                        row(area, today: today)
+                    }
+                }
+            }
+            .card()
+        }
+    }
+
+    private func row(_ area: Area, today: Day) -> some View {
+        let picked = model.state.scores.first { $0.day == today && $0.place == area }?.value
+        return HStack(spacing: 6) {
+            ForEach(1...5, id: \.self) { v in
+                Button {
+                    model.update { $0.setScore(v, day: today, area: area) }
+                    Haptics.tap(model.state.settings.haptics)
+                } label: {
+                    Text(Scores.label(v))
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .foregroundStyle(picked == v ? Palette.ink : Palette.ink2)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .background(picked == v ? Palette.accentSoft : Palette.surface2, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(picked == v ? Palette.accent : .clear, lineWidth: 1.2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(Scores.label(v)), \(v) of 5")
+                .accessibilityAddTraits(picked == v ? .isSelected : [])
+            }
+        }
+    }
+}
+
 // MARK: - Skin check-in
 
 struct SkinCheckCard: View {
