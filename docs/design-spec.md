@@ -54,8 +54,9 @@ All sizes scale with Dynamic Type. Numbers that change use monospaced digits (no
 - **Card:** surface fill (white by day), 24 pt continuous corners like iOS 26 list sections, no border,
   no shadow. Tinted card (surface2) for secondary information (week strip, banners, tips).
 - **Stage:** the dusk card, 28 pt corners.
-- **Buttons:** Primary (clay fill, white label, 52 tall, 14 pt corners). Secondary (surface2
-  fill, ink label). Compact (40 tall, 12 pt corners). Tertiary: text only, subheadline
+- **Buttons:** Primary (clay fill, white label, 52 tall, 14 pt corners). Secondary (the `fill`
+  token: surface2 by day, 10% light ink at dusk so it reads on every card and the stage; ink label).
+  Chips and score tiles use the same fill. Compact (40 tall, 12 pt corners). Tertiary: text only, subheadline
   medium, ink3, for "Not now", "Undo", "Skip". Rounded rectangles, never capsules.
 - **Section header on scroll pages:** kicker style, 24 pt above, 8 pt below, aligned to the
   16 pt margin.

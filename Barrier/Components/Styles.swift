@@ -144,7 +144,7 @@ struct SecondaryButtonStyle: ButtonStyle {
             .foregroundStyle(Palette.ink)
             .frame(minWidth: square ? h : width, minHeight: h)
             .padding(.horizontal, (square || width != nil) ? 0 : (compact ? 14 : 18))
-            .background(Palette.surface2.opacity(configuration.isPressed ? 0.7 : 1),
+            .background(Palette.fill.opacity(configuration.isPressed ? 0.7 : 1),
                         in: RoundedRectangle(cornerRadius: compact ? Metrics.compactRadius : Metrics.buttonRadius, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(Motion.press, value: configuration.isPressed)
@@ -202,7 +202,7 @@ struct Chip: View {
             .foregroundStyle(Palette.ink)
             .padding(.horizontal, 13)
             .frame(minHeight: 40)
-            .background(selected ? Palette.selected : Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+            .background(selected ? Palette.selected : Palette.fill, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous).strokeBorder(selected ? Palette.ink : .clear, lineWidth: 1.5))
         }
         .buttonStyle(.plain)

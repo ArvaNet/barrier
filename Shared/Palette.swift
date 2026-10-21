@@ -34,6 +34,8 @@ enum Palette {
     static let surface = Color(uiColor: .dynamic(light: 0xFFFFFF, dark: 0x16211E))
     static let surface2 = Color(uiColor: .dynamic(light: 0xE3E8E4, dark: 0x1E2B27))
     static let surface3 = Color(uiColor: .dynamic(light: 0xD6DDD8, dark: 0x283733))
+    /// Button and chip fills. Translucent at dusk so they read on any card, the stage included.
+    static let fill = Color(uiColor: .dynamic(light: 0xE3E8E4, dark: 0xECE7DE, darkAlpha: 0.1))
     static let ink = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE))
     static let ink2 = Color(uiColor: .dynamic(light: 0x485853, dark: 0xA9B2AD))
     /// Tertiary text: 5:1 even on surface2 in light mode.

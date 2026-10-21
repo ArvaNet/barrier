@@ -60,16 +60,17 @@ struct ProgressScreen: View {
         let byCycle = model.state.plan.pm.length >= 3
         var cells: [(String, String)] = []
         if stats.last28Due >= 5 {
-            cells.append(("\(stats.last28Done) of \(stats.last28Due)", "nights, last 4 weeks"))
+            cells.append(("\(stats.last28Done) of \(stats.last28Due)", "last 4 weeks"))
         } else if let first = stats.firstDay {
             cells.append((first.short, "first night"))
         }
         if stats.morningsDone > 0 { cells.append(("\(stats.morningsDone)", "mornings")) }
         if stats.bodyDone > 0 { cells.append(("\(stats.bodyDone)", "\(model.state.plan.body.displayName) days")) }
+        // Day one (nothing done yet): the first ring, waiting, not a stray arc.
+        let waiting = rings.isEmpty || stats.nightsDone == 0
         return VStack(spacing: 16) {
             ZStack {
-                if rings.isEmpty {
-                    // Day one: the first ring, waiting.
+                if waiting {
                     Circle()
                         .strokeBorder(Palette.line2, style: StrokeStyle(lineWidth: 1.5, dash: [3, 5]))
                         .frame(width: 200, height: 200)
@@ -82,7 +83,7 @@ struct ProgressScreen: View {
                         .monospacedDigit()
                         .contentTransition(.numericText())
                         .foregroundStyle(Palette.ink)
-                    Text(rings.isEmpty ? "Your first ring\nstarts tonight" : (stats.nightsDone == 1 ? "night" : "nights"))
+                    Text(waiting ? "Your first ring\nstarts tonight" : (stats.nightsDone == 1 ? "night" : "nights"))
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(Palette.ink3)
@@ -98,11 +99,12 @@ struct ProgressScreen: View {
                             Text(c.0).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(Palette.ink)
                             Text(c.1).font(.footnote).foregroundStyle(Palette.ink3).lineLimit(1).minimumScaleFactor(0.85)
                         }
+                        .padding(.horizontal, 4)
                         .frame(maxWidth: .infinity)
                     }
                 }
             }
-            if !rings.isEmpty {
+            if !waiting {
                 Text(byCycle ? "One ring per cycle, from the center out. Filled nights are done." : "One ring per week, from the center out. Filled nights are done.")
                     .font(.footnote).foregroundStyle(Palette.ink3)
                     .frame(maxWidth: .infinity, alignment: .leading)

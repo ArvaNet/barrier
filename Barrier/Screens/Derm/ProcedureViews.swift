@@ -323,6 +323,7 @@ struct ProcedureSheet: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
             }
             DatePicker("Date", selection: Binding(
                 get: { p.day.date() },

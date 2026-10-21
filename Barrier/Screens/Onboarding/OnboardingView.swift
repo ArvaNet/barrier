@@ -117,7 +117,17 @@ struct OnboardingView: View {
             .padding(.horizontal, Metrics.margin)
             .padding(.top, 12)
             .padding(.bottom, 8)
-            .background(Palette.bg.opacity(0.96).ignoresSafeArea())
+            // Content fades out above the button instead of stopping at a hard line.
+            .background(alignment: .top) {
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [Palette.bg.opacity(0), Palette.bg], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 28)
+                    Palette.bg
+                }
+                .padding(.top, -28)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            }
     }
 
     private var templates: some View {

@@ -51,6 +51,13 @@ struct OrbitView: View {
                                 .fill(node.hue.color)
                                 .frame(width: d, height: d)
                                 .scaleEffect(isCur && breathe ? 1.08 : 1)
+                            // A done night says so, where the orbit is big enough to read it.
+                            if node.state == .done && !isCur && d >= 14 {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: d * 0.5, weight: .bold))
+                                    .foregroundStyle(Color(hex: 0x13201C))
+                                    .rotationEffect(.degrees(-rotation))
+                            }
                         }
                     }
                     .offset(x: cos(angle) * r, y: sin(angle) * r)

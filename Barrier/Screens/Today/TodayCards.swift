@@ -265,7 +265,7 @@ struct ScoreRow: View {
                             .monospacedDigit()
                             .foregroundStyle(on ? Palette.surface : Palette.ink)
                             .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(on ? Palette.ink : Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous))
+                            .background(on ? Palette.ink : Palette.fill, in: RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(v) of 5, \(Scores.label(v))")

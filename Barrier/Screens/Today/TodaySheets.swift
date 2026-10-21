@@ -201,6 +201,8 @@ struct DayDetailSheet: View {
                 Spacer()
                 Text(statusText(inst)).font(.subheadline).foregroundStyle(.secondary)
             }
+            // The same separator edge as the step rows below.
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
             ForEach(inst.steps, id: \.step.id) { s in
                 // Done: every step, or the ones ticked in a partial routine.
                 let done = inst.isDone && (inst.entry?.steps.map { $0.contains(s.step.id) } ?? true)

@@ -35,7 +35,9 @@ struct RoutineView: View {
                     RoutineHistorySection()
                         .id("history")
                     Section {
-                        Button("Start over from a template…") { showTemplates = true }
+                        Button { showTemplates = true } label: {
+                            Label("Start over from a template…", systemImage: "rectangle.stack")
+                        }
                     } footer: {
                         Text("Your history and photos stay. Only the routine is replaced.")
                     }
@@ -214,7 +216,7 @@ struct SlotEditorSections: View {
                                 .frame(width: 86, alignment: .topLeading)
                                 .frame(minHeight: 52, alignment: .topLeading)
                                 .padding(10)
-                                .background(Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+                                .background(Palette.fill, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
                                 .overlay(RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous).strokeBorder(isNow ? Palette.ink : .clear, lineWidth: 1.5))
                             }
                             .buttonStyle(.plain)
@@ -405,10 +407,14 @@ struct PausesSection: View {
         Section {
             ForEach(relevant) { p in
                 HStack {
-                    Image(systemName: p.reason == .travel ? "airplane" : "pause.circle").foregroundStyle(Palette.hueInk(.mist))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(label(p))
-                        Text(p.from == p.to ? p.from.short : "\(p.from.short) – \(p.to.short)").font(.footnote).foregroundStyle(.secondary)
+                    // A Label, so the text lines up with "Pause the plan…" below.
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(label(p))
+                            Text(p.from == p.to ? p.from.short : "\(p.from.short) – \(p.to.short)").font(.footnote).foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: p.reason == .travel ? "airplane" : "pause.circle").foregroundStyle(Palette.hueInk(.mist))
                     }
                     Spacer()
                     Button(p.from <= today ? "End" : "Remove") { model.endPause(p) }

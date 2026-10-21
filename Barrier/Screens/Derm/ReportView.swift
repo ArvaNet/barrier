@@ -284,6 +284,16 @@ struct ReportData {
         timeline.days >= 98 ? "the last 14 weeks" : "since \(timeline.from.short)"
     }
 
+    /// The same, but never before the plan started (the strip may show a few days before).
+    var statsWindow: String {
+        timeline.days >= 98 ? "the last 14 weeks" : "since \(max(timeline.from, from).short)"
+    }
+
+    /// "Sep 28 – Oct 21", or just the day on day one.
+    var title: String {
+        from >= today ? today.short : "\(from.short) – \(today.short)"
+    }
+
     /// What to say when the timeline has no routine changes.
     var noChangesLine: String {
         if let last = allChanges.last {
@@ -433,7 +443,7 @@ struct ReportSummaryPage: View {
     }
 
     var body: some View {
-        ReportPage(kicker: data.kicker, title: "\(data.from.short) – \(data.today.short)", subtitle: subtitle, footer: data.footer) {
+        ReportPage(kicker: data.kicker, title: data.title, subtitle: subtitle, footer: data.footer) {
             if let now = data.nowLine {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("NOW").font(.system(size: 8.5, weight: .bold)).tracking(1).foregroundStyle(Paper.ink3)
@@ -467,12 +477,16 @@ struct ReportSummaryPage: View {
     }
 
     private var howItWent: some View {
-        Paper.block("How it went, \(data.window)") {
+        let anyDue = data.timeline.rows.contains { data.timeline.counts($0.slot).due > 0 }
+        return Paper.block("How it went, \(data.statsWindow)") {
             // The same numbers the timeline draws: done of due, per routine.
             ForEach(data.timeline.rows, id: \.slot) { row in
                 let c = data.timeline.counts(row.slot)
                 let unit = row.slot == .pm ? "evenings" : row.slot == .am ? "mornings" : "\(row.name) days"
                 if c.due > 0 { Paper.stat("\(c.done) of \(c.due)", "\(unit) done") }
+            }
+            if !anyDue && data.scoreLines.isEmpty {
+                Paper.small("Started in Barrier on \(data.from.short). Nothing logged yet; this fills in day by day.")
             }
             if data.recovery > 0 { Paper.stat("\(data.recovery)", "recovery nights for irritation") }
             if !data.scoreLines.isEmpty {
@@ -691,6 +705,12 @@ struct ReportThumbnail: View {
             }
             .frame(width: g.size.width, height: g.size.height, alignment: .top)
             .clipped()
+            // The page runs on below the fold: fade it out instead of cutting a line in half.
+            .overlay(alignment: .bottom) {
+                LinearGradient(colors: [.white.opacity(0), .white], startPoint: .top, endPoint: .bottom)
+                    .frame(height: g.size.height * 0.28)
+                    .allowsHitTesting(false)
+            }
         }
         .aspectRatio(16.0 / 11.0, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous))

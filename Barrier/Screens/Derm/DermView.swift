@@ -60,7 +60,7 @@ struct DermView: View {
     /// The report as the tab's first card: what the dermatologist will see, one tap away.
     private var reportHero: some View {
         let fu = model.state.plan.followUp
-        let kicker = fu.map { f in "For \(f.day.short)" + (f.with.map { " · \($0)" } ?? "") } ?? "Your report"
+        let kicker = fu.map { f in "For \(f.day.short)" + (f.with.map { " · \($0)" } ?? "") } ?? "For your next visit"
         return Section {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {

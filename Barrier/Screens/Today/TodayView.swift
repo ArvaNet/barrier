@@ -203,17 +203,19 @@ struct SlotHero: View {
         VStack(spacing: 0) {
             Divider().overlay(Color.primary.opacity(0.1))
             ForEach(Array(inst.steps.enumerated()), id: \.offset) { i, s in
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(i + 1)")
-                        .font(.footnote.monospacedDigit())
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 14, alignment: .leading)
-                    // A fixed dot column: treatment steps get the night's hue, names stay aligned.
-                    Group {
-                        if s.active { HueDot(hue: inst.hue, size: 7) } else { Color.clear }
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("\(i + 1)")
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 14, alignment: .leading)
+                        // A fixed dot column: treatment steps get the night's hue, names stay aligned.
+                        Group {
+                            if s.active { HueDot(hue: inst.hue, size: 7) } else { Color.clear }
+                        }
+                        .frame(width: 8, height: 8)
+                        .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
                     }
-                    .frame(width: 8, height: 8)
-                    .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(s.product.name).font(.body.weight(.medium))
                         if let a = s.step.amount, !a.isEmpty {
@@ -286,7 +288,7 @@ struct SlotHero: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 52, height: 52)
-                    .background(Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.buttonRadius, style: .continuous))
+                    .background(Palette.fill, in: RoundedRectangle(cornerRadius: Metrics.buttonRadius, style: .continuous))
             }
             .accessibilityLabel("More options")
         }

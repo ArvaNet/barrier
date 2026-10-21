@@ -91,16 +91,20 @@ struct SettingsView: View {
                     Label("Notifications are off for Barrier", systemImage: "bell.slash").font(.subheadline.weight(.semibold))
                     Text("Turn them on in iPhone Settings so reminders can reach you.").font(.footnote).foregroundStyle(.secondary)
                 }
-                Button("Open iPhone Settings") {
+                Button {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
+                } label: {
+                    Label("Open iPhone Settings", systemImage: "gear")
                 }
             case .notDetermined:
-                Button("Turn on reminders") {
+                Button {
                     Task {
                         await NotificationService.shared.requestAuthorization()
                         await model.refreshNotificationStatus()
                         model.scheduleNotifications(immediately: true)
                     }
+                } label: {
+                    Label("Turn on reminders", systemImage: "bell.badge")
                 }
             default:
                 Toggle("Reminders", isOn: Binding(get: { s.remindersOn }, set: { v in
@@ -118,9 +122,11 @@ struct SettingsView: View {
                     if s.spfMidday {
                         DatePicker("At", selection: Binding(get: { s.spfTime.date }, set: { d in model.update { $0.settings.spfTime = ClockTime(date: d) } }), displayedComponents: .hourAndMinute)
                     }
-                    Button("Send a test reminder") {
+                    Button {
                         NotificationService.shared.sendTest()
                         model.show("Coming in 5 seconds. Lock your phone to see it.")
+                    } label: {
+                        Label("Send a test reminder", systemImage: "bell")
                     }
                 }
             }
@@ -133,12 +139,12 @@ struct SettingsView: View {
 
     private var dataSection: some View {
         Section {
-            Button("Export a backup") { exportURL = Backup(model: model).write() }
+            Button { exportURL = Backup(model: model).write() } label: { Label("Export a backup", systemImage: "archivebox") }
             if let exportURL {
                 ShareLink(item: exportURL) { Label("Share backup file", systemImage: "square.and.arrow.up") }
             }
-            Button("Restore from a backup…") { importing = true }
-            Button("Erase all data", role: .destructive) { confirmReset = true }
+            Button { importing = true } label: { Label("Restore from a backup…", systemImage: "arrow.counterclockwise") }
+            Button(role: .destructive) { confirmReset = true } label: { Label("Erase all data", systemImage: "trash") }
         } header: {
             Text("Your data")
         } footer: {
