@@ -198,11 +198,11 @@ struct ReportData {
         questions = s.questions.sorted { !$0.answered && $1.answered }
         notes = s.plan.dermNotes
         ifIrritated = s.plan.ifIrritated
-        let tl = TreatmentTimeline.build(s, today: today)
-        timeline = tl
+        let span = TreatmentTimeline.build(s, today: today)
+        timeline = span
         historyStart = s.history.first?.day
         for area in Scores.areas(s) {
-            let list = s.scores.filter { $0.place == area && $0.day >= tl.from }.sorted { $0.day < $1.day }
+            let list = s.scores.filter { $0.place == area && $0.day >= span.from }.sorted { $0.day < $1.day }
             guard let first = list.first else { continue }
             let name = area == .face ? "Face" : (bp.enabled && !bp.steps.isEmpty ? bp.displayName : "Body")
             if let last = list.last, list.count > 1 {
