@@ -1,6 +1,6 @@
 # Review 5: timeline, change log, skin score, report
 
-Status: open.
+Status: all fixed in the commit after `0f1f217` (100 core tests). The timeline replays each stretch of days with the plan it had; the report is a zoomable PDF with a pinned footer and line budgets.
 
 Scope: commit `8f22714` and its two build fixes, `0892ad8` and `0f1f217`. In the core: History, Models, Day and Presets. In the app: TimelineStrip, AppModel, Today, Routine, Progress, Derm and Report. Every item was traced through the code.
 

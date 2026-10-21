@@ -53,6 +53,7 @@ struct DermView: View {
     /// Screenshot hooks: `-screen procedure` and `-screen procedure-compare` open the demo peel.
     private func applyLaunchScreen() {
         if model.launch.screen == "sample-report" && !showSample { showSample = true }
+        if model.launch.screen == "procedure-new" && editing == nil { editing = .new(on: model.today) }
         guard let screen = model.launch.screen, let peel = model.state.procedures.first(where: { $0.id == "demo-peel" }) else { return }
         switch screen {
         case "procedure":

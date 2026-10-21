@@ -47,6 +47,18 @@ struct OnboardingView: View {
         .background(Palette.bg.ignoresSafeArea())
         .sheet(item: $editing) { t in StepEditorSheet(target: t).barrier(model) }
         .sheet(item: $adding) { s in AddProductSheet(slot: s).barrier(model) }
+        .onAppear {
+            // Screenshot hook: `-fresh -screen onboarding-3` opens that page, as if "Starting a retinoid" was picked.
+            guard let s = model.launch.screen, s.hasPrefix("onboarding-"), let n = Int(s.dropFirst("onboarding-".count)) else { return }
+            if n >= 2 {
+                template = .retinoid
+                model.update { $0 = Presets.apply(.retinoid, to: $0, today: model.today) }
+                applied = .retinoid
+            } else if n == 1 {
+                template = .retinoid
+            }
+            page = min(max(0, n), pages - 1)
+        }
     }
 
     // MARK: Pages

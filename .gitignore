@@ -18,3 +18,4 @@ prototype/web/node_modules/
 *.log
 .worktrees/
 ci-artifacts/
+design/

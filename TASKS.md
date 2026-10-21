@@ -60,8 +60,21 @@ changes, procedures, photos, breaks), a dated list of routine changes, and a wee
 skin score; the same timeline in Progress; a sample report to show the dermatologist.
 Tested, green CI with screenshots, reviewed, pushed.
 
-- [ ] Core: plan snapshots + change list (coalesced per day), weekly score, timeline data + tests
-- [ ] App: weekly score card on Today, routine history in Routine, timeline card in Progress
-- [ ] Report: page 1 "at a glance" (timeline, how it went, changes, questions), page 2 routine + skin log, page 3 procedures + photos
-- [ ] Sample report (demo data) from the Derm tab, demo history + scores, CI screenshots
-- [ ] CI green + screenshots reviewed, review pass (docs/review-5.md, all fixed), pushed, vault note
+- [x] Core: plan snapshots + change list (coalesced per day), weekly score, timeline data + tests
+- [x] App: weekly score card on Today, routine history in Routine, timeline card in Progress
+- [x] Report: page 1 "at a glance" (timeline, how it went, changes, questions), page 2 routine + skin log, page 3 procedures + photos
+- [x] Sample report (demo data) from the Derm tab, demo history + scores, CI screenshots
+- [x] CI green + screenshots reviewed, review pass (docs/review-5.md, all fixed), pushed, vault note
+
+# Design pass (Apple HIG, "impress")
+
+Finish line: every screen and sheet (light and dusk) screenshot-reviewed against a written
+spec (docs/design-spec.md: type scale, spacing grid, radii, page headers, card anatomy,
+buttons, empty states, dark mode, alignment); every issue found fixed; an independent
+design critique (docs/design-review.md) fixed; before/after screenshots compared; CI green; pushed.
+
+- [x] Screenshot coverage for every sheet and state (editor, add product, day detail, not tonight, pause, procedure new, onboarding pages, camera, dusk variants)
+- [ ] Design spec written from what's there + HIG (docs/design-spec.md)
+- [ ] Independent design critique of all screenshots (docs/design-review.md)
+- [ ] Fixes: system-level (headers, spacing, type, cards, buttons) then screen by screen
+- [ ] CI green, before/after reviewed, pushed, vault note

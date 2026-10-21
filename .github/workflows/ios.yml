@@ -122,6 +122,20 @@ jobs:
           shot 23-report-routine -demo -hour 11 -screen report-routine
           shot 24-routine-history -demo -hour 11 -screen routine-history
           shot 25-sample-report -demo -hour 11 -screen sample-report
+          shot 26-step-editor -demo -hour 11 -screen step-editor
+          shot 27-add-product -demo -hour 11 -screen add-product
+          shot 28-day-detail -demo -hour 11 -screen day-detail
+          shot 29-not-tonight -demo -hour 21 -screen not-tonight
+          shot 30-pause -demo -hour 11 -screen pause
+          shot 31-procedure-new -demo -hour 11 -screen procedure-new
+          shot 32-onboarding-1 -fresh -hour 11 -screen onboarding-1
+          shot 33-onboarding-2 -fresh -hour 11 -screen onboarding-2
+          shot 34-onboarding-5 -fresh -hour 11 -screen onboarding-5
+          shot 35-onboarding-6 -fresh -hour 11 -screen onboarding-6
+          shot 36-camera -demo -hour 11 -screen camera
+          shot 37-progress-dusk -demo -hour 11 -theme dusk -screen progress
+          shot 38-derm-dusk -demo -hour 11 -theme dusk -screen derm
+          shot 39-routine-dusk -demo -hour 11 -theme dusk -screen routine
           cp ~/Library/Logs/DiagnosticReports/Barrier* shots/ 2>/dev/null || true
           ls -la shots
 

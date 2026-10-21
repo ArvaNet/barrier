@@ -51,6 +51,15 @@ struct TodayView: View {
         .fullScreenCover(item: $cameraArea) { area in
             CameraScreen(initialArea: area).barrier(model)
         }
+        .onAppear {
+            // Screenshot hooks for the sheets Today opens.
+            switch model.launch.screen {
+            case "day-detail": if detailDay == nil { detailDay = model.today.adding(-1) }
+            case "not-tonight": if notTonight == nil { notTonight = model.instance(.pm) }
+            case "camera": if cameraArea == nil { cameraArea = .face }
+            default: break
+            }
+        }
     }
 
     private func header(_ today: Day) -> some View {

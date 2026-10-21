@@ -47,6 +47,15 @@ struct RoutineView: View {
             .onAppear {
                 // Screenshot hooks: `-screen routine-body`, `-screen routine-history`.
                 if model.launch.screen == "routine-body" { slot = .body }
+                // Sheets: the first active step's editor, the add sheet, the pause sheet.
+                switch model.launch.screen {
+                case "step-editor":
+                    let actives = model.state.plan.pm.steps.first { model.product($0.productId)?.kind.isActive == true }
+                    if editing == nil, let st = actives ?? model.state.plan.pm.steps.first { editing = StepTarget(slot: .pm, stepID: st.id) }
+                case "add-product": if adding == nil { adding = .am }
+                case "pause": showPause = true
+                default: break
+                }
                 if model.launch.screen == "routine-history" {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("history", anchor: .top) }
                 }
