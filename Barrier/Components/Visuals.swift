@@ -165,6 +165,56 @@ struct AnimatedRings: View {
     }
 }
 
+/// The guided routine's centerpiece: one arc per step around the product's symbol.
+/// Done steps sit at half strength, the current one is lit, the rest are faint.
+/// The wait timer takes the same place and size, so the screen never jumps.
+struct StepRingView: View {
+    var count: Int
+    var index: Int
+    var hue: Hue
+    var symbol: String
+    var size: CGFloat = 220
+
+    var body: some View {
+        let n = max(1, count)
+        // A small gap between arcs (as a fraction of the circle); none for a single step.
+        let gap = n > 1 ? 0.03 : 0
+        ZStack {
+            ForEach(0..<n, id: \.self) { i in
+                Circle()
+                    .trim(from: Double(i) / Double(n) + gap / 2, to: Double(i + 1) / Double(n) - gap / 2)
+                    .stroke(i <= index ? hue.color : Color.primary.opacity(0.16),
+                            style: StrokeStyle(lineWidth: i == index ? 5 : 4, lineCap: .round))
+                    .opacity(i < index ? 0.45 : 1)
+                    .rotationEffect(.degrees(-90))
+            }
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.2, weight: .light))
+                .foregroundStyle(hue.color)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+extension ProductKind {
+    /// A plain symbol for the guided routine's ring.
+    var symbol: String {
+        switch self {
+        case .cleanser: return "bubbles.and.sparkles"
+        case .retinoid: return "moon.stars"
+        case .exfoliant: return "sparkles"
+        case .treatment: return "eyedropper.halffull"
+        case .serum: return "drop"
+        case .moisturizer: return "humidity"
+        case .spf: return "sun.max"
+        case .oral: return "pills"
+        case .other: return "sparkle"
+        }
+    }
+}
+
 /// Countdown ring for the wait between steps.
 struct TimerRingView: View {
     var total: TimeInterval
@@ -190,7 +240,7 @@ struct TimerRingView: View {
                     Text("until the next step").font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 236, height: 236)
+            .frame(width: 220, height: 220)
             .accessibilityElement()
             .accessibilityLabel("\(Int(left / 60)) minutes \(Int(left) % 60) seconds left")
         }

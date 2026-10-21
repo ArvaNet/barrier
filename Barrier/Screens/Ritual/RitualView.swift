@@ -114,23 +114,8 @@ struct RitualView: View {
                     .frame(width: 44, height: 44, alignment: .leading)
             }
             .accessibilityLabel("Close")
+            // Progress lives in the ring now; the bar stays quiet.
             Spacer()
-            if !finished && steps.count > 1 {
-                // Done steps at half strength, the current one lit, the rest faint.
-                HStack(spacing: 6) {
-                    ForEach(0..<steps.count, id: \.self) { i in
-                        let current = i == p.index
-                        Capsule()
-                            .fill(current ? Color.primary : Color.primary.opacity(i < p.index ? 0.5 : 0.18))
-                            .frame(width: current ? 28 : 18, height: 4)
-                    }
-                }
-                .animation(Motion.ui(reduceMotion), value: p.index)
-                .accessibilityElement()
-                .accessibilityLabel("Step \(min(p.index + 1, steps.count)) of \(steps.count)")
-            }
-            Spacer()
-            Color.clear.frame(width: 44, height: 44)
         }
         .foregroundStyle(.primary)
         .padding(.top, 4)
@@ -158,53 +143,31 @@ struct RitualView: View {
         let s = steps[i]
         let isLast = i == steps.count - 1
         let after = isLast ? nil : steps[i + 1]
-        return VStack(alignment: .leading, spacing: 0) {
-            // Anchored a third of the way down, not floating in the middle.
-            Spacer(minLength: 20)
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    if s.active { HueDot(hue: inst.hue, size: 9) }
-                    Kicker(steps.count > 1 ? "\(inst.label) · step \(i + 1) of \(steps.count)" : inst.label, color: hint)
+        return VStack(spacing: 0) {
+            Spacer(minLength: 12)
+            // Centered on the ring, like the wait and the finish: the ring stays put and fills
+            // in, only the words move. If a long note doesn't fit (small phone, large text),
+            // the ring steps aside, then the words scroll.
+            ViewThatFits(in: .vertical) {
+                VStack(spacing: 32) {
+                    StepRingView(count: steps.count, index: i, hue: inst.hue, symbol: s.product.kind.symbol)
+                    stepText(s, index: i, isLast: isLast)
                 }
-                Text(s.product.name)
-                    .font(.barrierLargeTitle).tracking(-0.5)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let a = s.step.amount, !a.isEmpty {
-                    Text(a).font(.title3).foregroundStyle(Color.primary.opacity(0.9))
-                }
-                if let h = s.step.how, !h.isEmpty {
-                    Text(h).font(.body).foregroundStyle(hint)
-                }
-                if let note = s.product.note, !note.isEmpty {
-                    HStack(alignment: .top, spacing: 12) {
-                        Rectangle().fill(inst.hue.color).frame(width: 3)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Kicker("Your dermatologist", color: hint)
-                            Text(note).font(.callout)
-                        }
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 4)
-                }
-                if let w = s.step.waitMin, w > 0, !isLast {
-                    HStack(spacing: 6) {
-                        Image(systemName: "hourglass")
-                        Text("Then wait \(w) min")
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(hint)
+                stepText(s, index: i, isLast: isLast)
+                ScrollView { stepText(s, index: i, isLast: isLast) }
+                    .scrollBounceBehavior(.basedOnSize)
+            }
+            Spacer(minLength: 12)
+            Group {
+                if let after {
+                    Text("Up next · \(after.product.name)")
+                } else if steps.count > 1 {
+                    Text("Last step")
                 }
             }
-            .id(s.step.id)
-            .transition(stepTransition)
-            Spacer(minLength: 20)
-            Spacer(minLength: 20)
-            if let after {
-                Text("Next: \(after.product.name)")
-                    .font(.footnote)
-                    .foregroundStyle(hint)
-                    .padding(.bottom, 10)
-            }
+            .font(.footnote)
+            .foregroundStyle(hint)
+            .padding(.bottom, 10)
             bottomSlot {
                 Button("Done") { complete(i) }
                     .buttonStyle(PrimaryButtonStyle(fill: isNight ? Palette.stageAccent : Palette.accent))
@@ -217,6 +180,50 @@ struct RitualView: View {
         .animation(Motion.ui(reduceMotion), value: p.index)
     }
 
+    /// The step in words, centered under the ring.
+    private func stepText(_ s: DueStep, index i: Int, isLast: Bool) -> some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                if s.active { HueDot(hue: inst.hue, size: 8) }
+                Kicker(steps.count > 1 ? "\(inst.label) · step \(i + 1) of \(steps.count)" : inst.label, color: hint)
+            }
+            Text(s.product.name)
+                .font(.barrierLargeTitle).tracking(-0.5)
+                .fixedSize(horizontal: false, vertical: true)
+            if let a = s.step.amount, !a.isEmpty {
+                Text(a).font(.title3).foregroundStyle(Color.primary.opacity(0.9))
+            }
+            if let h = s.step.how, !h.isEmpty {
+                Text(h).font(.body).foregroundStyle(hint)
+            }
+            if let w = s.step.waitMin, w > 0, !isLast {
+                HStack(spacing: 6) {
+                    Image(systemName: "hourglass")
+                    Text("Then wait \(w) min")
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(hint)
+                .padding(.top, 2)
+            }
+            if let note = s.product.note, !note.isEmpty {
+                // Their words, in a card of their own.
+                VStack(alignment: .leading, spacing: 4) {
+                    Kicker("Your dermatologist", color: hint)
+                    Text(note).font(.callout).fixedSize(horizontal: false, vertical: true)
+                }
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+                .padding(.top, 10)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .id(s.step.id)
+        .transition(stepTransition)
+    }
+
     private func waiting(_ ends: Date) -> some View {
         let next = steps[min(p.index, steps.count - 1)]
         let dry = next.product.kind == .retinoid
@@ -226,7 +233,7 @@ struct RitualView: View {
             VStack(spacing: 6) {
                 Text(dry ? "Let your skin dry completely" : "Let it absorb")
                     .font(.barrierH2)
-                Text("Next: \(next.product.name)").font(.subheadline).foregroundStyle(hint)
+                Text("Up next · \(next.product.name)").font(.subheadline).foregroundStyle(hint)
                 Text("You can lock your phone. Barrier will ping you.")
                     .font(.footnote).foregroundStyle(hint).padding(.top, 4)
             }

@@ -54,6 +54,9 @@ All sizes scale with Dynamic Type. Numbers that change use monospaced digits (no
 - **Card:** surface fill (white by day), 24 pt continuous corners like iOS 26 list sections, no border,
   no shadow. Tinted card (surface2) for secondary information (week strip, banners, tips).
 - **Stage:** the dusk card, 28 pt corners.
+- **Guided routine:** centered on one 220 pt ring in the same place on every screen: one arc
+  per step around the product's symbol, then the wait timer, then the orbit when it's done.
+  Only the words slide between steps; the ring stays and fills in.
 - **Buttons:** Primary (clay fill, white label, 52 tall, 14 pt corners). Secondary (the `fill`
   token: surface2 by day, 10% light ink at dusk so it reads on every card and the stage; ink label).
   Chips and score tiles use the same fill. Compact (40 tall, 12 pt corners). Tertiary: text only, subheadline
