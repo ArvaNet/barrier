@@ -21,7 +21,7 @@ their iPhone from Xcode.
 ## On the founder's Mac (not doable from Windows)
 - [ ] Set Team on both targets, run on iPhone (README → Run it on your iPhone)
 - [ ] Enter the real dermatologist routine; send a test reminder; take the "before" photo
-- [ ] Check once with 2+ photos that the report's photo page renders
+- [x] Check once with 2+ photos that the report's photo page renders (done in CI with demo photos, screenshot 20)
 
 # Body routine (back, chest, body treatments)
 
@@ -48,7 +48,7 @@ screenshots, reviewed, pushed.
 - [x] Fact-check aftercare wording (docs/procedure-facts.md)
 - [x] Core: Procedure model (old saves still load), quick names, upcoming/recent, before/after pick
 - [x] Core: linked actives break (pause), day-before reminder, recovery-day notes, photo prompts + tests (72 tests)
-- [ ] App: Derm section (upcoming + past), add/edit sheet, before/after compare
-- [ ] App: Today card (upcoming, days after, photo nudge), calendar marker, day detail
-- [ ] App: report "Procedures and photos" page, demo data, CI screenshots
-- [ ] CI green + screenshots reviewed, review pass (docs/review-4.md, all fixed), pushed, vault note
+- [x] App: Derm section (upcoming + past), add/edit sheet, before/after compare
+- [x] App: Today card (upcoming, days after, photo nudge), calendar marker, day detail
+- [x] App: report "Procedures and photos" page, demo data, CI screenshots
+- [x] CI green + screenshots reviewed, review pass (docs/review-4.md, all fixed), pushed, vault note
