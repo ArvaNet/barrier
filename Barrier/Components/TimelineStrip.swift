@@ -38,7 +38,7 @@ struct TimelineStrip: View {
     var compact = false
 
     private var labelW: CGFloat { compact ? 52 : 62 }
-    private var font: CGFloat { compact ? 7.5 : 10 }
+    private var font: CGFloat { compact ? 8 : 10 }
     private var dayW: CGFloat { (width - labelW) / CGFloat(max(1, data.days)) }
     private let rowH: CGFloat = 10
     private let rowGap: CGFloat = 5
@@ -223,13 +223,22 @@ struct TimelineStrip: View {
     private var events: some View {
         let d: CGFloat = 4
         let diamonds = data.procedures.map { CGPoint(x: x($0.day), y: procY) }
-        // Photos share the procedure lane; change numbers have their own.
-        let photos = data.photos.map { CGRect(x: x($0) - 2.6, y: procY - 2.6, width: 5.2, height: 5.2) }
         var named: [(Int, String)] = []
+        var spans: [ClosedRange<CGFloat>] = []
         var lastEnd: CGFloat = -100
         for p in data.procedures where x(p.day) > lastEnd {
             named.append((p.day, p.name))
-            lastEnd = x(p.day) + textWidth(p.name) + 14
+            let px = x(p.day)
+            let w = textWidth(p.name) + 8
+            // Where the label will sit (to the right, or to the left near the end).
+            spans.append(px + w + d > width ? (px - d - w)...(px + d) : (px - d)...(px + d + w))
+            lastEnd = px + textWidth(p.name) + 14
+        }
+        // Photos share the procedure lane, but never under a label: those drop to the change lane.
+        let photos = data.photos.map { i -> CGRect in
+            let px = x(i)
+            let y = spans.contains { $0.contains(px) } ? eventY : procY
+            return CGRect(x: px - 2.6, y: y - 2.6, width: 5.2, height: 5.2)
         }
         // Change markers too close to the one before drop half a lane, so both numbers read.
         let size: CGFloat = compact ? 10 : 12

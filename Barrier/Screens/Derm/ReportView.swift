@@ -14,6 +14,7 @@ struct ReportView: View {
     var sample = false
     @State private var pdfURL: URL?
     @State private var pageCount = 0
+    @State private var showHint = true
 
     var body: some View {
         NavigationStack {
@@ -25,13 +26,22 @@ struct ReportView: View {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .background(Palette.bg.ignoresSafeArea())
-            .safeAreaInset(edge: .bottom) {
-                Text(sample ? "Sample data, made up for illustration. Pinch to zoom." : "Logged by you in Barrier. Not a medical record. Pinch to zoom.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Palette.bg.opacity(0.94))
+            .background(Palette.surface2.ignoresSafeArea())
+            .overlay(alignment: .bottom) {
+                // A hint for the first few seconds; every page already carries its own footer.
+                if showHint && pdfURL != nil {
+                    Text(sample ? "Sample data. Pinch to zoom." : "Pinch to zoom.")
+                        .font(.footnote.weight(.medium)).foregroundStyle(Palette.ink2)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+                        .padding(.bottom, 24)
+                        .transition(.opacity)
+                }
+            }
+            .task(id: pdfURL) {
+                guard pdfURL != nil else { return }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                withAnimation(.easeOut(duration: 0.4)) { showHint = false }
             }
             .navigationTitle(sample ? "Sample report" : "Report")
             .navigationBarTitleDisplayMode(.inline)
@@ -105,7 +115,9 @@ struct PDFPreview: UIViewRepresentable {
         v.displayMode = .singlePageContinuous
         v.displayDirection = .vertical
         v.pageShadowsEnabled = true
-        v.backgroundColor = UIColor(Palette.bg)
+        v.backgroundColor = UIColor(Palette.surface2)
+        v.displaysPageBreaks = true
+        v.pageBreakMargins = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         v.document = PDFDocument(url: url)
         if let i = startPage, let page = v.document?.page(at: i) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { v.go(to: page) }
@@ -385,7 +397,7 @@ private struct ReportPage<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(kicker).font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
+                Text(kicker).font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.ink3)
                 Text(title).font(Typeface.display(24, weight: 430))
                 if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(Paper.ink2).lineLimit(2) }
                 Rectangle().fill(Paper.line).frame(height: 1).padding(.top, 6)
@@ -424,7 +436,7 @@ struct ReportSummaryPage: View {
         ReportPage(kicker: data.kicker, title: "\(data.from.short) – \(data.today.short)", subtitle: subtitle, footer: data.footer) {
             if let now = data.nowLine {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("NOW").font(.system(size: 8.5, weight: .bold)).tracking(1).foregroundStyle(Paper.accent)
+                    Text("NOW").font(.system(size: 8.5, weight: .bold)).tracking(1).foregroundStyle(Paper.ink3)
                     Text(now).font(.system(size: 10, weight: .medium)).lineLimit(2)
                 }
             }
@@ -478,7 +490,7 @@ struct ReportSummaryPage: View {
             Paper.block("Questions") {
                 ForEach(shown, id: \.id) { q in
                     HStack(alignment: .top, spacing: 6) {
-                        Text(q.answered ? "✓" : "•").font(.system(size: 10, weight: .bold)).foregroundStyle(Paper.accent)
+                        Text(q.answered ? "✓" : "•").font(.system(size: 10, weight: .bold)).foregroundStyle(Paper.ink3)
                         Text(q.text).font(.system(size: 10.5)).foregroundStyle(q.answered ? Paper.ink3 : Paper.ink).lineLimit(3)
                     }
                 }
@@ -583,7 +595,7 @@ struct ReportPhotosPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(data.sample ? data.kicker : hasProcedures ? "BARRIER · PROCEDURES AND PHOTOS" : "BARRIER · PROGRESS PHOTOS")
-                .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.accent)
+                .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(Paper.ink3)
             Text(title).font(Typeface.display(22, weight: 430))
             if hasProcedures { procedureList }
             if !data.photos.isEmpty { photoRows }
@@ -612,7 +624,7 @@ struct ReportPhotosPage: View {
                         HStack(spacing: 4) {
                             Text(p.title).font(.system(size: 10.5, weight: .semibold))
                             if p.day > data.today {
-                                Text("booked").font(.system(size: 9)).foregroundStyle(Paper.accent)
+                                Text("booked").font(.system(size: 9, weight: .semibold)).foregroundStyle(Paper.ink2)
                             }
                         }
                         let info = [p.place == .body ? (data.bodyName ?? "Body") : nil, p.spot, p.clinic, breakText(p)].compactMap { $0 }
@@ -657,5 +669,32 @@ struct ReportPhotosPage: View {
             }
         }
         .padding(.top, hasProcedures ? 4 : 0)
+    }
+}
+
+/// The top of report page 1, as paper: the header, "Now" and the timeline.
+struct ReportThumbnail: View {
+    var image: UIImage?
+
+    var body: some View {
+        GeometryReader { g in
+            ZStack(alignment: .top) {
+                Color.white
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: g.size.width, height: g.size.width * 842 / 595, alignment: .top)
+                } else {
+                    ProgressView().padding(.top, 48)
+                }
+            }
+            .frame(width: g.size.width, height: g.size.height, alignment: .top)
+            .clipped()
+        }
+        .aspectRatio(16.0 / 11.0, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous).strokeBorder(Palette.line, lineWidth: 1))
+        .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
     }
 }

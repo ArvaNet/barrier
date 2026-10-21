@@ -8,30 +8,18 @@ struct DermView: View {
     @State private var editing: ProcedureEdit?
     @State private var compare: ComparePair?
     @State private var showSample = false
+    @State private var thumbnail: UIImage?
 
     var body: some View {
         @Bindable var model = model
         NavigationStack {
             List {
                 Group {
+                    reportHero
                     followUpSection
                     ProceduresSection(editing: $editing)
                     questionsSection
                     notesSection
-                    Section {
-                        Button {
-                            model.showReport = true
-                        } label: {
-                            Label("Open your report", systemImage: "doc.text.magnifyingglass")
-                        }
-                        Button {
-                            showSample = true
-                        } label: {
-                            Label("See a sample report", systemImage: "doc.richtext")
-                        }
-                    } footer: {
-                        Text("A timeline of what you used and how your skin felt, what changed and when, your procedures and photos. Ready to show or send. The sample uses made-up data.")
-                    }
                     guidanceSection
                     Section {
                         Text(Guidance.disclaimer).font(.footnote).foregroundStyle(.secondary)
@@ -67,6 +55,57 @@ struct DermView: View {
         }
     }
 
+    // MARK: Report
+
+    /// The report as the tab's first card: what the dermatologist will see, one tap away.
+    private var reportHero: some View {
+        let fu = model.state.plan.followUp
+        let kicker = fu.map { f in "For \(f.day.short)" + (f.with.map { " · \($0)" } ?? "") } ?? "Your report"
+        return Section {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Kicker(kicker)
+                    Text("Your visit report").font(.barrierH2).foregroundStyle(Palette.ink)
+                }
+                Button {
+                    model.showReport = true
+                } label: {
+                    ReportThumbnail(image: thumbnail)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open your report")
+                Text("Timeline, routine changes, skin log, procedures and photos, on paper your dermatologist can read in a minute.")
+                    .font(.subheadline).foregroundStyle(Palette.ink2)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 16) {
+                    Button("Open report") { model.showReport = true }
+                        .buttonStyle(PrimaryButtonStyle())
+                    Button("See a sample") { showSample = true }
+                        .buttonStyle(TertiaryButtonStyle())
+                        .fixedSize()
+                }
+                .padding(.top, 2)
+            }
+            .padding(.vertical, 8)
+        } footer: {
+            if fu == nil {
+                Text("Add your next visit below and Barrier reminds you the evening before, with the report ready.")
+            }
+        }
+        .task(id: model.state.log.count + model.state.history.count + model.state.checkins.count + model.state.procedures.count) {
+            thumbnail = renderThumbnail()
+        }
+    }
+
+    /// Page 1, rendered small (it is the same view the PDF uses).
+    @MainActor
+    private func renderThumbnail() -> UIImage? {
+        let data = ReportData(state: model.state, today: model.today, photos: model.photos)
+        let r = ImageRenderer(content: ReportSummaryPage(data: data).frame(width: 595, height: 842).environment(\.colorScheme, .light))
+        r.scale = 1.4
+        return r.uiImage
+    }
+
     // MARK: Follow-up
 
     private var followUpSection: some View {
@@ -83,18 +122,20 @@ struct DermView: View {
                     get: { fu.day.date() },
                     set: { d in model.update { $0.plan.followUp?.day = Day(date: d) } }
                 ), in: Date()..., displayedComponents: .date)
-                TextField("With (e.g. Dr. Petrauskienė)", text: Binding(
+                TextField("Dermatologist’s name (optional)", text: Binding(
                     get: { fu.with ?? "" },
                     set: { v in model.update { $0.plan.followUp?.with = v.isEmpty ? nil : v } }
                 ))
-                let n = model.today.days(to: fu.day)
-                if n >= 0 {
-                    Text(n == 0 ? "That’s today. Your report is ready." : "In \(n) day\(n == 1 ? "" : "s"). You’ll get a reminder the evening before.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
             }
         } header: {
             Text("Next visit")
+        } footer: {
+            if let fu {
+                let n = model.today.days(to: fu.day)
+                if n >= 0 {
+                    Text(n == 0 ? "That’s today. Your report is ready." : "In \(n) day\(n == 1 ? "" : "s"). You’ll get a reminder the evening before.")
+                }
+            }
         }
     }
 

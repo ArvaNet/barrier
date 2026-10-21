@@ -3,6 +3,20 @@ import SwiftUI
 
 // MARK: - Surfaces
 
+/// Motion (Apple's fluid-interface rules): springs, not fixed curves, so anything can be
+/// interrupted mid-flight. Critically damped by default; bounce only after a flick.
+enum Motion {
+    /// The house default: no overshoot, settles calmly.
+    static let ui = Animation.spring(response: 0.35, dampingFraction: 1)
+    /// Press feedback: on touch-down, quick.
+    static let press = Animation.spring(response: 0.22, dampingFraction: 1)
+    /// Only where the gesture carried momentum (the orbit turning after "done").
+    static let momentum = Animation.spring(response: 0.4, dampingFraction: 0.8)
+
+    /// The default, or nothing under Reduce Motion (callers cross-fade instead).
+    static func ui(_ reduce: Bool) -> Animation? { reduce ? .easeInOut(duration: 0.2) : ui }
+}
+
 /// Layout constants shared by every screen (docs/design-spec.md).
 enum Metrics {
     /// Page margin: the same edge as inset lists, so every tab's text lines up.
@@ -111,8 +125,8 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 52)
             .padding(.horizontal, 16)
             .background(fill.opacity(configuration.isPressed ? 0.85 : 1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
     }
 }
 
@@ -132,8 +146,8 @@ struct SecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, (square || width != nil) ? 0 : (compact ? 14 : 18))
             .background(Palette.surface2.opacity(configuration.isPressed ? 0.7 : 1),
                         in: RoundedRectangle(cornerRadius: compact ? Metrics.compactRadius : Metrics.buttonRadius, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
     }
 }
 

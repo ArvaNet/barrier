@@ -26,33 +26,38 @@ struct RitualView: View {
     @State private var finished = false
     @State private var finishedInstance: Instance?
     @State private var loaded = false
+    @State private var dimmed = false
+    /// Bumped on every touch during a wait, to restart the dim countdown.
+    @State private var touch = 0
+    /// Which way the steps are moving, so Back returns along the path it came.
+    @State private var forward = true
 
     private var inst: Instance { model.instance(request.slot, on: request.day) }
     private var steps: [DueStep] { inst.steps }
     private var isNight: Bool { request.slot.isDusk(model.state.plan[request.slot]) }
 
+    /// Secondary text that stays readable on the stage (and on the day background).
+    private var hint: Color { isNight ? Palette.stageInk2 : Palette.ink2 }
+
+    /// Forward: in from the right, out to the left. Back reverses it. Reduce Motion: a cross-fade.
+    private var stepTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return forward
+            ? .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity))
+            : .asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .move(edge: .trailing).combined(with: .opacity))
+    }
+
     var body: some View {
         ZStack {
-            (isNight ? Palette.stage : Palette.bg)
-                .overlay(alignment: .top) {
-                    // Ambient glow in the night's hue. In an overlay so it can't widen the layout.
-                    Circle()
-                        .fill(inst.hue.color.opacity(isNight ? 0.16 : 0.12))
-                        .frame(width: 460, height: 460)
-                        .blur(radius: 110)
-                        .offset(y: -330)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-                .clipped()
-                .ignoresSafeArea()
+            // A flat, calm stage. No glow.
+            (isNight ? Palette.stage : Palette.bg).ignoresSafeArea()
             VStack(spacing: 0) {
                 topBar
                 if finished, let done = finishedInstance {
                     RitualFinish(inst: done, close: close)
                 } else if steps.isEmpty {
                     Spacer()
-                    Text("Nothing to do here.").foregroundStyle(.secondary)
+                    Text("Nothing to do here.").foregroundStyle(hint)
                     Spacer()
                 } else if let ends = p.waitEnds {
                     waiting(ends)
@@ -60,7 +65,16 @@ struct RitualView: View {
                     stepView(min(p.index, steps.count - 1))
                 }
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 24)
+            // Bedtime dim: after a quiet stretch on the wait, the screen stops lighting the room.
+            if dimmed {
+                Color.black.opacity(0.55)
+                    .ignoresSafeArea()
+                    .onTapGesture { wake() }
+                    .transition(.opacity)
+                    .accessibilityLabel("Screen dimmed. Tap to brighten.")
+                    .accessibilityAddTraits(.isButton)
+            }
         }
         .environment(\.colorScheme, isNight ? .dark : (model.state.settings.theme.scheme(at: model.now) ?? .light))
         .onAppear {
@@ -92,20 +106,26 @@ struct RitualView: View {
     private var topBar: some View {
         HStack {
             Button(action: close) {
+                // A glass circle whose edge sits on the 24 pt line.
                 Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 44, height: 44)
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .frame(width: 44, height: 44, alignment: .leading)
             }
             .accessibilityLabel("Close")
             Spacer()
-            if !finished && !steps.isEmpty {
+            if !finished && steps.count > 1 {
+                // Done steps at half strength, the current one lit, the rest faint.
                 HStack(spacing: 6) {
                     ForEach(0..<steps.count, id: \.self) { i in
+                        let current = i == p.index
                         Capsule()
-                            .fill(i < p.index || (i == p.index && p.waitEnds != nil) ? Color.primary : Color.primary.opacity(0.2))
-                            .frame(width: 22, height: 4)
+                            .fill(current ? Color.primary : Color.primary.opacity(i < p.index ? 0.5 : 0.18))
+                            .frame(width: current ? 28 : 18, height: 4)
                     }
                 }
+                .animation(Motion.ui(reduceMotion), value: p.index)
                 .accessibilityElement()
                 .accessibilityLabel("Step \(min(p.index + 1, steps.count)) of \(steps.count)")
             }
@@ -116,30 +136,50 @@ struct RitualView: View {
         .padding(.top, 4)
     }
 
+    /// One fixed slot at the bottom: the main button, then a row of text actions.
+    /// The same height on every step and on the wait, so nothing jumps.
+    private func bottomSlot<Main: View, Left: View, Right: View>(@ViewBuilder main: () -> Main,
+                                                                 @ViewBuilder left: () -> Left,
+                                                                 @ViewBuilder right: () -> Right) -> some View {
+        VStack(spacing: 10) {
+            main().frame(height: 52)
+            HStack {
+                left()
+                Spacer()
+                right()
+            }
+            .buttonStyle(TertiaryButtonStyle())
+            .frame(height: 44)
+        }
+        .padding(.bottom, 8)
+    }
+
     private func stepView(_ i: Int) -> some View {
         let s = steps[i]
         let isLast = i == steps.count - 1
+        let after = isLast ? nil : steps[i + 1]
         return VStack(alignment: .leading, spacing: 0) {
+            // Anchored a third of the way down, not floating in the middle.
             Spacer(minLength: 20)
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
                     if s.active { HueDot(hue: inst.hue, size: 9) }
-                    Kicker("\(inst.label) · step \(i + 1) of \(steps.count)", color: .secondary)
+                    Kicker(steps.count > 1 ? "\(inst.label) · step \(i + 1) of \(steps.count)" : inst.label, color: hint)
                 }
                 Text(s.product.name)
-                    .font(.barrierLargeTitle)
+                    .font(.barrierLargeTitle).tracking(-0.5)
                     .fixedSize(horizontal: false, vertical: true)
                 if let a = s.step.amount, !a.isEmpty {
                     Text(a).font(.title3).foregroundStyle(Color.primary.opacity(0.9))
                 }
                 if let h = s.step.how, !h.isEmpty {
-                    Text(h).font(.body).foregroundStyle(.secondary)
+                    Text(h).font(.body).foregroundStyle(hint)
                 }
                 if let note = s.product.note, !note.isEmpty {
                     HStack(alignment: .top, spacing: 12) {
                         Rectangle().fill(inst.hue.color).frame(width: 3)
                         VStack(alignment: .leading, spacing: 4) {
-                            Kicker("Your dermatologist", color: .secondary)
+                            Kicker("Your dermatologist", color: hint)
                             Text(note).font(.callout)
                         }
                     }
@@ -147,31 +187,34 @@ struct RitualView: View {
                     .padding(.top, 4)
                 }
                 if let w = s.step.waitMin, w > 0, !isLast {
-                    Label("Then wait \(w) min", systemImage: "hourglass")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Image(systemName: "hourglass")
+                        Text("Then wait \(w) min")
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(hint)
                 }
             }
             .id(s.step.id)
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+            .transition(stepTransition)
             Spacer(minLength: 20)
-            VStack(spacing: 10) {
-                Button(isLast ? "Done, finish" : "Done") { complete(i) }
-                    .buttonStyle(PrimaryButtonStyle(fill: isNight ? Palette.stageAccent : Palette.accent))
-                HStack {
-                    if i > 0 {
-                        Button("Back") { withAnimation { p.index = i - 1 } }
-                    }
-                    Spacer()
-                    Button(isLast ? "Skip and finish" : "Skip this step") { skip(i) }
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(minHeight: 44)
+            Spacer(minLength: 20)
+            if let after {
+                Text("Next: \(after.product.name)")
+                    .font(.footnote)
+                    .foregroundStyle(hint)
+                    .padding(.bottom, 10)
             }
-            .padding(.bottom, 12)
+            bottomSlot {
+                Button("Done") { complete(i) }
+                    .buttonStyle(PrimaryButtonStyle(fill: isNight ? Palette.stageAccent : Palette.accent))
+            } left: {
+                if i > 0 { Button("Back") { forward = false; withAnimation(Motion.ui(reduceMotion)) { p.index = i - 1 } } }
+            } right: {
+                Button(isLast ? "Skip" : "Skip this step") { skip(i) }
+            }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: p.index)
+        .animation(Motion.ui(reduceMotion), value: p.index)
     }
 
     private func waiting(_ ends: Date) -> some View {
@@ -183,17 +226,23 @@ struct RitualView: View {
             VStack(spacing: 6) {
                 Text(dry ? "Let your skin dry completely" : "Let it absorb")
                     .font(.barrierH2)
-                Text("Next: \(next.product.name)").font(.subheadline).foregroundStyle(.secondary)
+                Text("Next: \(next.product.name)").font(.subheadline).foregroundStyle(hint)
                 Text("You can lock your phone. Barrier will ping you.")
-                    .font(.footnote).foregroundStyle(.tertiary).padding(.top, 4)
+                    .font(.footnote).foregroundStyle(hint).padding(.top, 4)
             }
             .multilineTextAlignment(.center)
             Spacer()
-            Button("Skip the wait") { endWait() }
-                .buttonStyle(SecondaryButtonStyle())
-                .padding(.bottom, 12)
+            bottomSlot {
+                Color.clear
+            } left: {
+                EmptyView()
+            } right: {
+                Button("Skip the wait") { endWait() }
+            }
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { wake() }
         .task(id: ends) {
             let delay = ends.timeIntervalSinceNow
             if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
@@ -201,6 +250,17 @@ struct RitualView: View {
             Haptics.success(model.state.settings.haptics)
             endWait()
         }
+        .task(id: touch) {
+            // Ten quiet seconds, then dim.
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            guard !Task.isCancelled, p.waitEnds != nil else { return }
+            withAnimation(.easeInOut(duration: 1.2)) { dimmed = true }
+        }
+    }
+
+    private func wake() {
+        if dimmed { withAnimation(.easeOut(duration: 0.3)) { dimmed = false } }
+        touch += 1
     }
 
     // MARK: Logic
@@ -232,13 +292,15 @@ struct RitualView: View {
             TimerActivity.start(ritualID: request.id, title: inst.label, hue: inst.hue, reason: reason, endsAt: ends, nextStep: next.product.name)
             NotificationService.shared.scheduleTimer(at: ends, title: "Time for \(next.product.name)", body: "Your \(wait)-minute wait is over.", ritualID: request.id)
         } else {
-            withAnimation { p.index = i + 1 }
+            forward = true
+            withAnimation(Motion.ui(reduceMotion)) { p.index = i + 1 }
         }
     }
 
     private func endWait() {
         TimerActivity.end(ritualID: request.id)
         NotificationService.shared.cancelTimer(ritualID: request.id)
+        dimmed = false
         withAnimation { p.waitEnds = nil }
     }
 
@@ -288,8 +350,9 @@ struct RitualFinish: View {
                     showCount: false
                 )
             } else {
+                // A crisp halo and a check: no glow.
                 ZStack {
-                    Circle().fill(inst.hue.color.opacity(0.4)).frame(width: 150, height: 150).blur(radius: 30)
+                    Circle().stroke(inst.hue.color.opacity(0.35), lineWidth: 1.5).frame(width: 126, height: 126)
                     Circle().fill(inst.hue.color).frame(width: 74, height: 74)
                     Image(systemName: "checkmark").font(.system(size: 30, weight: .bold)).foregroundStyle(Color(hex: 0x13201C))
                 }
@@ -299,15 +362,26 @@ struct RitualFinish: View {
             VStack(spacing: 8) {
                 Text(inst.slot == .am ? "Morning done." : "\(inst.label) done.")
                     .font(.barrierLargeTitle)
+                    .tracking(-0.4)
                     .multilineTextAlignment(.center)
                 if inst.slot == .pm {
                     Text(stats.nightsDone == 1 ? "Your first night. The start of something." : "\(stats.nightsDone) nights so far.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
-                if !next.steps.isEmpty {
-                    Text("Next: \(next.label.lowercased()), \(next.day.relative(to: inst.day, evening: false)).")
-                        .font(.subheadline).foregroundStyle(.secondary)
+            }
+            // Calm certainty: you leave knowing exactly what's next.
+            if !next.steps.isEmpty {
+                let sp = model.state.plan[inst.slot]
+                HStack(spacing: 10) {
+                    HueDot(hue: next.hue, size: 10)
+                    Text("\(next.day.relative(to: inst.day, evening: false).capitalized) · \(next.label) · \(sp.time.formatted)")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+                .padding(.top, 4)
             }
             Spacer()
             if photoNight {
@@ -326,7 +400,7 @@ struct RitualFinish: View {
         .onAppear {
             Haptics.success(model.state.settings.haptics)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.spring(response: 0.9, dampingFraction: 0.8)) { turned = true }
+                withAnimation(Motion.momentum) { turned = true }
             }
         }
         .fullScreenCover(isPresented: $showCamera) {

@@ -89,8 +89,14 @@ struct ProceduresSection: View {
             Button {
                 editing = .new(on: today)
             } label: {
-                Label("Add a procedure", systemImage: "plus")
+                // The plus sits in the date-tile column, so the text lines up with the titles.
+                HStack(spacing: 12) {
+                    Image(systemName: "plus").font(.body.weight(.semibold)).frame(width: 44)
+                    Text("Add a procedure")
+                }
+                .foregroundStyle(Palette.ink)
             }
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] + 56 }
         } header: {
             Text("Procedures")
         } footer: {
@@ -108,16 +114,20 @@ struct ProceduresSection: View {
                 DateTile(day: p.day, upcoming: upcoming)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(p.title).font(.body.weight(.medium)).foregroundStyle(Palette.ink).multilineTextAlignment(.leading)
-                    Text(detail(p, upcoming: upcoming)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    Text(detail(p, upcoming: upcoming)).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                    if !upcoming, Procedures.afterPhoto(p, in: model.state) != nil {
+                        Label("Before and after", systemImage: "photo.on.rectangle")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Palette.ink3)
+                            .padding(.top, 1)
+                    }
                 }
                 Spacer(minLength: 0)
-                if !upcoming, Procedures.afterPhoto(p, in: model.state) != nil {
-                    Image(systemName: "photo.on.rectangle").font(.footnote).foregroundStyle(Palette.ink3)
-                        .accessibilityLabel("Before and after photos")
-                }
             }
         }
         .buttonStyle(.plain)
+        // Separators start at the title, not under the date tile.
+        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] + 56 }
     }
 
     private func detail(_ p: Procedure, upcoming: Bool) -> String {
@@ -511,8 +521,8 @@ struct ProcedureCard: View {
 
     var body: some View {
         let p = moment.procedure
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center) {
                 Kicker(kicker, color: isSoon ? Palette.ink : Palette.ink3)
                 Spacer()
                 // The after-photo card hides with "Not now"; one way is enough.
@@ -520,8 +530,10 @@ struct ProcedureCard: View {
                     Button {
                         model.update { $0.dismiss(id) }
                     } label: {
-                        Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(Palette.ink3).frame(width: 30, height: 24)
+                        Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(Palette.ink3).frame(width: 44, height: 44)
                     }
+                    .padding(.vertical, -14)
+                    .padding(.trailing, -12)
                     .accessibilityLabel("Hide")
                 }
             }
@@ -530,7 +542,7 @@ struct ProcedureCard: View {
                 Text(sub).font(.subheadline).foregroundStyle(Palette.ink2)
             }
             content(p)
-            buttons(p).padding(.top, 2)
+            buttons(p).padding(.top, 4)
         }
         .card()
         .sheet(item: $editing) { e in ProcedureSheet(edit: e).barrier(model) }
@@ -616,7 +628,8 @@ struct ProcedureCard: View {
 
     @ViewBuilder
     private func buttons(_ p: Procedure) -> some View {
-        HStack(spacing: 10) {
+        // One secondary action, everything else as text.
+        HStack(spacing: 16) {
             switch moment {
             case .upcoming:
                 if Procedures.recentBefore(p, in: model.state) == nil {
@@ -624,7 +637,7 @@ struct ProcedureCard: View {
                         .buttonStyle(SecondaryButtonStyle(compact: true))
                 }
                 Button("Details") { editing = ProcedureEdit(procedure: p, isNew: false) }
-                    .buttonStyle(SecondaryButtonStyle(compact: true))
+                    .buttonStyle(TertiaryButtonStyle())
             case .after:
                 Button("Details") { editing = ProcedureEdit(procedure: p, isNew: false) }
                     .buttonStyle(SecondaryButtonStyle(compact: true))
@@ -634,8 +647,7 @@ struct ProcedureCard: View {
                 Button("Not now") {
                     if let id = moment.dismissID { model.update { $0.dismiss(id) } }
                 }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Palette.ink3)
+                .buttonStyle(TertiaryButtonStyle())
             }
         }
     }

@@ -87,6 +87,19 @@ struct MainTabs: View {
                 .tabItem { Label("Derm", systemImage: "stethoscope") }
                 .tag(AppTab.derm)
         }
+        .minimizingTabBar()
+    }
+}
+
+extension View {
+    /// iOS 26: the tab bar tucks away while reading, and comes back on scroll up.
+    @ViewBuilder
+    func minimizingTabBar() -> some View {
+        if #available(iOS 26.0, *) {
+            tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
     }
 }
 

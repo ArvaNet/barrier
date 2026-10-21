@@ -19,26 +19,20 @@ struct TodayView: View {
                 if let pause = Procedures.bannerPause(model.state, today: today) {
                     PauseBanner(pause: pause)
                 }
+                // Calm certainty: the night, the rest of today, then one of each kind of card.
                 SlotHero(slot: lead, big: true, notTonight: $notTonight)
-                ForEach(model.otherSlots) { slot in
-                    SlotHero(slot: slot, big: false, notTonight: $notTonight)
+                let others = model.otherSlots
+                if !others.isEmpty {
+                    AlsoTodayCard(slots: others, notTonight: $notTonight)
                 }
-                ForEach(Array(Procedures.moments(model.state, today: today).prefix(2).enumerated()), id: \.element) { i, m in
+                if let m = Procedures.moments(model.state, today: today).first {
                     ProcedureCard(moment: m, camera: $cameraArea)
-                        .id(i == 0 ? "procedure" : m.procedure.id)
+                        .id("procedure")
                 }
                 WeekCard(onTap: { detailDay = $0 })
-                if let m = Milestones.unseen(model.state, today: today) {
-                    MilestoneCard(milestone: m)
-                }
-                RecapCard()
-                SkinCheckCard()
-                SkinScoreCard()
+                CheckInCard()
                     .id("score")
-                JourneyCard()
-                PhotoPromptCard(camera: $cameraArea)
-                FollowUpCard()
-                TipCard()
+                ForYouCard(camera: $cameraArea)
             }
             .navigationTitle(greeting)
             .toolbar {
@@ -112,7 +106,7 @@ struct SlotHero: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Kicker("\(slot.when(sp)) · \(sp.time.formatted)", color: .secondary)
                     Text(inst.label)
-                        .font(.barrierDisplay)
+                        .font(.barrierDisplay).tracking(-0.4)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -365,7 +359,6 @@ struct SlotHero: View {
         .onTapGesture {
             if !inst.isResolved { model.ritual = RitualRequest(slot: slot, day: inst.day) }
         }
-        .card()
     }
 
     /// What the card says when nothing is due.

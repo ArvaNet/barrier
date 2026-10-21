@@ -86,26 +86,40 @@ struct OrbitView: View {
 }
 
 /// Growth rings: one per cycle (or week). Oldest in the middle, newest outside.
-struct RingsView: View {
+struct RingsView: View, Animatable {
     var rings: [Engine.Ring]
     var size: CGFloat = 250
+    /// The empty middle, as a fraction of the size (room for a number when it's a hero).
+    var inner: CGFloat = 0.12
+    /// 0 to 1: how far the rings have drawn out from the center.
+    var progress: Double = 1
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
 
     var body: some View {
         Canvas { ctx, sz in
             let c = CGPoint(x: sz.width / 2, y: sz.height / 2)
-            let inner = sz.width * 0.12
+            let inner = sz.width * self.inner
             let outer = sz.width / 2 - 6
             let count = max(rings.count, 6)
             let gap = (outer - inner) / CGFloat(count)
             let sw = max(2, min(7, gap * 0.62))
-            ctx.fill(Path(ellipseIn: CGRect(x: c.x - inner * 0.55, y: c.y - inner * 0.55, width: inner * 1.1, height: inner * 1.1)), with: .color(Palette.surface2))
+            if self.inner < 0.2 {
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - inner * 0.55, y: c.y - inner * 0.55, width: inner * 1.1, height: inner * 1.1)), with: .color(Palette.surface2))
+            }
             for (ri, ring) in rings.enumerated() {
+                // Rings appear one after another, from the center out.
+                let shown = min(1, max(0, progress * Double(rings.count) - Double(ri)))
+                guard shown > 0 else { continue }
                 let r = inner + gap * (CGFloat(ri) + 0.5)
                 let segs = ring.segments.count
                 let full = max(segs, segs < 4 ? 7 : segs)
                 let segAngle = 2 * Double.pi / Double(full)
                 let pad = min(0.12, segAngle * 0.18)
-                for (si, sg) in ring.segments.enumerated() {
+                for (si, sg) in ring.segments.enumerated() where Double(si) < shown * Double(segs) {
                     let a0 = -Double.pi / 2 + Double(si) * segAngle + pad / 2
                     let a1 = a0 + segAngle - pad
                     var p = Path()
@@ -124,6 +138,26 @@ struct RingsView: View {
     }
 }
 
+/// The rings as the Progress hero: room in the middle, drawn out once on appear.
+struct AnimatedRings: View {
+    var rings: [Engine.Ring]
+    var size: CGFloat
+    @State private var progress: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        RingsView(rings: rings, size: size, inner: 0.3, progress: progress)
+            .onAppear {
+                guard progress < 1 else { return }
+                if reduceMotion {
+                    progress = 1
+                } else {
+                    withAnimation(.easeOut(duration: 0.9)) { progress = 1 }
+                }
+            }
+    }
+}
+
 /// Countdown ring for the wait between steps.
 struct TimerRingView: View {
     var total: TimeInterval
@@ -135,7 +169,7 @@ struct TimerRingView: View {
             let left = max(0, endsAt.timeIntervalSince(ctx.date))
             let frac = total > 0 ? left / total : 0
             ZStack {
-                Circle().stroke(Color.primary.opacity(0.12), lineWidth: 4)
+                Circle().stroke(Color.primary.opacity(0.18), lineWidth: 4)
                 Circle()
                     .trim(from: 0, to: frac)
                     .stroke(hue.color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
@@ -143,7 +177,7 @@ struct TimerRingView: View {
                     .animation(.linear(duration: 1), value: frac)
                 VStack(spacing: 6) {
                     Text(Self.format(left))
-                        .font(.barrierNumeral)
+                        .font(.barrierNumeral).tracking(-1)
                         .monospacedDigit()
                         .contentTransition(.numericText(countsDown: true))
                     Text("until the next step").font(.footnote).foregroundStyle(.secondary)
@@ -235,5 +269,54 @@ struct WeekStrip: View {
         default: status = ""
         }
         return "\(day.long), \(inst.label), \(status)"
+    }
+}
+
+/// The welcome screen's orbit: four labeled nights turning slowly (one turn a minute),
+/// with a short settle on first appearance. The labels stay upright. Still under Reduce Motion.
+struct WelcomeOrbit: View {
+    var size: CGFloat = 200
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The first-load settle: the ring starts one night back and turns into place.
+    @State private var settle: Double = 90
+
+    private let nights: [(String, Hue)] = [("Exfoliate", .gold), ("Retinoid", .clay), ("Recovery", .sage), ("Recovery", .mist)]
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            let spin = reduceMotion ? 0 : (t.truncatingRemainder(dividingBy: 60) / 60) * 360
+            let r = size * 0.36
+            ZStack {
+                Circle().stroke(Palette.stageInk.opacity(0.16), lineWidth: 1).frame(width: r * 2, height: r * 2)
+                ForEach(Array(nights.enumerated()), id: \.offset) { i, n in
+                    let deg = Double(i) * 90 - 90 + spin + settle
+                    let a = deg * .pi / 180
+                    let current = i == 0
+                    let d: CGFloat = current ? size * 0.13 : size * 0.075
+                    ZStack {
+                        if current {
+                            Circle().stroke(n.1.color.opacity(0.4), lineWidth: 1.5).frame(width: d * 1.7, height: d * 1.7)
+                            Circle().fill(n.1.color).frame(width: d, height: d)
+                        } else {
+                            Circle().strokeBorder(n.1.color, lineWidth: 1.6).frame(width: d, height: d)
+                        }
+                    }
+                    .offset(x: cos(a) * r, y: sin(a) * r)
+                    Text(current ? "Tonight · \(n.0)" : n.0)
+                        .font(.caption.weight(current ? .semibold : .regular))
+                        .foregroundStyle(current ? Palette.stageInk : Palette.stageInk2)
+                        .fixedSize()
+                        .offset(x: cos(a) * (r + d / 2 + 30), y: sin(a) * (r + d / 2 + 16))
+                }
+            }
+            .frame(width: size + 120, height: size + 30)
+        }
+        .accessibilityElement()
+        .accessibilityLabel("A four-night routine: exfoliate, retinoid, then two recovery nights.")
+        .onAppear {
+            guard settle != 0 else { return }
+            if reduceMotion { settle = 0 } else { withAnimation(.spring(response: 0.7, dampingFraction: 1)) { settle = 0 } }
+        }
     }
 }

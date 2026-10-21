@@ -16,19 +16,20 @@ struct ProgressScreen: View {
     @State private var photoArea: Area?
     /// An imported photo waiting for "Which area?".
     @State private var pendingImport: PendingImport?
+    @State private var showLegend = false
 
     var body: some View {
         let today = model.today
         let stats = Engine.stats(model.state, today: today)
         NavigationStack {
             Page(spacing: 16) {
-                summary(stats)
-                timelineCard
-                ringsCard
-                calendarCard(today)
+                // The rings first (the signature), then photos (the reason it's worth it),
+                // then the timeline and calendar for detail.
+                ringsHero(stats)
                 photosCard
+                timelineCard
+                calendarCard(today)
                 skinLog(today)
-                if !stats.byLabel.isEmpty { byNight(stats) }
             }
             .navigationTitle("Progress")
         }
@@ -53,30 +54,58 @@ struct ProgressScreen: View {
 
     // MARK: Summary
 
-    private func summary(_ stats: Engine.Stats) -> some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(stats.nightsDone)")
-                    .font(.barrierNumeral)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .foregroundStyle(Palette.ink)
-                Text(stats.nightsDone == 1 ? "night done" : "nights done").font(.subheadline.weight(.medium)).foregroundStyle(Palette.ink2)
+    /// The growth rings with the night count inside, and three numbers under them.
+    private func ringsHero(_ stats: Engine.Stats) -> some View {
+        let rings = Engine.rings(model.state, today: model.today)
+        let byCycle = model.state.plan.pm.length >= 3
+        var cells: [(String, String)] = []
+        if stats.last28Due >= 5 {
+            cells.append(("\(stats.last28Done) of \(stats.last28Due)", "nights, last 4 weeks"))
+        } else if let first = stats.firstDay {
+            cells.append((first.short, "first night"))
+        }
+        if stats.morningsDone > 0 { cells.append(("\(stats.morningsDone)", "mornings")) }
+        if stats.bodyDone > 0 { cells.append(("\(stats.bodyDone)", "\(model.state.plan.body.displayName) days")) }
+        return VStack(spacing: 16) {
+            ZStack {
+                if rings.isEmpty {
+                    // Day one: the first ring, waiting.
+                    Circle()
+                        .strokeBorder(Palette.line2, style: StrokeStyle(lineWidth: 1.5, dash: [3, 5]))
+                        .frame(width: 200, height: 200)
+                } else {
+                    AnimatedRings(rings: rings, size: 240)
+                }
+                VStack(spacing: 0) {
+                    Text("\(stats.nightsDone)")
+                        .font(.barrierNumeral).tracking(-1)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .foregroundStyle(Palette.ink)
+                    Text(rings.isEmpty ? "Your first ring\nstarts tonight" : (stats.nightsDone == 1 ? "night" : "nights"))
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Palette.ink3)
+                }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                if stats.last28Due >= 5 {
-                    Text("\(stats.last28Done) of \(stats.last28Due)").font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(Palette.ink)
-                    Text("nights, last 4 weeks").font(.footnote).foregroundStyle(Palette.ink3)
-                } else if let first = stats.firstDay {
-                    Text("since \(first.short)").font(.subheadline).foregroundStyle(Palette.ink3)
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            if !cells.isEmpty {
+                HStack(spacing: 0) {
+                    ForEach(Array(cells.enumerated()), id: \.offset) { i, c in
+                        if i > 0 { Rectangle().fill(Palette.line).frame(width: 1, height: 32) }
+                        VStack(spacing: 2) {
+                            Text(c.0).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(Palette.ink)
+                            Text(c.1).font(.footnote).foregroundStyle(Palette.ink3).lineLimit(1).minimumScaleFactor(0.85)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
                 }
-                if stats.morningsDone > 0 {
-                    Text("\(stats.morningsDone) mornings").font(.footnote).foregroundStyle(Palette.ink3)
-                }
-                if stats.bodyDone > 0 {
-                    Text("\(model.state.plan.body.displayName): \(stats.bodyDone) day\(stats.bodyDone == 1 ? "" : "s")").font(.footnote).foregroundStyle(Palette.ink3)
-                }
+            }
+            if !rings.isEmpty {
+                Text(byCycle ? "One ring per cycle, from the center out. Filled nights are done." : "One ring per week, from the center out. Filled nights are done.")
+                    .font(.footnote).foregroundStyle(Palette.ink3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .card()
@@ -90,16 +119,26 @@ struct ProgressScreen: View {
         let height = TimelineStrip(data: data, width: 0).height
         let recent = Array(data.changes.suffix(3))
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Kicker("Timeline")
+            HStack(alignment: .center) {
+                Kicker(data.days >= 56 ? "Timeline · last 8 weeks" : "Timeline · since \(data.from.short)")
                 Spacer()
-                Text(data.days >= 56 ? "Last 8 weeks" : "Since \(data.from.short)").font(.footnote).foregroundStyle(Palette.ink3)
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) { showLegend.toggle() }
+                } label: {
+                    Label(showLegend ? "Hide key" : "How to read", systemImage: "info.circle")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Palette.ink2)
+                        .frame(minHeight: 44)
+                }
+                .padding(.vertical, -12)
             }
             GeometryReader { g in
                 TimelineStrip(data: data, width: g.size.width)
             }
             .frame(height: height)
-            TimelineLegend()
+            if showLegend {
+                TimelineLegend().transition(.opacity)
+            }
             if !data.earlier.isEmpty {
                 Text("Earlier: " + data.earlier.map { "\($0.name), \($0.day.short)" }.joined(separator: "; "))
                     .font(.footnote).foregroundStyle(Palette.ink3)
@@ -110,10 +149,10 @@ struct ProgressScreen: View {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             ZStack {
                                 Circle().fill(Palette.ink)
-                                Text("\(c.number)").font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.surface)
+                                Text("\(c.number)").font(.system(size: 10, weight: .bold)).foregroundStyle(Palette.surface)
                             }
-                            .frame(width: 13, height: 13)
-                            .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 3 }
+                            .frame(width: 16, height: 16)
+                            .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 4 }
                             Text("\(c.change.day.short) · \(c.change.lines.joined(separator: "; "))")
                                 .font(.footnote).foregroundStyle(Palette.ink2)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -121,22 +160,6 @@ struct ProgressScreen: View {
                     }
                 }
                 .padding(.top, 2)
-            }
-        }
-        .card()
-    }
-
-    private var ringsCard: some View {
-        let rings = Engine.rings(model.state, today: model.today)
-        let byCycle = model.state.plan.pm.length >= 3
-        return VStack(alignment: .leading, spacing: 12) {
-            Kicker("Your rings")
-            if rings.isEmpty {
-                Text("Your first ring starts tonight.").font(.subheadline).foregroundStyle(Palette.ink2)
-            } else {
-                RingsView(rings: rings, size: 240).frame(maxWidth: .infinity)
-                Text(byCycle ? "One ring per cycle, from the center out. Filled nights are done." : "One ring per week, from the center out. Filled nights are done.")
-                    .font(.footnote).foregroundStyle(Palette.ink3)
             }
         }
         .card()
@@ -164,12 +187,13 @@ struct ProgressScreen: View {
             HStack {
                 Text(first.date().formatted(.dateTime.month(.wide).year())).font(.barrierH3).foregroundStyle(Palette.ink)
                 Spacer()
-                Button { month = month.addingMonths(-1) } label: { Image(systemName: "chevron.left").frame(width: 40, height: 36) }
+                Button { month = month.addingMonths(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
                     .accessibilityLabel("Previous month")
-                Button { month = month.addingMonths(1) } label: { Image(systemName: "chevron.right").frame(width: 40, height: 36) }
+                Button { month = month.addingMonths(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
                     .accessibilityLabel("Next month")
             }
             .foregroundStyle(Palette.ink2)
+            .padding(.vertical, -8)
             VStack(spacing: 4) {
                 HStack(spacing: 2) {
                     ForEach(0..<7, id: \.self) { i in
@@ -316,8 +340,26 @@ struct ProgressScreen: View {
                 .buttonStyle(SecondaryButtonStyle(compact: true))
             }
             if photos.isEmpty {
-                Text("Your first photo is your “before”. Same spot, window light, no makeup.")
-                    .font(.footnote).foregroundStyle(Palette.ink3)
+                // Day one: a tile waiting for the "before", not an empty card.
+                Button {
+                    showCamera = true
+                } label: {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous)
+                                .strokeBorder(Palette.line2, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            Image(systemName: "camera").font(.title3).foregroundStyle(Palette.ink2)
+                        }
+                        .frame(width: 72, height: 96)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Your before").font(.barrierH3).foregroundStyle(Palette.ink)
+                            Text("Same spot, window light, no makeup. In a few weeks you’ll be glad it exists.")
+                                .font(.footnote).foregroundStyle(Palette.ink3)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
             } else {
                 LazyVGrid(columns: cols, spacing: 6) {
                     ForEach(photos) { ph in
@@ -421,30 +463,6 @@ struct ProgressScreen: View {
         .card()
     }
 
-    private func byNight(_ stats: Engine.Stats) -> some View {
-        let rows = stats.byLabel.sorted { $0.value > $1.value }
-        let top = rows.first?.value ?? 1
-        return VStack(alignment: .leading, spacing: 10) {
-            Kicker("By night")
-            ForEach(rows, id: \.key) { row in
-                let label = row.key
-                let n = row.value
-                HStack(spacing: 10) {
-                    Text(label).font(.subheadline).foregroundStyle(Palette.ink).frame(width: 150, alignment: .leading).lineLimit(1)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(hue(for: label).color)
-                        .frame(width: max(6, 120 * CGFloat(n) / CGFloat(max(1, top))), height: 10)
-                    Spacer(minLength: 0)
-                    Text("\(n)").font(.subheadline.monospacedDigit()).foregroundStyle(Palette.ink2).frame(width: 30, alignment: .trailing)
-                }
-            }
-        }
-        .card()
-    }
-
-    private func hue(for label: String) -> Hue {
-        model.state.log.last { $0.label == label }?.hue ?? .sage
-    }
 }
 
 /// A picked photo and when it was taken (from its metadata, if it has any).

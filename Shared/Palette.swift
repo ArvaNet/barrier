@@ -124,6 +124,8 @@ enum Typeface {
         bar.largeTitleTextAttributes = [
             .font: uiDisplay(34, weight: 430),
             .foregroundColor: UIColor.dynamic(light: 0x1B2A26, dark: 0xECE7DE),
+            // Large type wants slightly tighter tracking.
+            .kern: -0.5,
         ]
     }
 }

@@ -70,17 +70,14 @@ struct OnboardingView: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer()
-            OrbitView(
-                nodes: [OrbitNode(hue: .gold, state: .current), OrbitNode(hue: .clay, state: .future), OrbitNode(hue: .sage, state: .future), OrbitNode(hue: .mist, state: .future)],
-                current: 0, size: 170, showCount: false
-            )
+            WelcomeOrbit(size: 180)
             .environment(\.colorScheme, .dark)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 34)
+            .padding(.vertical, 28)
             .background(Palette.stage, in: RoundedRectangle(cornerRadius: Metrics.stageRadius, style: .continuous))
             .padding(.bottom, 32)
             Text("Your dermatologist’s routine, remembered.")
-                .font(.barrierLargeTitle)
+                .font(.barrierLargeTitle).tracking(-0.5)
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Barrier tells you exactly what to do tonight, reminds you at the right time, and adjusts when life gets in the way.")
@@ -103,7 +100,7 @@ struct OnboardingView: View {
     /// A page title on the 16 pt line, above the list (never inside a row, where corners clip it).
     private func pageHeader(_ title: String, _ text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.barrierLargeTitle).foregroundStyle(Palette.ink)
+            Text(title).font(.barrierLargeTitle).tracking(-0.5).foregroundStyle(Palette.ink)
             Text(text).font(.subheadline).foregroundStyle(Palette.ink2).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -265,7 +262,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Palette.ink2)
                 .padding(.top, 24)
                 .padding(.bottom, 20)
-            Text("Let Barrier remind you").font(.barrierLargeTitle).foregroundStyle(Palette.ink)
+            Text("Let Barrier remind you").font(.barrierLargeTitle).tracking(-0.5).foregroundStyle(Palette.ink)
             VStack(alignment: .leading, spacing: 14) {
                 if pm.enabled && !pm.steps.isEmpty {
                     bullet("moon.stars", "Evenings at \(pm.time.formatted), with tonight’s exact steps.")
