@@ -136,6 +136,9 @@ jobs:
           shot 37-progress-dusk -demo -hour 11 -theme dusk -screen progress
           shot 38-derm-dusk -demo -hour 11 -theme dusk -screen derm
           shot 39-routine-dusk -demo -hour 11 -theme dusk -screen routine
+          shot 40-starter-today -starter -hour 20
+          shot 41-starter-progress -starter -hour 11 -screen progress
+          shot 42-starter-derm -starter -hour 11 -screen derm
           cp ~/Library/Logs/DiagnosticReports/Barrier* shots/ 2>/dev/null || true
           ls -la shots
 

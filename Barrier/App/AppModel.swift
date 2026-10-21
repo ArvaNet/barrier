@@ -52,13 +52,19 @@ final class AppModel {
 
     init(launch: LaunchOptions) {
         self.launch = launch
-        self.photos = PhotoStore(demo: launch.demo)
+        self.photos = PhotoStore(demo: launch.sandbox)
         let now = launch.fixedNow ?? Date()
         self.now = now
         let today = Day.routineDay(now)
         self.today = today
         if launch.demo {
             var s = Presets.demoState(today: today)
+            if let theme = launch.theme { s.settings.theme = theme }
+            state = s
+        } else if launch.starter {
+            // Day one after onboarding with "Starting a retinoid": what a new user sees.
+            var s = Presets.apply(.retinoid, to: Presets.blankState(today: today), today: today)
+            s.onboarded = true
             if let theme = launch.theme { s.settings.theme = theme }
             state = s
         } else if launch.fresh {
@@ -106,7 +112,7 @@ final class AppModel {
     /// Before first unlock the file is locked, so a background launch can't read
     /// it. Try again once the app is in front.
     func retryLoadIfNeeded() {
-        guard loadFailed, !launch.demo else { return }
+        guard loadFailed, !launch.sandbox else { return }
         if case .loaded(let s) = SharedStore.load() {
             state = s
             loadFailed = false
@@ -115,7 +121,7 @@ final class AppModel {
     }
 
     func ingestInbox() {
-        guard !launch.demo, !loadFailed else { return }
+        guard !launch.sandbox, !loadFailed else { return }
         let items = SharedStore.drainInbox()
         guard !items.isEmpty else { return }
         update { $0.apply(items, today: today) }
@@ -142,7 +148,7 @@ final class AppModel {
     }
 
     private func changed() {
-        guard !launch.demo else { return }
+        guard !launch.sandbox else { return }
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 250_000_000)
@@ -153,7 +159,7 @@ final class AppModel {
     }
 
     func saveNow() {
-        guard !launch.demo, !loadFailed else { return }
+        guard !launch.sandbox, !loadFailed else { return }
         do {
             try SharedStore.saveState(state)
             WidgetCenter.shared.reloadAllTimelines()
@@ -163,7 +169,7 @@ final class AppModel {
     }
 
     func scheduleNotifications(immediately: Bool = false) {
-        guard !launch.demo, !loadFailed, state.onboarded else { return }
+        guard !launch.sandbox, !loadFailed, state.onboarded else { return }
         scheduleTask?.cancel()
         scheduleTask = Task { [weak self] in
             if !immediately { try? await Task.sleep(nanoseconds: 1_000_000_000) }
@@ -351,6 +357,9 @@ final class AppModel {
 struct LaunchOptions {
     var demo = false
     var fresh = false
+    var starter = false
+    /// Demo and starter states are never saved and never touch real photos or reminders.
+    var sandbox: Bool { demo || starter }
     var screen: String?
     var theme: ThemeMode?
     var fixedNow: Date?
@@ -360,6 +369,7 @@ struct LaunchOptions {
         var o = LaunchOptions()
         o.demo = args.contains("-demo")
         o.fresh = args.contains("-fresh")
+        o.starter = args.contains("-starter")
         if let i = args.firstIndex(of: "-screen"), i + 1 < args.count { o.screen = args[i + 1] }
         if let i = args.firstIndex(of: "-theme"), i + 1 < args.count { o.theme = ThemeMode(rawValue: args[i + 1]) }
         if let i = args.firstIndex(of: "-hour"), i + 1 < args.count, let h = Int(args[i + 1]) {
