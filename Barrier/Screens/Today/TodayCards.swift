@@ -109,21 +109,28 @@ struct SkinScoreCard: View {
         let today = model.today
         // Due areas, plus any answered today (so a wrong tap can be fixed).
         let areas = Scores.areas(s).filter { a in Scores.isDue(s, area: a, today: today) || s.scores.contains { $0.day == today && $0.place == a } }
-        if !areas.isEmpty {
+        let hidden = s.dismissed.contains("score-\(today.iso)")
+        if !areas.isEmpty && !hidden {
             let allDone = areas.allSatisfy { a in s.scores.contains { $0.day == today && $0.place == a } }
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(s.scores.isEmpty ? "How’s your skin overall?" : "Your skin this week, overall").font(.barrierH3).foregroundStyle(Palette.ink)
+                    Text(s.scores.isEmpty ? "How’s your skin overall?" : "How’s your skin this week, overall?").font(.barrierH3).foregroundStyle(Palette.ink)
                     Text(allDone ? "Logged. Next one in a week." : "One tap. Week by week, it becomes a line your dermatologist can read.")
                         .font(.footnote).foregroundStyle(Palette.ink3)
                 }
                 ForEach(areas) { area in
                     VStack(alignment: .leading, spacing: 6) {
-                        if areas.count > 1 {
+                        // Named whenever there are two areas, even if only one is asked today.
+                        if Scores.areas(s).count > 1 {
                             Text(area == .face ? "Face" : model.bodyAreaName).font(.footnote.weight(.semibold)).foregroundStyle(Palette.ink2)
                         }
                         row(area, today: today)
                     }
+                }
+                if !allDone {
+                    Button("Not now") { model.update { $0.dismiss("score-\(today.iso)") } }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Palette.ink3)
                 }
             }
             .card()

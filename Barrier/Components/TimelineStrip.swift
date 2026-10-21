@@ -1,14 +1,15 @@
 import BarrierCore
 import SwiftUI
 
-// The treatment timeline: one column per day. Rows show each routine (a full
-// clay bar = done with actives, a short light bar = basics only, an outline =
-// missed), skin check-ins, the weekly overall score, and the events that
-// explain the rest: breaks, procedures, routine changes and photos.
+// The treatment timeline: one column per day. Rows show each routine (a tall
+// clay bar = done with treatment, a short light bar = basics only, an outline =
+// skipped or not logged), skin check-ins (face, and back when there is one), the
+// weekly overall rating, and the events that explain the rest: breaks,
+// procedures, photos and numbered routine changes.
 //
 // One hue (clay) carries use; shape and fill tell the states apart, so it reads
-// in grayscale and for color-blind readers. Red appears only for irritation,
-// on its own row. Drawn with plain shapes so it renders into the PDF report.
+// in grayscale and for color-blind readers. Irritation is a red triangle on the
+// skin rows. Drawn with plain shapes so it renders into the PDF report.
 
 struct TimelineColors {
     var accent: Color
@@ -18,44 +19,49 @@ struct TimelineColors {
     var line: Color
     var danger: Color
     var band: Color
+    var before: Color
     var surface: Color
 
     static let app = TimelineColors(accent: Palette.hueInk(.clay), ink: Palette.ink, ink2: Palette.ink2, ink3: Palette.ink3,
-                                    line: Palette.line2, danger: Palette.danger, band: Palette.hueInk(.mist).opacity(0.13),
-                                    surface: Palette.surface)
+                                    line: Palette.line2, danger: Palette.danger, band: Palette.hueInk(.mist).opacity(0.14),
+                                    before: Palette.ink.opacity(0.04), surface: Palette.surface)
     static let paper = TimelineColors(accent: Color(hex: 0xA6512E), ink: Color(hex: 0x1B2A26), ink2: Color(hex: 0x485853),
                                       ink3: Color(hex: 0x6B7772), line: Color(hex: 0x1B2A26, alpha: 0.22), danger: Color(hex: 0xA4402F),
-                                      band: Color(hex: 0x47707C, alpha: 0.12), surface: .white)
+                                      band: Color(hex: 0x47707C, alpha: 0.13), before: Color(hex: 0x1B2A26, alpha: 0.04), surface: .white)
 }
 
 struct TimelineStrip: View {
     var data: TreatmentTimeline
     var width: CGFloat
     var colors: TimelineColors = .app
-    /// Small type for the PDF.
+    /// Small type for the PDF (and no "today, not done yet" mark: paper is read later).
     var compact = false
 
-    private var labelW: CGFloat { compact ? 50 : 58 }
+    private var labelW: CGFloat { compact ? 52 : 62 }
     private var font: CGFloat { compact ? 7.5 : 10 }
     private var dayW: CGFloat { (width - labelW) / CGFloat(max(1, data.days)) }
     private let rowH: CGFloat = 10
     private let rowGap: CGFloat = 5
+    private let skinGap: CGFloat = 11
 
     // Lanes, top to bottom.
     private var topH: CGFloat { compact ? 11 : 14 }
     private var rowsTop: CGFloat { topH + 2 }
-    private var skinY: CGFloat { rowsTop + CGFloat(data.rows.count) * (rowH + rowGap) + 4 }
-    private var scoreTop: CGFloat { skinY + 9 }
+    private func rowTop(_ r: Int) -> CGFloat { rowsTop + CGFloat(r) * (rowH + rowGap) }
+    private var skinY: CGFloat { rowTop(data.rows.count) + 3 }
+    private var bodySkinY: CGFloat { skinY + (data.showsBodySkin ? skinGap : 0) }
+    private var scoreTop: CGFloat { bodySkinY + 10 }
     private var scoreH: CGFloat { data.scores.isEmpty ? 0 : 26 }
-    private var procY: CGFloat { scoreTop + scoreH + (data.scores.isEmpty ? 0 : 8) + 2 }
-    private var eventY: CGFloat { procY + 16 }
-    private var axisY: CGFloat { eventY + 14 }
+    private var procY: CGFloat { scoreTop + scoreH + (data.scores.isEmpty ? 0 : 9) + 2 }
+    private var eventY: CGFloat { procY + 15 }
+    private var axisY: CGFloat { eventY + 15 }
     var height: CGFloat { axisY + (compact ? 10 : 13) }
 
     private func x(_ i: Int) -> CGFloat { labelW + (CGFloat(i) + 0.5) * dayW }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
+            before
             bands
             cells
             skin
@@ -69,16 +75,51 @@ struct TimelineStrip: View {
         .accessibilityLabel(summary)
     }
 
+    // MARK: Before the routine began
+
+    @ViewBuilder
+    private var before: some View {
+        if data.beforeDays > 0 {
+            let w = CGFloat(data.beforeDays) * dayW
+            ZStack(alignment: .topLeading) {
+                Boxes(rects: [CGRect(x: labelW, y: rowsTop - 3, width: w, height: eventY + 6 - (rowsTop - 3))], corner: 3).fill(colors.before)
+                if w > textWidth("Before Barrier") + 4 {
+                    leading("Before Barrier", x: labelW + 3, y: topH / 2, color: colors.ink3, maxWidth: w)
+                }
+            }
+        }
+    }
+
     // MARK: Breaks
 
+    /// Rows a break covers: a face break leaves the body routine's row clear, and the other way round.
+    private func rowsFor(_ area: Area?) -> [Int] {
+        data.rows.indices.filter { r in area == nil || data.rows[r].slot.area == area }
+    }
+
+    private func bandLabel(_ b: TreatmentTimeline.Band) -> String {
+        guard let area = b.area, data.rows.contains(where: { $0.slot == .body }) else { return b.label }
+        return "\(b.label) (\(area == .face ? "face" : data.bodyName))"
+    }
+
     private var bands: some View {
-        let rects = data.breaks.map { b in
-            CGRect(x: x(b.from) - dayW / 2, y: rowsTop - 3, width: CGFloat(b.to - b.from + 1) * dayW, height: eventY + 6 - (rowsTop - 3))
+        var rects: [CGRect] = []
+        for b in data.breaks {
+            let x0 = x(b.from) - dayW / 2
+            let w = CGFloat(b.to - b.from + 1) * dayW
+            for r in rowsFor(b.area) {
+                rects.append(CGRect(x: x0, y: rowTop(r) - 2.5, width: w, height: rowH + 5))
+            }
+            // The skin and event lanes below, always.
+            rects.append(CGRect(x: x0, y: skinY - 6, width: w, height: eventY + 6 - (skinY - 6)))
         }
         return ZStack(alignment: .topLeading) {
-            Boxes(rects: rects, corner: 3).fill(colors.band)
+            Boxes(rects: rects, corner: 2).fill(colors.band)
             ForEach(Array(data.breaks.enumerated()), id: \.offset) { _, b in
-                leading(b.label, x: x(b.from) - dayW / 2, y: topH / 2, color: colors.ink3, maxWidth: max(40, CGFloat(b.to - b.from + 1) * dayW + 60))
+                // Starts with the band; kept inside the chart when the band is near the end.
+                let label = bandLabel(b)
+                let w = textWidth(label) + 4
+                leading(label, x: min(x(b.from) - dayW / 2, width - w), y: topH / 2, color: colors.ink3, maxWidth: w)
             }
         }
     }
@@ -86,33 +127,31 @@ struct TimelineStrip: View {
     // MARK: Routine rows
 
     private var cells: some View {
-        var activeDone: [CGRect] = []
-        var basicsDone: [CGRect] = []
-        var activeMissed: [CGRect] = []
-        var basicsMissed: [CGRect] = []
+        var treated: [CGRect] = []
+        var basics: [CGRect] = []
+        var missed: [CGRect] = []
         var pending: [CGRect] = []
-        let cw = max(1.5, dayW * (dayW > 6 ? 0.68 : 0.8))
+        // A column, but never a block: past about 6 pt a bar stops reading as a day.
+        let cw = min(6, max(1.5, dayW * (dayW > 6 ? 0.68 : 0.8)))
         for (r, row) in data.rows.enumerated() {
-            let top = rowsTop + CGFloat(r) * (rowH + rowGap)
+            let top = rowTop(r)
             for (i, m) in row.marks.enumerated() {
                 let full = CGRect(x: x(i) - cw / 2, y: top, width: cw, height: rowH)
                 let short = CGRect(x: x(i) - cw / 2, y: top + rowH * 0.3, width: cw, height: rowH * 0.4)
                 switch m {
                 case .none: break
-                case .activeDone: activeDone.append(full)
-                case .basicsDone: basicsDone.append(short)
-                case .activeMissed: activeMissed.append(full.insetBy(dx: 0.4, dy: 0.4))
-                case .basicsMissed: basicsMissed.append(short.insetBy(dx: 0.4, dy: 0.4))
-                case .pending: pending.append(full.insetBy(dx: 0.4, dy: 0.4))
+                case .activeDone: treated.append(full)
+                case .basicsDone: basics.append(short)
+                case .activeMissed, .basicsMissed: missed.append(full.insetBy(dx: 0.45, dy: 0.45))
+                case .pending: if !compact { pending.append(full.insetBy(dx: 0.45, dy: 0.45)) }
                 }
             }
         }
         let corner = min(2, cw / 2)
         return ZStack(alignment: .topLeading) {
-            Boxes(rects: activeDone, corner: corner).fill(colors.accent)
-            Boxes(rects: basicsDone, corner: corner).fill(colors.accent.opacity(0.4))
-            Boxes(rects: activeMissed, corner: corner).stroke(colors.accent, lineWidth: 0.9)
-            Boxes(rects: basicsMissed, corner: corner).stroke(colors.ink3, lineWidth: 0.8)
+            Boxes(rects: treated, corner: corner).fill(colors.accent)
+            Boxes(rects: basics, corner: corner).fill(colors.accent.opacity(0.4))
+            Boxes(rects: missed, corner: corner).stroke(colors.accent, lineWidth: 0.9)
             Boxes(rects: pending, corner: corner).stroke(colors.ink3, style: StrokeStyle(lineWidth: 0.9, dash: [1.5, 1.5]))
         }
     }
@@ -120,21 +159,29 @@ struct TimelineStrip: View {
     // MARK: Skin
 
     private var skin: some View {
-        let r: CGFloat = min(3.2, max(1.6, dayW * 0.32))
-        func dot(_ i: Int, _ scale: CGFloat) -> CGRect {
-            CGRect(x: x(i) - r * scale, y: skinY - r * scale, width: 2 * r * scale, height: 2 * r * scale)
+        let r: CGFloat = min(3.2, max(1.8, dayW * 0.32))
+        var calm: [CGRect] = []
+        var symptoms: [CGRect] = []
+        var irritated: [CGPoint] = []
+        func add(_ marks: [Int: TreatmentTimeline.Skin], y: CGFloat) {
+            for (i, level) in marks {
+                switch level {
+                case .calm: calm.append(CGRect(x: x(i) - r * 0.85, y: y - r * 0.85, width: 1.7 * r, height: 1.7 * r))
+                case .symptoms: symptoms.append(CGRect(x: x(i) - r * 0.85, y: y - r * 0.85, width: 1.7 * r, height: 1.7 * r))
+                case .irritated: irritated.append(CGPoint(x: x(i), y: y))
+                }
+            }
         }
-        let irritated = data.skin.filter { $0.value == .irritated }.map { dot($0.key, 1) }
-        let symptoms = data.skin.filter { $0.value == .symptoms }.map { dot($0.key, 0.8) }
-        let calm = data.skin.filter { $0.value == .calm }.map { dot($0.key, 0.8) }
+        add(data.skin, y: skinY)
+        if data.showsBodySkin { add(data.bodySkin, y: bodySkinY) }
         return ZStack(alignment: .topLeading) {
             Dots(rects: calm).stroke(colors.ink3, lineWidth: 0.8)
             Dots(rects: symptoms).fill(colors.ink3)
-            Dots(rects: irritated).fill(colors.danger)
+            Triangles(centers: irritated, size: r * 1.25).fill(colors.danger)
         }
     }
 
-    // MARK: Overall score
+    // MARK: Overall rating
 
     private func scoreY(_ v: Int) -> CGFloat { scoreTop + scoreH * (1 - CGFloat(v - 1) / 4) }
 
@@ -143,16 +190,30 @@ struct TimelineStrip: View {
         let guides = [scoreY(5), scoreY(3), scoreY(1)].map { y in [CGPoint(x: labelW, y: y), CGPoint(x: width, y: y)] }
         let first = data.scores.first!
         let last = data.scores.last!
+        let firstW = textWidth(Scores.label(first.value))
+        let lastW = textWidth(Scores.label(last.value))
+        // The first label only when it can't run into the last.
+        let showFirst = data.scores.count == 1 || x(last.day) - x(first.day) >= 90
         return ZStack(alignment: .topLeading) {
             ForEach(0..<guides.count, id: \.self) { g in
                 Line(points: guides[g]).stroke(colors.line.opacity(0.5), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
             }
             Line(points: points).stroke(colors.ink2, style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
             Dots(rects: points.map { CGRect(x: $0.x - 2.6, y: $0.y - 2.6, width: 5.2, height: 5.2) }).fill(colors.ink)
-            // Direct labels on the first and the latest only.
-            leading(Scores.label(first.value), x: x(first.day) + 5, y: scoreY(first.value) - 7, color: colors.ink3, maxWidth: 80)
+            // Direct labels beside the points, clear of the line.
+            if showFirst {
+                if x(first.day) - firstW - 6 > labelW {
+                    trailing(Scores.label(first.value), x: x(first.day) - 5, y: scoreY(first.value), color: colors.ink3, maxWidth: firstW + 4)
+                } else {
+                    leading(Scores.label(first.value), x: x(first.day) - 2, y: scoreY(first.value) + 8, color: colors.ink3, maxWidth: firstW + 4)
+                }
+            }
             if data.scores.count > 1 {
-                trailing(Scores.label(last.value), x: x(last.day) - 5, y: scoreY(last.value) - 7, color: colors.ink2, maxWidth: 80)
+                if x(last.day) + lastW + 6 < width {
+                    leading(Scores.label(last.value), x: x(last.day) + 5, y: scoreY(last.value), color: colors.ink2, maxWidth: lastW + 4)
+                } else {
+                    trailing(Scores.label(last.value), x: x(last.day) + 2, y: scoreY(last.value) - 8, color: colors.ink2, maxWidth: lastW + 4)
+                }
             }
         }
     }
@@ -162,31 +223,42 @@ struct TimelineStrip: View {
     private var events: some View {
         let d: CGFloat = 4
         let diamonds = data.procedures.map { CGPoint(x: x($0.day), y: procY) }
-        let photos = data.photos.map { CGRect(x: x($0) - 2.6, y: eventY - 2.6, width: 5.2, height: 5.2) }
-        // Procedure names, skipping ones that would run into the previous label.
+        // Photos share the procedure lane; change numbers have their own.
+        let photos = data.photos.map { CGRect(x: x($0) - 2.6, y: procY - 2.6, width: 5.2, height: 5.2) }
         var named: [(Int, String)] = []
         var lastEnd: CGFloat = -100
         for p in data.procedures where x(p.day) > lastEnd {
             named.append((p.day, p.name))
-            lastEnd = x(p.day) + CGFloat(p.name.count) * font * 0.55 + 14
+            lastEnd = x(p.day) + textWidth(p.name) + 14
+        }
+        // Change markers too close to the one before drop half a lane, so both numbers read.
+        let size: CGFloat = compact ? 10 : 12
+        var markers: [(x: CGFloat, y: CGFloat, n: Int)] = []
+        var prevX: CGFloat = -100
+        var low = false
+        for c in data.changes {
+            let cx = x(c.day)
+            low = cx - prevX < size + 1 ? !low : false
+            markers.append((cx, eventY + (low ? 5 : 0), c.number))
+            prevX = cx
         }
         return ZStack(alignment: .topLeading) {
+            Boxes(rects: photos, corner: 1).stroke(colors.ink2, lineWidth: 0.9)
             Diamonds(centers: diamonds, size: d).fill(colors.accent)
             ForEach(Array(named.enumerated()), id: \.offset) { _, n in
-                if x(n.0) > width - 70 {
-                    trailing(n.1, x: x(n.0) - d - 3, y: procY, color: colors.ink2, maxWidth: 120)
+                if x(n.0) + textWidth(n.1) + 8 > width {
+                    trailing(n.1, x: x(n.0) - d - 3, y: procY, color: colors.ink2, maxWidth: textWidth(n.1) + 4)
                 } else {
-                    leading(n.1, x: x(n.0) + d + 3, y: procY, color: colors.ink2, maxWidth: 120)
+                    leading(n.1, x: x(n.0) + d + 3, y: procY, color: colors.ink2, maxWidth: textWidth(n.1) + 4)
                 }
             }
-            Boxes(rects: photos, corner: 1).stroke(colors.ink2, lineWidth: 0.9)
-            ForEach(Array(data.changes.enumerated()), id: \.offset) { _, c in
+            ForEach(Array(markers.enumerated()), id: \.offset) { _, m in
                 ZStack {
                     Circle().fill(colors.ink)
-                    Text("\(c.number)").font(.system(size: compact ? 6.5 : 8, weight: .bold)).foregroundStyle(colors.surface)
+                    Text("\(m.n)").font(.system(size: compact ? 6.5 : 8, weight: .bold)).foregroundStyle(colors.surface)
                 }
-                .frame(width: compact ? 10 : 12, height: compact ? 10 : 12)
-                .position(x: x(c.day), y: eventY)
+                .frame(width: size, height: size)
+                .position(x: m.x, y: m.y)
             }
         }
     }
@@ -197,17 +269,16 @@ struct TimelineStrip: View {
         var ticks: [(Int, String)] = []
         for i in 0..<data.days {
             let day = data.from.adding(i)
-            if day.day == 1 || i == 0 { ticks.append((i, day.date().formatted(.dateTime.month(.abbreviated)))) }
+            if day.day == 1 || i == 0 { ticks.append((i, day.date().formatted(.dateTime.month(.abbreviated).day()))) }
         }
-        // The first label only if the month's first day isn't right after it.
-        if ticks.count > 1, CGFloat(ticks[1].0 - ticks[0].0) * dayW < 26 { ticks.removeFirst() }
+        if ticks.count > 1, CGFloat(ticks[1].0 - ticks[0].0) * dayW < 34 { ticks.removeFirst() }
         let lines = ticks.map { [CGPoint(x: x($0.0) - dayW / 2, y: axisY - 4), CGPoint(x: x($0.0) - dayW / 2, y: axisY)] }
         return ZStack(alignment: .topLeading) {
             Line(points: [CGPoint(x: labelW, y: axisY - 4), CGPoint(x: width, y: axisY - 4)]).stroke(colors.line, lineWidth: 0.6)
             ForEach(0..<lines.count, id: \.self) { l in Line(points: lines[l]).stroke(colors.line, lineWidth: 0.6) }
             ForEach(Array(ticks.enumerated()), id: \.offset) { _, t in
-                if x(t.0) < width - 40 {
-                    leading(t.1, x: x(t.0) - dayW / 2 + 2, y: axisY + 4, color: colors.ink3, maxWidth: 40)
+                if x(t.0) < width - 50 {
+                    leading(t.1, x: x(t.0) - dayW / 2 + 2, y: axisY + 4, color: colors.ink3, maxWidth: 44)
                 }
             }
             trailing("Today", x: width, y: axisY + 4, color: colors.ink3, maxWidth: 40)
@@ -217,15 +288,21 @@ struct TimelineStrip: View {
     private var labels: some View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(data.rows.enumerated()), id: \.offset) { r, row in
-                leading(row.name, x: 0, y: rowsTop + CGFloat(r) * (rowH + rowGap) + rowH / 2, color: colors.ink2, maxWidth: labelW - 4)
+                leading(row.name, x: 0, y: rowTop(r) + rowH / 2, color: colors.ink2, maxWidth: labelW - 4)
             }
-            leading("Skin", x: 0, y: skinY, color: colors.ink2, maxWidth: labelW - 4)
+            leading(data.showsBodySkin ? "Face skin" : "Skin", x: 0, y: skinY, color: colors.ink2, maxWidth: labelW - 4)
+            if data.showsBodySkin {
+                leading("\(data.bodyName) skin", x: 0, y: bodySkinY, color: colors.ink2, maxWidth: labelW - 4)
+            }
             if !data.scores.isEmpty {
-                leading("Overall", x: 0, y: scoreTop + scoreH / 2, color: colors.ink2, maxWidth: labelW - 4)
+                leading("Overall 1–5", x: 0, y: scoreTop + scoreH / 2, color: colors.ink2, maxWidth: labelW - 4)
             }
             leading("Events", x: 0, y: (procY + eventY) / 2, color: colors.ink2, maxWidth: labelW - 4)
         }
     }
+
+    /// A rough width for a label at this size (system font, medium).
+    private func textWidth(_ s: String) -> CGFloat { CGFloat(s.count) * font * 0.6 + 2 }
 
     private func leading(_ s: String, x: CGFloat, y: CGFloat, color: Color, maxWidth: CGFloat) -> some View {
         Text(s).font(.system(size: font, weight: .medium)).foregroundStyle(color).lineLimit(1)
@@ -240,15 +317,15 @@ struct TimelineStrip: View {
     }
 
     private var summary: String {
-        var parts: [String] = ["Timeline, \(data.from.long) to today"]
+        var parts: [String] = ["Timeline, \(data.from.long) to today, one column per day"]
         for row in data.rows {
             let c = data.counts(row.slot)
             parts.append("\(row.name): \(c.done) of \(c.due) done")
         }
-        let irritated = data.skin.values.filter { $0 == .irritated }.count
-        if irritated > 0 { parts.append("\(irritated) irritated day\(irritated == 1 ? "" : "s")") }
+        let irritated = data.skin.values.filter { $0 == .irritated }.count + data.bodySkin.values.filter { $0 == .irritated }.count
+        if irritated > 0 { parts.append("irritation logged on \(irritated) day\(irritated == 1 ? "" : "s")") }
         if let first = data.scores.first, let last = data.scores.last, data.scores.count > 1 {
-            parts.append("overall skin \(Scores.label(first.value)) to \(Scores.label(last.value))")
+            parts.append("overall rating \(Scores.label(first.value)) to \(Scores.label(last.value))")
         }
         if !data.procedures.isEmpty { parts.append(data.procedures.map(\.name).joined(separator: ", ")) }
         if !data.changes.isEmpty { parts.append("\(data.changes.count) routine change\(data.changes.count == 1 ? "" : "s")") }
@@ -256,21 +333,26 @@ struct TimelineStrip: View {
     }
 }
 
-/// What the marks mean.
+/// What the marks mean, in lane order.
 struct TimelineLegend: View {
     var colors: TimelineColors = .app
     var compact = false
 
     var body: some View {
         let size: CGFloat = compact ? 7.5 : 11
-        FlowLayout(spacing: compact ? 10 : 12) {
-            item("With actives", size) { RoundedRectangle(cornerRadius: 1.5).fill(colors.accent).frame(width: 5, height: 10) }
+        FlowLayout(spacing: compact ? 9 : 12) {
+            item("With treatment", size) { RoundedRectangle(cornerRadius: 1.5).fill(colors.accent).frame(width: 5, height: 10) }
             item("Basics only", size) { RoundedRectangle(cornerRadius: 1.5).fill(colors.accent.opacity(0.4)).frame(width: 5, height: 4) }
-            item("Missed", size) { RoundedRectangle(cornerRadius: 1.5).stroke(colors.accent, lineWidth: 0.9).frame(width: 5, height: 10) }
-            item("Irritated skin", size) { Circle().fill(colors.danger).frame(width: 6, height: 6) }
+            item("Skipped or not logged", size) { RoundedRectangle(cornerRadius: 1.5).stroke(colors.accent, lineWidth: 0.9).frame(width: 5, height: 10) }
+            item("Calm", size) { Circle().stroke(colors.ink3, lineWidth: 0.9).frame(width: 6, height: 6) }
+            item("Other symptoms", size) { Circle().fill(colors.ink3).frame(width: 6, height: 6) }
+            item("Irritation logged", size) { Triangles(centers: [CGPoint(x: 4, y: 4)], size: 4).fill(colors.danger).frame(width: 8, height: 8) }
+            item("Overall: weekly rating, 1 Rough to 5 Great", size) {
+                Line(points: [CGPoint(x: 0, y: 6), CGPoint(x: 10, y: 2)]).stroke(colors.ink2, lineWidth: 1.2).frame(width: 10, height: 8)
+            }
             item("Procedure", size) { Diamonds(centers: [CGPoint(x: 4, y: 4)], size: 4).fill(colors.accent).frame(width: 8, height: 8) }
-            item("Routine change", size) { Circle().fill(colors.ink).frame(width: 8, height: 8) }
             item("Photo", size) { RoundedRectangle(cornerRadius: 1).stroke(colors.ink2, lineWidth: 0.9).frame(width: 6, height: 6) }
+            item("Routine change (see list)", size) { Circle().fill(colors.ink).frame(width: 8, height: 8) }
             item("Break", size) { RoundedRectangle(cornerRadius: 2).fill(colors.band).frame(width: 12, height: 8) }
         }
     }
@@ -329,6 +411,23 @@ struct Diamonds: Shape {
             p.addLine(to: CGPoint(x: c.x + size, y: c.y))
             p.addLine(to: CGPoint(x: c.x, y: c.y + size))
             p.addLine(to: CGPoint(x: c.x - size, y: c.y))
+            p.closeSubpath()
+        }
+        return p
+    }
+}
+
+/// Upward triangles: irritation, so it reads without color.
+struct Triangles: Shape {
+    var centers: [CGPoint]
+    var size: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        for c in centers {
+            p.move(to: CGPoint(x: c.x, y: c.y - size))
+            p.addLine(to: CGPoint(x: c.x + size, y: c.y + size * 0.8))
+            p.addLine(to: CGPoint(x: c.x - size, y: c.y + size * 0.8))
             p.closeSubpath()
         }
         return p

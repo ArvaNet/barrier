@@ -431,7 +431,7 @@ struct RoutineHistorySection: View {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(c.day.short).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
                     VStack(alignment: .leading, spacing: 3) {
-                        ForEach(c.lines, id: \.self) { Text($0).font(.subheadline) }
+                        ForEach(Array(c.lines.enumerated()), id: \.offset) { _, line in Text(line).font(.subheadline) }
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -448,7 +448,7 @@ struct RoutineHistorySection: View {
 
     private var startLine: String {
         guard let first = model.state.history.first else { return "Changes to your routine will show here." }
-        return "No changes since \(first.day.short). Changes to your routine will show here."
+        return "Changes noted from \(first.day.short). None since."
     }
 }
 

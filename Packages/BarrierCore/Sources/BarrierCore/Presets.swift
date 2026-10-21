@@ -225,7 +225,7 @@ public enum Presets {
             if i == 9 || i == 16 { continue } // two forgotten nights
             let inst = Engine.instance(s, slot: .pm, on: d, today: today)
             s.log.append(Entry(day: d, slot: .pm, status: .done, pos: inst.pos, label: inst.label, hue: inst.hue, at: d.date().addingTimeInterval(22 * 3600)))
-            if i % 3 != 1 {
+            if ![4, 11, 17].contains(i) { // three forgotten mornings
                 s.log.append(Entry(day: d, slot: .am, status: .done, label: "Morning routine", hue: .dawn, at: d.date().addingTimeInterval(8 * 3600)))
             }
         }

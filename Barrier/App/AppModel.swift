@@ -72,8 +72,8 @@ final class AppModel {
                 loadFailed = true
             }
         }
-        // Saves from before the change log: today's routine is where it starts.
-        if state.onboarded && state.history.isEmpty { state.recordPlan(today: today) }
+        // Saves from before the change log: today's routine is where it starts (today's edits still count).
+        if state.onboarded && state.history.isEmpty { state.recordPlan(today: today, start: true) }
         if launch.demo {
             DemoPhotos.ensure(state.photos, in: photos)
         } else {
@@ -110,6 +110,7 @@ final class AppModel {
         if case .loaded(let s) = SharedStore.load() {
             state = s
             loadFailed = false
+            if state.onboarded && state.history.isEmpty { state.recordPlan(today: today, start: true) }
         }
     }
 

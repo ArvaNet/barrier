@@ -15,6 +15,7 @@
 		1AF950D81C9DC13C5B581129 /* BarrierWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8377D4536271C7135B04CA97 /* BarrierWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1B597BFF309C1089789B2616 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 23CE6B3650E48720A130F903 /* Assets.xcassets */; };
 		22E0B3BF47C7F0B37301BC3A /* ProcedureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */; };
+		2605CC38C130B9A180F8FC26 /* TimelineStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF74AFED2271B7697D1EB25 /* TimelineStrip.swift */; };
 		3102CA74B7474C7990036A5E /* ProgressScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033E5CEE7509285637D4A5AB /* ProgressScreen.swift */; };
 		32FEFB8C8B62F7FD727EC0C9 /* BarrierWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A95B6CBE432A170E6168D85E /* BarrierWidgetBundle.swift */; };
 		3AC41B86FB262C977062BED7 /* Fraunces.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 458B15AA882EF8242AB7970B /* Fraunces.ttf */; };
@@ -83,6 +84,7 @@
 		0A06A5FA5495A6A1FB8A4EDB /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		0DB97D55836FB9845BBB2A7D /* ReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportView.swift; sourceTree = "<group>"; };
 		23CE6B3650E48720A130F903 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2BF74AFED2271B7697D1EB25 /* TimelineStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineStrip.swift; sourceTree = "<group>"; };
 		2EC47024112BCEB2169D6822 /* Barrier.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Barrier.entitlements; sourceTree = "<group>"; };
 		37F62B0B3F4C5E3391C86381 /* DemoPhotos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoPhotos.swift; sourceTree = "<group>"; };
 		398753E40ACF4EBF01B3B253 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				9CDDC496DD575C9749FACA66 /* Styles.swift */,
+				2BF74AFED2271B7697D1EB25 /* TimelineStrip.swift */,
 				8D435C851B437433C1595F27 /* Visuals.swift */,
 			);
 			path = Components;
@@ -467,6 +470,7 @@
 				499444FD295EC657E840C2BD /* SharedStore.swift in Sources */,
 				BF8BA0D466C5DD6741C28490 /* StepEditorSheet.swift in Sources */,
 				4A9B0DA4FFE1E1856A0E88FB /* Styles.swift in Sources */,
+				2605CC38C130B9A180F8FC26 /* TimelineStrip.swift in Sources */,
 				8C16F678C5841F86BDBFEF70 /* TodayCards.swift in Sources */,
 				A629C10C41E49D590B6FE6DF /* TodaySheets.swift in Sources */,
 				0EFDEB5295ED86061F2C7A83 /* TodayView.swift in Sources */,

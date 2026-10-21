@@ -9,6 +9,8 @@ public struct PlanChange: Hashable, Sendable, Identifiable {
     public var day: Day
     /// "Tretinoin: every other night → every night".
     public var lines: [String]
+    /// Counted from the start of the log, so it's the same number everywhere.
+    public var number: Int = 0
     public var id: Int { day.ordinal }
 }
 
@@ -28,84 +30,176 @@ public extension PlanSnapshot {
                 guard let p = products[step.productId], !items.contains(where: { $0.slot == slot && $0.productID == p.id }) else { continue }
                 let amount = step.amount?.trimmingCharacters(in: .whitespacesAndNewlines)
                 items.append(SnapshotItem(slot: slot, productID: p.id, name: p.name, schedule: Engine.describe(step, in: sp, slot: slot),
-                                          amount: amount?.isEmpty == false ? amount : nil, until: p.until))
+                                          amount: amount?.isEmpty == false ? amount : nil, until: p.until,
+                                          active: p.kind.isActive || p.kind == .oral, from: p.from))
             }
         }
-        return PlanSnapshot(day: day, items: items, easing: easing, names: names)
+        // What the replay needs, without the visit notes.
+        var plan = s.plan
+        plan.followUp = nil
+        plan.ifIrritated = nil
+        plan.dermNotes = nil
+        let used = s.usedProductIDs
+        let kept = s.products.filter { used.contains($0.id) }.sorted { $0.id < $1.id }
+        return PlanSnapshot(day: day, items: items, easing: easing, names: names, plan: plan, products: kept)
     }
 
-    /// Same routine, ignoring names (a typo fix isn't a change).
+    /// Same routine for the log and the replay. A product rename is a new
+    /// snapshot (the replay needs it), but only a strength change makes a line.
     func sameRoutine(as other: PlanSnapshot) -> Bool {
-        func key(_ i: SnapshotItem) -> String { "\(i.slot.rawValue)|\(i.productID)|\(i.schedule)|\(i.amount ?? "")|\(i.until?.iso ?? "")" }
-        return Set(items.map(key)) == Set(other.items.map(key)) && easing == other.easing && Set(names.keys) == Set(other.names.keys)
+        func key(_ i: SnapshotItem) -> String {
+            "\(i.slot.rawValue)|\(i.productID)|\(i.schedule)|\(i.amount ?? "")|\(i.until?.iso ?? "")|\(i.from?.iso ?? "")|\(PlanHistory.strength(i.name) ?? "")"
+        }
+        guard Set(items.map(key)) == Set(other.items.map(key)), easing == other.easing, Set(names.keys) == Set(other.names.keys) else { return false }
+        if let p = plan, let q = other.plan, p != q { return false }
+        if let p = products, let q = other.products, p != q { return false }
+        return true
     }
 }
 
 public enum PlanHistory {
-    /// Every day the routine changed, oldest first. The first snapshot is the starting routine.
+    /// Every day the routine changed, oldest first, numbered from 1.
+    /// The first snapshot is the starting routine.
     public static func changes(_ s: AppState) -> [PlanChange] {
-        let current = Dictionary(s.products.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
         var out: [PlanChange] = []
         for (a, b) in zip(s.history, s.history.dropFirst()) {
-            let lines = diff(a, b, names: current)
-            if !lines.isEmpty { out.append(PlanChange(day: b.day, lines: lines)) }
+            let lines = diff(a, b)
+            if !lines.isEmpty { out.append(PlanChange(day: b.day, lines: lines, number: out.count + 1)) }
         }
         return out
     }
 
-    /// What changed from one snapshot to the next, in plain words.
-    static func diff(_ a: PlanSnapshot, _ b: PlanSnapshot, names current: [String: String]) -> [String] {
-        func name(_ i: SnapshotItem) -> String { current[i.productID] ?? i.name }
-        func routine(_ slot: Slot, _ snap: PlanSnapshot) -> String { snap.names[slot.rawValue] ?? slot.title }
+    /// "0.025%" from "Tretinoin 0.025% cream".
+    static func strength(_ name: String) -> String? {
+        guard let r = name.range(of: #"\d+([.,]\d+)?\s*%"#, options: .regularExpression) else { return nil }
+        return name[r].replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: ".")
+    }
+
+    static func norm(_ s: String) -> String {
+        s.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    /// The name without its strength: "Tretinoin 0.025% cream" → "tretinoin cream".
+    static func base(_ s: String) -> String {
+        norm(s.replacingOccurrences(of: #"\d+([.,]\d+)?\s*%"#, with: " ", options: .regularExpression))
+    }
+
+    /// The same product, even when removed and added again (a new id) or given a new strength.
+    static func same(_ x: SnapshotItem, _ y: SnapshotItem) -> Bool {
+        x.productID == y.productID || norm(x.name) == norm(y.name) || base(x.name) == base(y.name)
+    }
+
+    /// "every night", but "Mon, Wed, Fri" as it was.
+    public static func lowered(_ schedule: String) -> String {
+        guard schedule.hasPrefix("Every ") || schedule.hasPrefix("Not ") else { return schedule }
+        return schedule.prefix(1).lowercased() + schedule.dropFirst()
+    }
+
+    /// "Pea-size" → "pea-size", but "SPF" stays.
+    static func lowerFirst(_ s: String) -> String {
+        let chars = Array(s)
+        if chars.count > 1, chars[0].isUppercase, chars[1].isUppercase { return s }
+        return s.prefix(1).lowercased() + s.dropFirst()
+    }
+
+    /// "morning", "evening", or the body routine's own name as written.
+    static func routine(_ slot: Slot, _ snap: PlanSnapshot) -> String {
+        switch slot {
+        case .am: return "morning"
+        case .pm: return "evening"
+        case .body: return snap.names[slot.rawValue] ?? "Body"
+        }
+    }
+
+    /// What changed from one snapshot to the next, in plain words, product first.
+    static func diff(_ a: PlanSnapshot, _ b: PlanSnapshot) -> [String] {
         var lines: [String] = []
         for slot in Slot.allCases {
             let old = a.items.filter { $0.slot == slot }
             let new = b.items.filter { $0.slot == slot }
-            // A whole routine starting or stopping reads as one line.
-            if old.isEmpty && !new.isEmpty && slot == .body {
-                lines.append("\(routine(slot, b)) routine started: " + new.map(name).joined(separator: ", "))
+
+            // Pair old and new: same id first, then the same name, then the same name at another strength.
+            var restOld = old
+            var pairs: [(SnapshotItem, SnapshotItem)] = []
+            var restNew: [SnapshotItem] = []
+            var unpaired = new
+            for match in [{ (o: SnapshotItem, n: SnapshotItem) in o.productID == n.productID },
+                          { (o: SnapshotItem, n: SnapshotItem) in norm(o.name) == norm(n.name) },
+                          { (o: SnapshotItem, n: SnapshotItem) in base(o.name) == base(n.name) }] {
+                var still: [SnapshotItem] = []
+                for n in unpaired {
+                    if let i = restOld.firstIndex(where: { match($0, n) }) {
+                        pairs.append((restOld.remove(at: i), n))
+                    } else {
+                        still.append(n)
+                    }
+                }
+                unpaired = still
+            }
+            restNew = unpaired
+
+            // Arrived from another routine, which no longer has it.
+            func movedIn(_ n: SnapshotItem) -> SnapshotItem? {
+                a.items.first { o in o.slot != slot && same(o, n) && !b.items.contains { $0.slot == o.slot && same(o, $0) } }
+            }
+            // Left for another routine, which didn't have it.
+            func movedOut(_ o: SnapshotItem) -> Bool {
+                b.items.contains { n in n.slot != slot && same(o, n) && !a.items.contains { $0.slot == n.slot && same(n, $0) } }
+            }
+
+            // A body routine starting or stopping reads as one line.
+            if slot == .body && old.isEmpty && !new.isEmpty {
+                lines.append("\(routine(slot, b)) routine started: " + new.map { "\($0.name), \(lowered($0.schedule))" }.joined(separator: "; "))
+                for n in new { if let from = movedIn(n) { lines.append("\(n.name): moved from \(routine(from.slot, a))") } }
                 continue
             }
-            if !old.isEmpty && new.isEmpty && slot == .body {
+            if slot == .body && !old.isEmpty && new.isEmpty {
                 lines.append("\(routine(slot, a)) routine stopped")
                 continue
             }
-            for n in new {
-                guard let o = old.first(where: { $0.productID == n.productID }) else {
-                    // In another routine before: it moved.
-                    if let from = a.items.first(where: { $0.productID == n.productID && $0.slot != slot }),
-                       !b.items.contains(where: { $0.productID == n.productID && $0.slot == from.slot }) {
-                        lines.append("\(name(n)): moved from \(routine(from.slot, a).lowercased()) to \(routine(slot, b).lowercased()), \(n.schedule.lowercased())")
-                    } else {
-                        lines.append("\(name(n)): added to \(routine(slot, b).lowercased()), \(n.schedule.lowercased())")
-                    }
-                    continue
+
+            for (o, n) in pairs {
+                if let s1 = strength(o.name), let s2 = strength(n.name), s1 != s2 {
+                    lines.append("\(Product.shortName(n.name)): \(s1) → \(s2)")
                 }
-                if o.schedule != n.schedule { lines.append("\(name(n)): \(o.schedule.lowercased()) → \(n.schedule.lowercased())") }
-                if o.amount != n.amount {
-                    switch (o.amount, n.amount) {
-                    case let (x?, y?): lines.append("\(name(n)): \(x) → \(y)")
-                    case let (nil, y?): lines.append("\(name(n)): amount \(y)")
-                    default: break
-                    }
+                if o.schedule != n.schedule { lines.append("\(n.name): \(lowered(o.schedule)) → \(lowered(n.schedule))") }
+                switch (o.amount, n.amount) {
+                case let (x?, y?) where x != y: lines.append("\(n.name): amount \(lowerFirst(x)) → \(lowerFirst(y))")
+                case let (nil, y?): lines.append("\(n.name): amount set to \(lowerFirst(y))")
+                case (_?, nil): lines.append("\(n.name): amount removed")
+                default: break
                 }
                 if o.until != n.until {
-                    lines.append(n.until.map { "\(name(n)): course until \($0.monthDay)" } ?? "\(name(n)): no end date")
+                    lines.append(n.until.map { "\(n.name): course until \($0.monthDay)" } ?? "\(n.name): no end date")
+                }
+                if o.from != n.from, let f = n.from, f > b.day {
+                    lines.append("\(n.name): start moved to \(f.monthDay)")
                 }
             }
-            for o in old where !new.contains(where: { $0.productID == o.productID }) {
-                // Moved items are reported once, where they arrived.
-                let arrived = b.items.contains { n in
-                    n.productID == o.productID && n.slot != slot && !a.items.contains { $0.productID == o.productID && $0.slot == n.slot }
+            for n in restNew {
+                if let from = movedIn(n) {
+                    lines.append("\(n.name): moved from \(routine(from.slot, a)) to \(routine(slot, b)), \(lowered(n.schedule))")
+                    continue
                 }
-                if arrived { continue }
-                lines.append("\(name(o)): stopped (\(routine(slot, a).lowercased()))")
+                let start = n.from.flatMap { $0 > b.day ? ", from \($0.monthDay)" : nil } ?? ""
+                if slot != .body, n.schedule.lowercased().contains(slot.word) {
+                    lines.append("\(n.name): started, \(lowered(n.schedule))\(start)")
+                } else {
+                    let place = slot == .body ? "the \(routine(slot, b)) routine" : "the \(routine(slot, b))"
+                    lines.append("\(n.name): started in \(place), \(lowered(n.schedule))\(start)")
+                }
             }
+            for o in restOld where !movedOut(o) {
+                lines.append("\(o.name): stopped (\(routine(slot, a)))")
+            }
+
             let key = slot.rawValue
-            if a.easing[key] == nil, b.easing[key] != nil, !new.isEmpty {
-                lines.append("\(routine(slot, b)): easing in")
+            let title = slot == .body ? routine(slot, b) : slot.title
+            if a.easing[key] == nil, let end = b.easing[key], !new.isEmpty {
+                let date = Day(iso: end).map { ", full routine from \($0.monthDay)" } ?? ""
+                lines.append("\(title): easing in\(date)")
             } else if a.easing[key] != nil, b.easing[key] == nil, !new.isEmpty {
-                lines.append("\(routine(slot, b)): ease-in removed")
+                lines.append("\(title): ease-in removed")
             }
         }
         return lines
@@ -114,19 +208,27 @@ public enum PlanHistory {
 
 public extension AppState {
     /// Note the routine as it stands today. Edits on the same day are one change,
-    /// and a day whose edits undid themselves leaves no trace.
-    mutating func recordPlan(today: Day) {
-        let snap = PlanSnapshot.of(self, day: today)
-        guard let last = history.last else {
+    /// and a day whose edits undid themselves leaves no trace. `start`: an older
+    /// save opening for the first time (that day's edits still count).
+    mutating func recordPlan(today: Day, start: Bool = false) {
+        var snap = PlanSnapshot.of(self, day: today)
+        if start { snap.start = true }
+        guard !history.isEmpty else {
             history = [snap]
             return
         }
-        guard last.day <= today else { return }
+        // Dated ahead (the clock was set forward, then back): it belongs to today.
+        if history[history.count - 1].day > today {
+            history[history.count - 1].day = today
+            while history.count >= 2, history[history.count - 2].day >= today { history.remove(at: history.count - 2) }
+        }
+        let last = history[history.count - 1]
+        let sameDay = last.day == today && last.start != true
         if last.sameRoutine(as: snap) {
-            if last.day == today { history[history.count - 1] = snap } // keep the latest names
+            if sameDay { history[history.count - 1] = snap }
             return
         }
-        if last.day == today {
+        if sameDay {
             if history.count >= 2, history[history.count - 2].sameRoutine(as: snap) {
                 history.removeLast()
             } else {
@@ -135,7 +237,7 @@ public extension AppState {
         } else {
             history.append(snap)
         }
-        if history.count > 200 { history.removeFirst(history.count - 200) }
+        if history.count > 120 { history.removeFirst(history.count - 120) }
     }
 }
 
@@ -178,7 +280,7 @@ public extension AppState {
 public struct TreatmentTimeline: Sendable {
     public enum Mark: Sendable, Equatable {
         case none
-        /// Done, with a retinoid, acid or treatment in it.
+        /// Done, with a retinoid, acid, treatment or medication in it.
         case activeDone
         /// Done, basics only (rest night, recovery night, a break).
         case basicsDone
@@ -186,6 +288,8 @@ public struct TreatmentTimeline: Sendable {
         case basicsMissed
         /// Today, not done yet.
         case pending
+
+        public var isMissed: Bool { self == .activeMissed || self == .basicsMissed }
     }
 
     public enum Skin: Int, Sendable, Comparable {
@@ -203,52 +307,98 @@ public struct TreatmentTimeline: Sendable {
         public var from: Int
         public var to: Int
         public var label: String
+        /// nil = every routine.
+        public var area: Area?
     }
 
     public var from: Day
     public var to: Day
     public var rows: [Row]
-    /// Worst of face and body, by day index.
+    /// Face check-ins by day index.
     public var skin: [Int: Skin]
+    /// Body check-ins by day index (a row of its own).
+    public var bodySkin: [Int: Skin] = [:]
     /// (day index, 1…5), face (or body if the face has none).
     public var scores: [(day: Int, value: Int)]
     public var breaks: [Band]
+    /// "Subcision 1/3".
     public var procedures: [(day: Int, name: String)]
-    /// Routine changes in range, numbered from 1 in the order they happened.
+    /// Routine changes in range, numbered from the start of the log.
     public var changes: [(day: Int, number: Int, change: PlanChange)]
     public var photos: [Int]
+    /// Procedures from before the timeline starts, latest first (two at most).
+    public var earlier: [(day: Day, name: String)] = []
+    /// Days at the start before the routine began ("Before Barrier").
+    public var beforeDays: Int = 0
+    /// The body routine's name, for the back skin row and break labels.
+    public var bodyName: String = "Body"
 
     public var days: Int { from.days(to: to) + 1 }
 
     public func index(_ d: Day) -> Int { from.days(to: d) }
 
-    /// Up to `maxDays` ending today, starting no earlier than anything worth showing.
-    public static func build(_ s: AppState, today: Day, maxDays: Int = 98) -> TreatmentTimeline {
-        let earliest = today.adding(-(maxDays - 1))
-        var starts = [s.plan.createdAt]
-        starts += s.procedures.filter { $0.day >= earliest && $0.day <= today }.map(\.day)
-        starts += s.photos.filter { $0.day >= earliest && $0.day <= today }.map(\.day)
-        let from = max(earliest, min(starts.min() ?? today, today))
+    public var showsBodySkin: Bool { rows.contains { $0.slot == .body } || !bodySkin.isEmpty }
+
+    /// The routine's start (or an event in the two weeks before it) to today:
+    /// at least `minDays` so a new routine isn't drawn as giant blocks, at most `maxDays`.
+    public static func build(_ s: AppState, today: Day, maxDays: Int = 98, minDays: Int = 14) -> TreatmentTimeline {
+        let created = s.plan.createdAt
+        var start = created
+        let lead = created.adding(-14)
+        let events = s.procedures.map(\.day) + s.photos.map(\.day)
+        if let first = events.filter({ $0 >= lead && $0 < created }).min() { start = first }
+        let from = max(today.adding(-(maxDays - 1)), min(start, today.adding(-(minDays - 1))))
         var t = TreatmentTimeline(from: from, to: today, rows: [], skin: [:], scores: [], breaks: [], procedures: [], changes: [], photos: [])
         func ix(_ d: Day) -> Int { from.days(to: d) }
+        t.beforeDays = max(0, min(t.days, from.days(to: created)))
+        t.bodyName = s.plan.body.displayName
 
-        for slot in Slot.allCases {
-            let sp = s.plan[slot]
-            let logged = s.log.contains { $0.slot == slot && $0.day >= from }
-            guard (sp.enabled && !sp.steps.isEmpty) || logged else { continue }
+        // Each stretch of days replays with the plan it had (from the change log):
+        // today's plan replayed over the past would misdraw everything before an edit.
+        func stateFor(_ snap: PlanSnapshot) -> AppState {
+            guard let plan = snap.plan else { return s }
+            var c = s
+            c.plan = plan
+            c.plan.createdAt = s.plan.createdAt
+            if let prods = snap.products {
+                var byID = Dictionary(s.products.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+                for p in prods { byID[p.id] = p }
+                c.products = Array(byID.values)
+            }
+            return c
+        }
+        var stretches: [(lo: Day, hi: Day, state: AppState)] = []
+        let snaps = s.history
+        if snaps.isEmpty {
+            stretches = [(from, today, s)]
+        } else {
+            for (i, snap) in snaps.enumerated() {
+                let a = i == 0 ? min(from, snap.day) : snap.day
+                let b = i + 1 < snaps.count ? snaps[i + 1].day.adding(-1) : today
+                let lo = max(a, from), hi = min(b, today)
+                guard lo <= hi else { continue }
+                stretches.append((lo, hi, i == snaps.count - 1 ? s : stateFor(snap)))
+            }
+        }
+
+        // Evening first: it's usually where the treatment is.
+        for slot in [Slot.pm, .am, .body] {
             var marks = Array(repeating: Mark.none, count: t.days)
-            for inst in Engine.timeline(s, slot: slot, from: from, to: today, today: today) {
-                let i = ix(inst.day)
-                guard i >= 0, i < marks.count, inst.day >= s.plan.createdAt else { continue }
-                let active = inst.steps.contains(where: \.active)
-                switch inst.status {
-                case .done: marks[i] = active ? .activeDone : .basicsDone
-                case .skipped, .unlogged: marks[i] = inst.steps.isEmpty ? .none : (active ? .activeMissed : .basicsMissed)
-                case .pending: marks[i] = inst.steps.isEmpty ? .none : .pending
-                case .future, .off: break
+            for stretch in stretches {
+                for inst in Engine.timeline(stretch.state, slot: slot, from: stretch.lo, to: stretch.hi, today: today) {
+                    let i = ix(inst.day)
+                    guard i >= 0, i < marks.count, inst.day >= created else { continue }
+                    let active = inst.steps.contains { $0.product.kind.isActive || $0.product.kind == .oral }
+                    switch inst.status {
+                    case .done: marks[i] = active ? .activeDone : .basicsDone
+                    case .skipped, .unlogged: marks[i] = inst.steps.isEmpty ? .none : (active ? .activeMissed : .basicsMissed)
+                    case .pending: marks[i] = inst.steps.isEmpty ? .none : .pending
+                    case .future, .off: break
+                    }
                 }
             }
             if marks.contains(where: { $0 != .none }) {
+                let sp = s.plan[slot]
                 t.rows.append(Row(slot: slot, name: slot == .body ? sp.displayName : slot.title, marks: marks))
             }
         }
@@ -256,7 +406,11 @@ public struct TreatmentTimeline: Sendable {
         for c in s.checkins where c.day >= from && c.day <= today {
             let level: Skin = c.feel.contains(where: \.isIrritation) ? .irritated : (c.feel.contains { $0 != .calm } ? .symptoms : .calm)
             let i = ix(c.day)
-            t.skin[i] = max(t.skin[i] ?? .calm, level)
+            if c.place == .body {
+                t.bodySkin[i] = max(t.bodySkin[i] ?? .calm, level)
+            } else {
+                t.skin[i] = max(t.skin[i] ?? .calm, level)
+            }
         }
 
         let faceScores = s.scores.filter { $0.place == .face && $0.day >= from && $0.day <= today }
@@ -276,18 +430,21 @@ public struct TreatmentTimeline: Sendable {
                 case .other: label = "Pause"
                 }
             }
-            t.breaks.append(Band(from: ix(max(p.from, from)), to: ix(min(p.to, today)), label: label))
+            t.breaks.append(Band(from: ix(max(p.from, from)), to: ix(min(p.to, today)), label: label, area: p.area))
         }
         t.breaks.sort { $0.from < $1.from }
 
-        t.procedures = s.procedures.filter { $0.day >= from && $0.day <= today }.sorted { $0.day < $1.day }.map { (ix($0.day), $0.name) }
-        let changes = PlanHistory.changes(s).filter { $0.day >= from && $0.day <= today }
-        t.changes = changes.enumerated().map { (ix($0.element.day), $0.offset + 1, $0.element) }
+        t.procedures = s.procedures.filter { $0.day >= from && $0.day <= today }.sorted { $0.day < $1.day }.map { p in
+            let session = p.session.map { n in p.sessions.map { " \(n)/\($0)" } ?? " \(n)" } ?? ""
+            return (ix(p.day), p.name + session)
+        }
+        t.changes = PlanHistory.changes(s).filter { $0.day >= from && $0.day <= today }.map { (ix($0.day), $0.number, $0) }
         t.photos = Array(Set(s.photos.filter { $0.day >= from && $0.day <= today }.map { ix($0.day) })).sorted()
+        t.earlier = s.procedures.filter { $0.day < from }.sorted { $0.day > $1.day }.prefix(2).map { ($0.day, $0.name) }
         return t
     }
 
-    /// Done and due per row, for a one-line summary.
+    /// Done and due per row, the same numbers the strip shows.
     public func counts(_ slot: Slot) -> (done: Int, due: Int) {
         guard let row = rows.first(where: { $0.slot == slot }) else { return (0, 0) }
         let done = row.marks.filter { $0 == .activeDone || $0 == .basicsDone }.count

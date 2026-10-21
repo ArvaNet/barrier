@@ -101,6 +101,10 @@ struct ProgressScreen: View {
             }
             .frame(height: height)
             TimelineLegend()
+            if !data.earlier.isEmpty {
+                Text("Earlier: " + data.earlier.map { "\($0.name), \($0.day.short)" }.joined(separator: "; "))
+                    .font(.footnote).foregroundStyle(Palette.ink3)
+            }
             if !recent.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(recent, id: \.number) { c in

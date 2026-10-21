@@ -29,7 +29,7 @@ struct DermView: View {
                         Label("See a sample report", systemImage: "doc.richtext")
                     }
                 } footer: {
-                    Text("A timeline of what you used and how your skin felt, what changed and when, your procedures and photos. Ready to show or send. The sample is a few months of made-up data.")
+                    Text("A timeline of what you used and how your skin felt, what changed and when, your procedures and photos. Ready to show or send. The sample uses made-up data.")
                 }
                 guidanceSection
                 Section {

@@ -96,7 +96,9 @@ public struct Product: Codable, Identifiable, Hashable, Sendable {
     }
 
     /// "Tretinoin 0.025% cream" → "Tretinoin".
-    public var shortName: String {
+    public var shortName: String { Product.shortName(name) }
+
+    public static func shortName(_ name: String) -> String {
         if let r = name.range(of: #"\s*\d+([.,]\d+)?\s*%.*$"#, options: .regularExpression) {
             let s = name[..<r.lowerBound].trimmingCharacters(in: .whitespaces)
             return s.isEmpty ? name : s
@@ -505,6 +507,10 @@ public struct SnapshotItem: Codable, Hashable, Sendable {
     public var amount: String?
     /// Last day of a course.
     public var until: Day?
+    /// A retinoid, acid, treatment or medication.
+    public var active: Bool?
+    /// First day of use, when set.
+    public var from: Day?
 }
 
 /// The routine as it stood at the end of a day it was edited.
@@ -515,12 +521,21 @@ public struct PlanSnapshot: Codable, Hashable, Sendable {
     public var easing: [String: String]
     /// Routine names by slot ("body": "Back").
     public var names: [String: String]
+    /// The routines and their products as they were, so those days replay with the plan they had.
+    public var plan: Plan?
+    public var products: [Product]?
+    /// Recorded when an older save first opened, not by an edit: the same day's edits still count.
+    public var start: Bool?
 
-    public init(day: Day, items: [SnapshotItem], easing: [String: String] = [:], names: [String: String] = [:]) {
+    public init(day: Day, items: [SnapshotItem], easing: [String: String] = [:], names: [String: String] = [:],
+                plan: Plan? = nil, products: [Product]? = nil, start: Bool? = nil) {
         self.day = day
         self.items = items
         self.easing = easing
         self.names = names
+        self.plan = plan
+        self.products = products
+        self.start = start
     }
 }
 

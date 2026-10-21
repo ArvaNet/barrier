@@ -1,9 +1,9 @@
 import BarrierCore
 import UIKit
 
-/// Stand-in progress photos for demo mode (screenshots): soft skin texture with
+/// Stand-in progress photos for demo mode and the sample report: soft skin texture with
 /// spots that fade from the first photo of an area to the last. Abstract on
-/// purpose; never shown outside `-demo`.
+/// purpose, and never mixed with real photos (they live in a temporary folder).
 enum DemoPhotos {
     static func ensure(_ photos: [PhotoMeta], in store: PhotoStore) {
         for area in Area.allCases {
