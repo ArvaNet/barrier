@@ -127,7 +127,7 @@ struct RitualView: View {
                     Kicker("\(inst.label) · step \(i + 1) of \(steps.count)", color: .secondary)
                 }
                 Text(s.product.name)
-                    .font(Typeface.display(40, weight: 420))
+                    .font(.barrierLargeTitle)
                     .fixedSize(horizontal: false, vertical: true)
                 if let a = s.step.amount, !a.isEmpty {
                     Text(a).font(.title3).foregroundStyle(Color.primary.opacity(0.9))
@@ -298,7 +298,7 @@ struct RitualFinish: View {
             }
             VStack(spacing: 8) {
                 Text(inst.slot == .am ? "Morning done." : "\(inst.label) done.")
-                    .font(Typeface.display(32, weight: 430))
+                    .font(.barrierLargeTitle)
                     .multilineTextAlignment(.center)
                 if inst.slot == .pm {
                     Text(stats.nightsDone == 1 ? "Your first night. The start of something." : "\(stats.nightsDone) nights so far.")

@@ -21,8 +21,7 @@ struct ProgressScreen: View {
         let today = model.today
         let stats = Engine.stats(model.state, today: today)
         NavigationStack {
-            Page(spacing: 18) {
-                Text("Progress").font(.barrierTitle).foregroundStyle(Palette.ink).padding(.top, 6)
+            Page(spacing: 16) {
                 summary(stats)
                 timelineCard
                 ringsCard
@@ -31,7 +30,7 @@ struct ProgressScreen: View {
                 skinLog(today)
                 if !stats.byLabel.isEmpty { byNight(stats) }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("Progress")
         }
         .sheet(item: $detailDay) { d in
             DayDetailSheet(day: d).barrier(model).presentationDetents([.medium, .large])
@@ -58,7 +57,7 @@ struct ProgressScreen: View {
         HStack(alignment: .bottom, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(stats.nightsDone)")
-                    .font(Typeface.display(64, weight: 380))
+                    .font(.barrierNumeral)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .foregroundStyle(Palette.ink)
@@ -286,7 +285,7 @@ struct ProgressScreen: View {
                         selected = []
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(Palette.ink)
                 }
             }
             if showAreas {
@@ -487,7 +486,7 @@ struct PhotoThumb: View {
         }
         .aspectRatio(3 / 4, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(selected ? Palette.accent : .clear, lineWidth: 3))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(selected ? Palette.ink : .clear, lineWidth: 3))
         .contentShape(Rectangle())
         .task(id: photo.id) { image = model.photos.image(photo.id, thumb: true) }
         .accessibilityLabel("Photo from \(photo.day.long)")

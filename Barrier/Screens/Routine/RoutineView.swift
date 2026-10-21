@@ -29,20 +29,21 @@ struct RoutineView: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                 }
-                SlotEditorSections(slot: slot, editing: $editing, adding: $adding)
-                PausesSection(showPause: $showPause)
-                RoutineHistorySection()
-                    .id("history")
-                Section {
-                    Button("Start over from a template…") { showTemplates = true }
-                        .foregroundStyle(Palette.accent)
-                } footer: {
-                    Text("Your history and photos stay. Only the routine is replaced.")
+                Group {
+                    SlotEditorSections(slot: slot, editing: $editing, adding: $adding)
+                    PausesSection(showPause: $showPause)
+                    RoutineHistorySection()
+                        .id("history")
+                    Section {
+                        Button("Start over from a template…") { showTemplates = true }
+                    } footer: {
+                        Text("Your history and photos stay. Only the routine is replaced.")
+                    }
                 }
+                .rows()
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Palette.bg.ignoresSafeArea())
+            .barrierList()
+            .listSectionSpacing(.compact)
             .navigationTitle("Routine")
             .onAppear {
                 // Screenshot hooks: `-screen routine-body`, `-screen routine-history`.
@@ -150,8 +151,12 @@ struct SlotEditorSections: View {
                 Button {
                     adding = slot
                 } label: {
-                    Label("Add a product", systemImage: "plus.circle.fill")
-                        .foregroundStyle(Palette.accent)
+                    // The plus sits in the dot column, so the text lines up with the step names.
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus").font(.footnote.weight(.bold)).frame(width: 10)
+                        Text("Add a product")
+                    }
+                    .foregroundStyle(Palette.ink)
                 }
             } header: {
                 Text("Steps, in order")
@@ -182,11 +187,7 @@ struct SlotEditorSections: View {
                     }
                 }
             ), in: 1...Engine.maxRotation) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(sp.length == 1 ? (nodes.count > 1 ? "Every \(unit), easing in" : "Same every \(unit)") : "Repeats every \(sp.length) \(unit)s")
-                    Text(nodes.count > sp.length ? "Recovery nights are added while you ease in. Tap a night to make it tonight." : sp.length == 1 ? "Add \(unit)s for alternating routines." : "Tap a \(unit) to make it \(nowWord).")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
+                Text(sp.length == 1 ? (nodes.count > 1 ? "Every \(unit), easing in" : "Same every \(unit)") : "Repeats every \(sp.length) \(unit)s")
             }
             if nodes.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -195,32 +196,40 @@ struct SlotEditorSections: View {
                             Button {
                                 if n.pos != tonight.pos { confirmTonight = n.pos }
                             } label: {
+                                let isNow = n.pos == tonight.pos
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack(spacing: 5) {
                                         HueDot(hue: n.hue, size: 9)
-                                        Text("\(unit.capitalized) \(n.pos + 1)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                        Text(isNow ? nowWord.capitalized : "\(unit.capitalized) \(n.pos + 1)")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(isNow ? Palette.ink : Palette.ink3)
                                     }
                                     Text(n.label.replacingOccurrences(of: " night", with: ""))
                                         .font(.footnote.weight(.medium))
+                                        .foregroundStyle(Palette.ink)
                                         .lineLimit(2)
                                         .multilineTextAlignment(.leading)
-                                    if n.pos == tonight.pos {
-                                        Text(nowWord.capitalized).font(.caption2.weight(.bold)).foregroundStyle(Palette.accent)
-                                    }
                                 }
-                                .frame(width: 86, alignment: .leading)
+                                // Every chip the same height; "tonight" is an ink outline, not an extra line.
+                                .frame(width: 86, alignment: .topLeading)
+                                .frame(minHeight: 52, alignment: .topLeading)
                                 .padding(10)
-                                .background(n.pos == tonight.pos ? Palette.accentSoft : Palette.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .background(Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous).strokeBorder(isNow ? Palette.ink : .clear, lineWidth: 1.5))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityAddTraits(n.pos == tonight.pos ? .isSelected : [])
                         }
                     }
                     .padding(.vertical, 2)
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
         } header: {
             Text("Rotation")
+        } footer: {
+            Text(nodes.count > sp.length ? "Recovery nights are added while you ease in. Tap a \(unit) to make it \(nowWord)."
+                 : sp.length == 1 ? "Add \(unit)s for alternating routines." : "Tap a \(unit) to make it \(nowWord).")
         }
         .confirmationDialog("Make \(nowWord) \(unit) \((confirmTonight ?? 0) + 1)?", isPresented: Binding(get: { confirmTonight != nil }, set: { if !$0 { confirmTonight = nil } }), titleVisibility: .visible) {
             Button("Yes, \(nowWord) is \(unit) \((confirmTonight ?? 0) + 1)") {
@@ -248,18 +257,23 @@ struct StepRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let hue = product.kind.hue {
-                HueDot(hue: hue, size: 10)
-            } else {
-                Circle().strokeBorder(Palette.line2, lineWidth: 1.2).frame(width: 10, height: 10)
+            // Treatment steps carry their hue; basics leave the column empty (not a checkbox).
+            Group {
+                if let hue = product.kind.hue { HueDot(hue: hue, size: 10) } else { Color.clear }
             }
+            .frame(width: 10, height: 10)
             VStack(alignment: .leading, spacing: 2) {
                 Text(product.name).font(.body.weight(.medium)).foregroundStyle(Palette.ink)
                 Text(detail).font(.footnote).foregroundStyle(Palette.ink3).lineLimit(2)
             }
             Spacer(minLength: 0)
             if let w = step.waitMin, w > 0 {
-                Label("\(w)m", systemImage: "hourglass").font(.caption.weight(.semibold)).foregroundStyle(Palette.ink3)
+                HStack(spacing: 3) {
+                    Image(systemName: "hourglass")
+                    Text("\(w) min")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Palette.ink3)
             }
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Palette.ink3.opacity(0.6))
         }
@@ -399,7 +413,7 @@ struct PausesSection: View {
                     Spacer()
                     Button(p.from <= today ? "End" : "Remove") { model.endPause(p) }
                     .buttonStyle(.borderless)
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(p.from <= today ? Palette.ink : Palette.danger)
                 }
             }
             Button {
@@ -476,13 +490,15 @@ struct BodyHeaderSection: View {
             ))
             if sp.enabled {
                 HStack {
-                    Text("For")
+                    Text("Name")
                     TextField("Back", text: Binding(
                         get: { sp.name ?? "" },
                         set: { v in model.update { $0.plan.body.name = v } }
                     ))
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.sentences)
+                    // It's editable: say so.
+                    Image(systemName: "pencil").font(.footnote).foregroundStyle(Palette.ink3).accessibilityHidden(true)
                 }
                 Picker("When", selection: Binding(
                     get: { sp.cue ?? "" },

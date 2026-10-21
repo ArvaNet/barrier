@@ -55,16 +55,16 @@ struct DateTile: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(day.date().formatted(.dateTime.month(.abbreviated)).uppercased())
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .tracking(0.6)
                 .foregroundStyle(upcoming ? Palette.accent : Palette.ink3)
             Text("\(day.day)")
-                .font(Typeface.display(19, weight: 450))
+                .font(.barrierH3)
                 .monospacedDigit()
                 .foregroundStyle(Palette.ink)
         }
         .frame(width: 44, height: 46)
-        .background(upcoming ? Palette.accentSoft : Palette.surface2, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous))
         .accessibilityHidden(true)
     }
 }
@@ -161,34 +161,38 @@ struct ProcedureSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let saved { photosSection(saved) }
-                detailsSection
-                seriesSection
-                if breakApplies { breakSection }
-                aftercareSection
-                if Procedures.takesIsotretinoin(model.state) && p.day >= today {
-                    Section {
-                        noteRow(Guidance.isotretinoin)
+                Group {
+                    if let saved { photosSection(saved) }
+                    detailsSection
+                    seriesSection
+                    if breakApplies { breakSection }
+                    aftercareSection
+                    if Procedures.takesIsotretinoin(model.state) && p.day >= today {
+                        Section {
+                            noteRow(Guidance.isotretinoin)
+                        }
+                    }
+                    if Procedures.sunCare(p.name) {
+                        Section {
+                            noteRow(Guidance.procedureSun)
+                        }
+                    }
+                    if !isNew {
+                        Section {
+                            Button("Delete procedure", role: .destructive) { confirmDelete = true }
+                        }
                     }
                 }
-                if Procedures.sunCare(p.name) {
-                    Section {
-                        noteRow(Guidance.procedureSun)
-                    }
-                }
-                if !isNew {
-                    Section {
-                        Button("Delete procedure", role: .destructive) { confirmDelete = true }
-                    }
-                }
+                .rows()
             }
+            .barrierList()
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(isNew ? "New procedure" : p.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(trimmedName.isEmpty)
+                    Button("Save", action: save).disabled(trimmedName.isEmpty).tint(Palette.accent)
                 }
             }
             .confirmationDialog("Delete this procedure?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -274,7 +278,7 @@ struct ProcedureSheet: View {
                             Image(systemName: canTake ? "camera" : "photo").font(.title3)
                             Text(canTake ? "Take photo" : "No photo yet").font(.footnote.weight(.medium))
                         }
-                        .foregroundStyle(canTake ? Palette.accent : Palette.ink3)
+                        .foregroundStyle(canTake ? Palette.ink : Palette.ink3)
                     }
                     .aspectRatio(3 / 4, contentMode: .fit)
                 }
@@ -509,7 +513,7 @@ struct ProcedureCard: View {
         let p = moment.procedure
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Kicker(kicker, color: isSoon ? Palette.accent : Palette.ink3)
+                Kicker(kicker, color: isSoon ? Palette.ink : Palette.ink3)
                 Spacer()
                 // The after-photo card hides with "Not now"; one way is enough.
                 if isAfter, let id = moment.dismissID {

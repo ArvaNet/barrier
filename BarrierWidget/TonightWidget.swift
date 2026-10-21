@@ -102,7 +102,7 @@ struct TonightWidgetView: View {
         switch entry.slot {
         case .pm: return "moon.fill"
         case .am: return "sun.max.fill"
-        case .body: return "figure.stand"
+        case .body: return "drop.halffull"
         }
     }
 

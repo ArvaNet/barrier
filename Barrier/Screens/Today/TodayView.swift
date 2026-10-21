@@ -12,7 +12,7 @@ struct TodayView: View {
         let lead = model.leadSlot
         NavigationStack {
             Page {
-                header(today)
+                Kicker(today.long)
                 ForEach(Engine.needsReconcile(model.state, today: today).prefix(1), id: \.self) { inst in
                     ReconcileCard(inst: inst)
                 }
@@ -40,7 +40,17 @@ struct TodayView: View {
                 FollowUpCard()
                 TipCard()
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle(greeting)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        model.showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
         }
         .sheet(item: $detailDay) { day in
             DayDetailSheet(day: day).barrier(model).presentationDetents([.medium, .large])
@@ -60,28 +70,6 @@ struct TodayView: View {
             default: break
             }
         }
-    }
-
-    private func header(_ today: Day) -> some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Kicker(today.long)
-                Text(greeting)
-                    .font(.barrierTitle)
-                    .foregroundStyle(Palette.ink)
-            }
-            Spacer()
-            Button {
-                model.showSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(Palette.ink2)
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("Settings")
-        }
-        .padding(.top, 6)
     }
 
     private var greeting: String {
@@ -108,7 +96,7 @@ struct SlotHero: View {
             if slot.isDusk(model.state.plan[slot]) {
                 content(inst).stage()
             } else {
-                content(inst).card(padding: 20)
+                content(inst).heroCard()
             }
         } else {
             compact(inst)
@@ -127,12 +115,15 @@ struct SlotHero: View {
                         .font(.barrierDisplay)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if let sub = subtitle(inst) {
-                        Text(sub).font(.subheadline).foregroundStyle(.secondary)
-                    }
                 }
                 Spacer(minLength: 0)
                 orbit(inst)
+            }
+            // Full width under the title, so it never wraps beside the orbit.
+            if let sub = subtitle(inst) {
+                Text(sub).font(.subheadline).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
             }
 
             switch inst.status {
@@ -182,14 +173,15 @@ struct SlotHero: View {
     private func orbit(_ inst: Instance) -> some View {
         let nodes = Engine.rotationNodes(model.state, slot: slot, on: inst.day)
         if inst.rest == .pause || inst.rest == .inserted || nodes.count <= 1 {
+            // Same language as the row icons: a tinted circle, a crisp halo, the routine's symbol.
             ZStack {
-                Circle().fill(inst.hue.color.opacity(0.35)).frame(width: 64, height: 64).blur(radius: 14)
-                Circle().fill(inst.hue.color).frame(width: 26, height: 26)
+                Circle().stroke(inst.hue.color.opacity(0.35), lineWidth: 1.5).frame(width: 58, height: 58)
+                Circle().fill(inst.hue.color.opacity(0.25)).frame(width: 44, height: 44)
                 Image(systemName: slot.fillSymbol)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color(hex: 0x13201C).opacity(0.75))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Palette.hueInk(inst.hue))
             }
-            .frame(width: 84, height: 84)
+            .frame(width: 64, height: 64)
             .accessibilityHidden(true)
         } else {
             OrbitView(
@@ -197,7 +189,8 @@ struct SlotHero: View {
                     OrbitNode(hue: n.hue, state: i < inst.pos ? .done : i == inst.pos ? .current : (n.rest ? .rest : .future))
                 },
                 current: inst.pos,
-                size: 104
+                size: 88,
+                showCount: false
             )
         }
     }
@@ -211,21 +204,26 @@ struct SlotHero: View {
                         .font(.footnote.monospacedDigit())
                         .foregroundStyle(.tertiary)
                         .frame(width: 14, alignment: .leading)
+                    // A fixed dot column: treatment steps get the night's hue, names stay aligned.
+                    Group {
+                        if s.active { HueDot(hue: inst.hue, size: 7) } else { Color.clear }
+                    }
+                    .frame(width: 8, height: 8)
+                    .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            if s.active { HueDot(hue: inst.hue, size: 7) }
-                            Text(s.product.name).font(.body.weight(.medium))
-                        }
+                        Text(s.product.name).font(.body.weight(.medium))
                         if let a = s.step.amount, !a.isEmpty {
                             Text(a).font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                     Spacer(minLength: 0)
                     if let w = s.step.waitMin, w > 0 {
-                        Label("\(w) min", systemImage: "hourglass")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .labelStyle(.titleAndIcon)
+                        HStack(spacing: 3) {
+                            Image(systemName: "hourglass")
+                            Text("\(w) min")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 10)
@@ -270,7 +268,7 @@ struct SlotHero: View {
             .disabled(inst.steps.isEmpty)
 
             Button("Done") { model.markDone(inst) }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(SecondaryButtonStyle(width: 92))
                 .disabled(inst.steps.isEmpty)
 
             Menu {
@@ -279,12 +277,13 @@ struct SlotHero: View {
                     Button { model.setRecovery(inst.day, slot, on: false) } label: { Label("Back to the normal plan", systemImage: "arrow.uturn.backward") }
                 }
             } label: {
+                // The same button as Done, square.
                 Image(systemName: "ellipsis")
                     .font(.system(size: 17, weight: .semibold))
-                    .frame(width: 48, height: 52)
-                    .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: 52, height: 52)
+                    .background(Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.buttonRadius, style: .continuous))
             }
-            .foregroundStyle(.primary)
             .accessibilityLabel("More options")
         }
         .padding(.top, 18)
@@ -366,7 +365,7 @@ struct SlotHero: View {
         .onTapGesture {
             if !inst.isResolved { model.ritual = RitualRequest(slot: slot, day: inst.day) }
         }
-        .card(padding: 14)
+        .card()
     }
 
     /// What the card says when nothing is due.

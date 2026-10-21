@@ -16,12 +16,17 @@ struct SettingsView: View {
         let s = model.state.settings
         NavigationStack {
             Form {
+                Group {
                 remindersSection(s)
-                Section("Appearance") {
+                Section {
                     Picker("Theme", selection: Binding(get: { s.theme }, set: { v in model.update { $0.settings.theme = v } })) {
                         ForEach(ThemeMode.allCases) { Text($0.label).tag($0) }
                     }
                     Toggle("Haptics", isOn: Binding(get: { s.haptics }, set: { v in model.update { $0.settings.haptics = v } }))
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Time of day switches to dusk from 6 PM to 6 AM.")
                 }
                 Section {
                     Picker("Weekly photo night", selection: Binding(get: { s.photoDay }, set: { v in model.update { $0.settings.photoDay = v } })) {
@@ -40,7 +45,10 @@ struct SettingsView: View {
                     Text("Your routine, photos and notes stay on this iPhone. Nothing is sent anywhere.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                }
+                .rows()
             }
+            .barrierList()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -134,7 +142,7 @@ struct SettingsView: View {
         } header: {
             Text("Your data")
         } footer: {
-            Text(SharedStore.isShared ? "Saved on this iPhone and in its iCloud backup. The backup file includes your photos." : "Saved on this iPhone and in its iCloud backup. The backup file includes your photos. The widget can’t read your routine until the App Group is set up in Xcode (see the README).")
+            Text(SharedStore.isShared ? "Saved on this iPhone and in its iCloud backup. The backup file includes your photos." : "Saved on this iPhone and in its iCloud backup. The backup file includes your photos. The Home Screen widget isn’t connected on this install, so it can’t show your routine yet.")
         }
     }
 }

@@ -3,39 +3,62 @@ import SwiftUI
 
 // MARK: - Surfaces
 
+/// Layout constants shared by every screen (docs/design-spec.md).
+enum Metrics {
+    /// Page margin: the same edge as inset lists, so every tab's text lines up.
+    static let margin: CGFloat = 16
+    /// Card padding: card text sits on the same 32 pt line as list rows.
+    static let cardPadding: CGFloat = 16
+    /// Cards match iOS 26 inset-grouped sections.
+    static let cardRadius: CGFloat = 24
+    static let stageRadius: CGFloat = 28
+    static let buttonRadius: CGFloat = 14
+    static let compactRadius: CGFloat = 12
+    static let tileRadius: CGFloat = 10
+}
+
+/// One card: the same surface and shape as a list section on the other tabs.
 struct CardModifier: ViewModifier {
-    var padding: CGFloat = 18
     var tint = false
 
     func body(content: Content) -> some View {
         content
-            .padding(padding)
+            .padding(Metrics.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(tint ? Palette.surface2 : Palette.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                if !tint {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.line, lineWidth: 1)
-                }
-            }
-            .shadow(color: .black.opacity(tint ? 0 : 0.04), radius: 12, y: 6)
+            .background(tint ? Palette.surface2 : Palette.surface, in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))
     }
 }
 
-/// The dusk "stage": the Tonight card and the ritual live here.
+/// The dusk "stage": the Tonight card.
 struct StageModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .padding(20)
+            .padding(.horizontal, Metrics.cardPadding)
+            .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Palette.stage, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Palette.stageLine, lineWidth: 1))
+            .background(Palette.stageCard, in: RoundedRectangle(cornerRadius: Metrics.stageRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.stageRadius, style: .continuous).strokeBorder(Palette.stageLine, lineWidth: 1))
             .environment(\.colorScheme, .dark)
     }
 }
 
 extension View {
-    func card(padding: CGFloat = 18, tint: Bool = false) -> some View { modifier(CardModifier(padding: padding, tint: tint)) }
+    func card(tint: Bool = false) -> some View { modifier(CardModifier(tint: tint)) }
+    /// The light-mode hero: a card with a little more height.
+    func heroCard() -> some View {
+        padding(.vertical, 4).modifier(CardModifier())
+    }
     func stage() -> some View { modifier(StageModifier()) }
+
+    /// Lists and forms on the brand surfaces (not iOS's neutral grays), 16 pt line.
+    func barrierList() -> some View {
+        listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Palette.bg.ignoresSafeArea())
+    }
+
+    /// For a list's sections: rows on the brand surface.
+    func rows() -> some View { listRowBackground(Palette.surface) }
 }
 
 // MARK: - Text
@@ -95,16 +118,41 @@ struct PrimaryButtonStyle: ButtonStyle {
 
 struct SecondaryButtonStyle: ButtonStyle {
     var compact = false
+    /// A fixed width, so a row of buttons lines up (Done next to Start).
+    var width: CGFloat? = nil
+    /// A square icon button (the "…" next to Done), the same height as its neighbors.
+    var square = false
 
     func makeBody(configuration: Configuration) -> some View {
+        let h: CGFloat = compact ? 40 : 52
         configuration.label
             .font((compact ? Font.subheadline : .body).weight(.semibold))
             .foregroundStyle(Palette.ink)
-            .frame(minHeight: compact ? 40 : 52)
-            .padding(.horizontal, compact ? 14 : 18)
-            .background(Palette.surface2.opacity(configuration.isPressed ? 0.7 : 1), in: RoundedRectangle(cornerRadius: compact ? 11 : 14, style: .continuous))
+            .frame(minWidth: square ? h : width, minHeight: h)
+            .padding(.horizontal, (square || width != nil) ? 0 : (compact ? 14 : 18))
+            .background(Palette.surface2.opacity(configuration.isPressed ? 0.7 : 1),
+                        in: RoundedRectangle(cornerRadius: compact ? Metrics.compactRadius : Metrics.buttonRadius, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// Switches in sage: calm "on", and readable against the white thumb in dusk mode.
+struct SageToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Toggle(configuration).toggleStyle(.switch).tint(Palette.ok)
+    }
+}
+
+/// Text-only actions: "Not now", "Undo", "Skip". A 44 pt target, quiet ink.
+struct TertiaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Palette.ink3)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 
@@ -139,9 +187,9 @@ struct Chip: View {
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Palette.ink)
             .padding(.horizontal, 13)
-            .frame(minHeight: 38)
-            .background(selected ? Palette.accentSoft : Palette.surface2, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(selected ? Palette.accent : .clear, lineWidth: 1.2))
+            .frame(minHeight: 40)
+            .background(selected ? Palette.selected : Palette.surface2, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous).strokeBorder(selected ? Palette.ink : .clear, lineWidth: 1.5))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -212,10 +260,15 @@ struct SourcesView: View {
         FlowLayout(spacing: 10) {
             ForEach(sources) { s in
                 if let url = URL(string: s.url) {
-                    Link(s.label, destination: url)
+                    Link(destination: url) {
+                        HStack(spacing: 3) {
+                            Text(s.label)
+                            Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .semibold))
+                        }
                         .font(.caption)
                         .foregroundStyle(Palette.ink3)
-                        .underline()
+                    }
+                    .accessibilityLabel("Source: \(s.label)")
                 }
             }
         }
@@ -294,7 +347,10 @@ extension View {
     /// What every presented screen needs: the model and the clay tint
     /// (sheets don't inherit the tint, and toggles would turn green).
     func barrier(_ model: AppModel) -> some View {
-        environment(model).tint(Palette.accent)
+        environment(model)
+            .tint(Palette.ink)
+            .toggleStyle(SageToggleStyle())
+            .presentationBackground(Palette.bg)
     }
 }
 
@@ -306,7 +362,7 @@ extension Slot {
         switch self {
         case .am: return "sun.max"
         case .pm: return "moon"
-        case .body: return "figure.stand"
+        case .body: return "drop.halffull"
         }
     }
 
@@ -315,7 +371,7 @@ extension Slot {
         switch self {
         case .am: return "sun.max.fill"
         case .pm: return "moon.fill"
-        case .body: return "figure.stand"
+        case .body: return "drop.halffull"
         }
     }
 

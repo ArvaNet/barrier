@@ -13,32 +13,33 @@ struct DermView: View {
         @Bindable var model = model
         NavigationStack {
             List {
-                followUpSection
-                ProceduresSection(editing: $editing)
-                questionsSection
-                notesSection
-                Section {
-                    Button {
-                        model.showReport = true
-                    } label: {
-                        Label("Open your report", systemImage: "doc.text.magnifyingglass")
+                Group {
+                    followUpSection
+                    ProceduresSection(editing: $editing)
+                    questionsSection
+                    notesSection
+                    Section {
+                        Button {
+                            model.showReport = true
+                        } label: {
+                            Label("Open your report", systemImage: "doc.text.magnifyingglass")
+                        }
+                        Button {
+                            showSample = true
+                        } label: {
+                            Label("See a sample report", systemImage: "doc.richtext")
+                        }
+                    } footer: {
+                        Text("A timeline of what you used and how your skin felt, what changed and when, your procedures and photos. Ready to show or send. The sample uses made-up data.")
                     }
-                    Button {
-                        showSample = true
-                    } label: {
-                        Label("See a sample report", systemImage: "doc.richtext")
+                    guidanceSection
+                    Section {
+                        Text(Guidance.disclaimer).font(.footnote).foregroundStyle(.secondary)
                     }
-                } footer: {
-                    Text("A timeline of what you used and how your skin felt, what changed and when, your procedures and photos. Ready to show or send. The sample uses made-up data.")
                 }
-                guidanceSection
-                Section {
-                    Text(Guidance.disclaimer).font(.footnote).foregroundStyle(.secondary)
-                }
+                .rows()
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Palette.bg.ignoresSafeArea())
+            .barrierList()
             .navigationTitle("Dermatologist")
             .sheet(isPresented: $model.showReport) {
                 ReportView().barrier(model)

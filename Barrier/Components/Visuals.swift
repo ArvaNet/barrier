@@ -36,10 +36,10 @@ struct OrbitView: View {
                     let d: CGFloat = isCur ? size * 0.15 : (n > 6 ? size * 0.07 : size * 0.09)
                     ZStack {
                         if isCur {
+                            // A crisp halo, not a glow.
                             Circle()
-                                .fill(node.hue.color.opacity(0.55))
-                                .frame(width: d * 1.9, height: d * 1.9)
-                                .blur(radius: d * 0.45)
+                                .stroke(node.hue.color.opacity(0.4), lineWidth: 1.5)
+                                .frame(width: d * 1.7, height: d * 1.7)
                         }
                         if node.state == .future || node.state == .rest {
                             Circle()
@@ -143,7 +143,7 @@ struct TimerRingView: View {
                     .animation(.linear(duration: 1), value: frac)
                 VStack(spacing: 6) {
                     Text(Self.format(left))
-                        .font(Typeface.display(56, weight: 380))
+                        .font(.barrierNumeral)
                         .monospacedDigit()
                         .contentTransition(.numericText(countsDown: true))
                     Text("until the next step").font(.footnote).foregroundStyle(.secondary)

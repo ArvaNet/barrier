@@ -15,7 +15,8 @@ struct RootView: View {
                 OnboardingView()
             }
         }
-        .tint(Palette.accent)
+        .tint(Palette.ink)
+        .toggleStyle(SageToggleStyle())
         .preferredColorScheme(model.state.settings.theme.scheme(at: model.now))
         .overlay(alignment: .bottom) {
             if let toast = model.toast {
@@ -80,7 +81,7 @@ struct MainTabs: View {
                 .tabItem { Label("Routine", systemImage: "list.bullet.rectangle") }
                 .tag(AppTab.routine)
             ProgressScreen()
-                .tabItem { Label("Progress", systemImage: "circle.circle") }
+                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
                 .tag(AppTab.progress)
             DermView()
                 .tabItem { Label("Derm", systemImage: "stethoscope") }
@@ -92,7 +93,7 @@ struct MainTabs: View {
 /// A scrollable page with the app's background.
 struct Page<Content: View>: View {
     @Environment(AppModel.self) private var model
-    var spacing: CGFloat = 16
+    var spacing: CGFloat = 12
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -102,23 +103,15 @@ struct Page<Content: View>: View {
                     content()
                     Color.clear.frame(height: 1).id("page-bottom")
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+                // 16 pt: the same edge as the inset lists on the other tabs.
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 32)
                 .frame(maxWidth: 560)
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Palette.bg.ignoresSafeArea())
-            .overlay(alignment: .top) {
-                // A backdrop under the status bar, since these pages hide the nav bar.
-                GeometryReader { g in
-                    Palette.bg.opacity(0.94)
-                        .frame(height: g.safeAreaInsets.top)
-                        .ignoresSafeArea(edges: .top)
-                }
-                .allowsHitTesting(false)
-            }
             .onAppear {
                 // Screenshot hook: `-screen today-bottom`.
                 if model.launch.screen?.hasSuffix("-bottom") == true {

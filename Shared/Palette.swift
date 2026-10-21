@@ -30,16 +30,21 @@ extension Color {
 
 enum Palette {
     static let bg = Color(uiColor: .dynamic(light: 0xEDF0ED, dark: 0x0E1513))
-    static let surface = Color(uiColor: .dynamic(light: 0xFAFBFA, dark: 0x16211E))
+    /// Cards and list rows: one surface for both, so every tab is one app.
+    static let surface = Color(uiColor: .dynamic(light: 0xFFFFFF, dark: 0x16211E))
     static let surface2 = Color(uiColor: .dynamic(light: 0xE3E8E4, dark: 0x1E2B27))
     static let surface3 = Color(uiColor: .dynamic(light: 0xD6DDD8, dark: 0x283733))
     static let ink = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE))
     static let ink2 = Color(uiColor: .dynamic(light: 0x485853, dark: 0xA9B2AD))
-    static let ink3 = Color(uiColor: .dynamic(light: 0x63706B, dark: 0x85908B))
+    /// Tertiary text: 5:1 even on surface2 in light mode.
+    static let ink3 = Color(uiColor: .dynamic(light: 0x56635E, dark: 0x85908B))
     static let line = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE, lightAlpha: 0.12, darkAlpha: 0.1))
     static let line2 = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE, lightAlpha: 0.22, darkAlpha: 0.18))
-    static let accent = Color(uiColor: .dynamic(light: 0xA6512E, dark: 0xC2673F))
-    static let accentSoft = Color(uiColor: .dynamic(light: 0xA6512E, dark: 0xC2673F, lightAlpha: 0.1, darkAlpha: 0.18))
+    /// The primary action and treatment marks only. Dusk value keeps a white label at 4.6:1.
+    static let accent = Color(uiColor: .dynamic(light: 0xA6512E, dark: 0xB35B36))
+    static let accentSoft = Color(uiColor: .dynamic(light: 0xA6512E, dark: 0xB35B36, lightAlpha: 0.1, darkAlpha: 0.18))
+    /// Selection: an ink outline, never a clay wash.
+    static let selected = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE, lightAlpha: 0.06, darkAlpha: 0.08))
     static let warnSoft = Color(uiColor: .dynamic(light: 0xC99A3C, dark: 0xE8C87A, lightAlpha: 0.15, darkAlpha: 0.12))
     static let warn = Color(uiColor: .dynamic(light: 0x8A5F10, dark: 0xE3BD6A))
     static let danger = Color(uiColor: .dynamic(light: 0xA4402F, dark: 0xE08A78))
@@ -48,10 +53,12 @@ enum Palette {
     /// The night stage: always dusk, in both themes.
     static let stage = Color(hex: 0x131D1A)
     static let stage2 = Color(hex: 0x1B2824)
+    /// The Tonight card: the stage by day; one step lighter than the cards at dusk, so it leads.
+    static let stageCard = Color(uiColor: .dynamic(light: 0x131D1A, dark: 0x1B2824))
     static let stageInk = Color(hex: 0xECE7DE)
     static let stageInk2 = Color(hex: 0xA9B2AD)
     static let stageLine = Color(hex: 0xECE7DE, alpha: 0.12)
-    static let stageAccent = Color(hex: 0xC2673F)
+    static let stageAccent = Color(hex: 0xB35B36)
 
     static func hue(_ h: Hue?) -> Color {
         switch h ?? .sage {
@@ -92,6 +99,12 @@ enum Typeface {
 
     /// Fraunces with explicit axes; falls back to New York if the font isn't loaded.
     static func display(_ size: CGFloat, weight: CGFloat = 420, relativeTo style: UIFont.TextStyle = .largeTitle) -> Font {
+        let font = uiDisplay(size, weight: weight, relativeTo: style)
+        return Font(font as CTFont)
+    }
+
+    /// The same, as a UIFont (navigation bars, attributed text).
+    static func uiDisplay(_ size: CGFloat, weight: CGFloat = 420, relativeTo style: UIFont.TextStyle = .largeTitle) -> UIFont {
         let scaled = UIFontMetrics(forTextStyle: style).scaledValue(for: size)
         let attrs: [UIFontDescriptor.AttributeName: Any] = [
             .family: "Fraunces",
@@ -100,16 +113,28 @@ enum Typeface {
             ],
         ]
         let font = UIFont(descriptor: UIFontDescriptor(fontAttributes: attrs), size: scaled)
-        if font.familyName.lowercased().contains("fraunces") {
-            return Font(font as CTFont)
-        }
-        return .system(size: scaled, weight: .regular, design: .serif)
+        if font.familyName.lowercased().contains("fraunces") { return font }
+        let serif = UIFont.systemFont(ofSize: scaled, weight: .regular).fontDescriptor.withDesign(.serif)
+        return serif.map { UIFont(descriptor: $0, size: scaled) } ?? .systemFont(ofSize: scaled)
+    }
+
+    /// Every tab's large title in Fraunces, the inline title in SF: native behavior, brand voice.
+    static func styleNavigationBars() {
+        let bar = UINavigationBar.appearance()
+        bar.largeTitleTextAttributes = [
+            .font: uiDisplay(34, weight: 430),
+            .foregroundColor: UIColor.dynamic(light: 0x1B2A26, dark: 0xECE7DE),
+        ]
     }
 }
 
 extension Font {
-    static let barrierDisplay = Typeface.display(36)
-    static let barrierTitle = Typeface.display(30, weight: 440, relativeTo: .title1)
+    /// The hero card's title: one line for "Recovery night" at the default size.
+    static let barrierDisplay = Typeface.display(30, weight: 430)
+    /// Big numbers only: the timer, the Progress count.
+    static let barrierNumeral = Typeface.display(56, weight: 380)
+    /// Page titles: the navigation bar, onboarding, the guided routine.
+    static let barrierLargeTitle = Typeface.display(34, weight: 430)
     static let barrierH2 = Typeface.display(22, weight: 480, relativeTo: .title2)
     static let barrierH3 = Typeface.display(19, weight: 500, relativeTo: .title3)
 }

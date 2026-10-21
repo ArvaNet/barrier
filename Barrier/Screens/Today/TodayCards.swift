@@ -49,7 +49,7 @@ struct PauseBanner: View {
             Button("End") { model.endPause(pause) }
             .buttonStyle(SecondaryButtonStyle(compact: true))
         }
-        .card(padding: 14, tint: true)
+        .card(tint: true)
     }
 
     private func detail(_ p: Procedure?) -> String {
@@ -87,7 +87,7 @@ struct WeekCard: View {
             }
             WeekStrip(days: days, today: today, onTap: onTap, marked: Set(model.state.procedures.map { $0.day }))
         }
-        .card(padding: 14, tint: true)
+        .card(tint: true)
     }
 
     private func upcomingLine(slot: Slot, today: Day) -> String? {
@@ -182,7 +182,7 @@ struct SkinCheckCard: View {
                     .font(.barrierH3).foregroundStyle(Palette.ink)
                 Spacer()
                 if existing != nil && !editing {
-                    Button("Edit") { editing = true }.font(.subheadline.weight(.semibold)).foregroundStyle(Palette.accent)
+                    Button("Edit") { editing = true }.font(.subheadline.weight(.semibold)).foregroundStyle(Palette.ink)
                 }
             }
             if hasBody {
@@ -465,7 +465,7 @@ struct TipCard: View {
             Text(tip.text).font(.subheadline).foregroundStyle(Palette.ink2).fixedSize(horizontal: false, vertical: true)
             if let s = tip.source { SourcesView(sources: [s]) }
         }
-        .card(padding: 16, tint: true)
+        .card(tint: true)
     }
 }
 

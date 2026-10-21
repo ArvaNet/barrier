@@ -12,6 +12,7 @@ struct NotTonightSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Group {
                 Section {
                     option(skipTitle, detail: skipDetail, symbol: "moon.zzz") {
                         model.markSkipped(inst)
@@ -36,7 +37,11 @@ struct NotTonightSheet: View {
                         Text(derm).font(.subheadline)
                     }
                 }
+                }
+                .rows()
             }
+            .barrierList()
+            .contentMargins(.top, 8, for: .scrollContent)
             .navigationTitle("\(inst.slot.notNow)?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -66,7 +71,7 @@ struct NotTonightSheet: View {
     private func option(_ title: String, detail: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: symbol).font(.title3).foregroundStyle(Palette.accent).frame(width: 28)
+                Image(systemName: symbol).font(.title3).foregroundStyle(Palette.ink2).frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.body.weight(.semibold)).foregroundStyle(Palette.ink)
                     Text(detail).font(.footnote).foregroundStyle(Palette.ink3)
@@ -88,22 +93,23 @@ struct PauseSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Why", selection: $reason) {
-                    ForEach(PauseReason.allCases) { Text($0.label).tag($0) }
-                }
-                DatePicker("From", selection: $from, displayedComponents: .date)
-                DatePicker("Until", selection: $to, in: from..., displayedComponents: .date)
                 Section {
-                    Text("Reminders switch to the basics (cleanse, moisturize, sunscreen). When the pause ends, your rotation continues exactly where it stopped.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    if reason == .procedure {
-                        Text("Booked a procedure? Add it under Derm, Procedures instead: it sets the break from your clinic’s dates, reminds you the evening before and pairs your before and after photos.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                    Picker("Why", selection: $reason) {
+                        ForEach(PauseReason.allCases) { Text($0.label).tag($0) }
+                    }
+                    DatePicker("From", selection: $from, displayedComponents: .date)
+                    DatePicker("Until", selection: $to, in: from..., displayedComponents: .date)
+                } footer: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Reminders switch to the basics (cleanse, moisturize, sunscreen). When the pause ends, your rotation continues exactly where it stopped.")
+                        if reason == .procedure {
+                            Text("Booked a procedure? Add it under Derm, Procedures instead: it sets the break from your clinic’s dates, reminds you the evening before and pairs your before and after photos.")
+                        }
                     }
                 }
+                .rows()
             }
+            .barrierList()
             .navigationTitle("Pause the plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -117,6 +123,7 @@ struct PauseSheet: View {
                         dismiss()
                         onDone()
                     }
+                    .tint(Palette.accent)
                 }
             }
         }
@@ -134,6 +141,7 @@ struct DayDetailSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Group {
                 ForEach(Procedures.on(model.state, day)) { p in
                     Section("Procedure") {
                         Button {
@@ -169,7 +177,11 @@ struct DayDetailSheet: View {
                         Label("Progress photo taken", systemImage: "camera")
                     }
                 }
+                }
+                .rows()
             }
+            .barrierList()
+            .contentMargins(.top, 8, for: .scrollContent)
             .navigationTitle(day.long)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -190,10 +202,16 @@ struct DayDetailSheet: View {
                 Text(statusText(inst)).font(.subheadline).foregroundStyle(.secondary)
             }
             ForEach(inst.steps, id: \.step.id) { s in
+                // Done: every step, or the ones ticked in a partial routine.
+                let done = inst.isDone && (inst.entry?.steps.map { $0.contains(s.step.id) } ?? true)
                 HStack {
                     Text(s.product.name)
                     Spacer()
                     if let a = s.step.amount { Text(a).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
+                    if done {
+                        Image(systemName: "checkmark").font(.footnote.weight(.semibold)).foregroundStyle(Palette.ink2)
+                            .accessibilityLabel("Done")
+                    }
                 }
             }
             if inst.steps.isEmpty && inst.entry == nil && inst.status != .off {

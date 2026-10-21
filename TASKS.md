@@ -74,7 +74,10 @@ buttons, empty states, dark mode, alignment); every issue found fixed; an indepe
 design critique (docs/design-review.md) fixed; before/after screenshots compared; CI green; pushed.
 
 - [x] Screenshot coverage for every sheet and state (editor, add product, day detail, not tonight, pause, procedure new, onboarding pages, camera, dusk variants)
-- [ ] Design spec written from what's there + HIG (docs/design-spec.md)
-- [ ] Independent design critique of all screenshots (docs/design-review.md)
-- [ ] Fixes: system-level (headers, spacing, type, cards, buttons) then screen by screen
+- [x] Design spec written from what's there + HIG (docs/design-spec.md)
+- [x] Independent design critique of all screenshots (docs/design-review.md)
+- [ ] Phase 1, one system: brand surfaces on lists and sheets, 16 pt line, ink tint (clay only for the primary action and treatment), type tokens, dusk contrast, halos not glows, icons, native chrome
+- [ ] Phase 2, defects: clipping, overprint, ritual progress, chip heights, list cut-off, dev copy, gaps, truncation, button mismatch, separators, 44 pt targets, one card anatomy
+- [ ] Phase 3, screens: Today (6 cards max, "Also today", one check-in, one "for you"), ritual focus layout, Progress order + rings hero, Derm report hero, report preview, onboarding
+- [ ] Phase 4, impress: Tonight done moment, bedtime dim, finish with tomorrow, welcome orbit with motion, day-one states
 - [ ] CI green, before/after reviewed, pushed, vault note

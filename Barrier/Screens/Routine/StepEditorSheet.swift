@@ -34,12 +34,19 @@ struct StepEditorSheet: View {
         let sp = model.state.plan[target.slot]
         NavigationStack {
             Form {
+                Group {
                 Section("Product") {
                     TextField("Name", text: $product.name)
                         .textInputAutocapitalization(.words)
                     Picker("Type", selection: $product.kind) {
                         ForEach(ProductKind.allCases) { Text($0.label).tag($0) }
                     }
+                }
+                Section {
+                    TextField("Exactly what they told you", text: Binding(get: { product.note ?? "" }, set: { product.note = $0 }), axis: .vertical)
+                        .lineLimit(2...6)
+                } header: {
+                    Text("Your dermatologist’s instructions")
                 }
                 Section {
                     TextField("Amount, e.g. pea-size", text: Binding(get: { step.amount ?? "" }, set: { step.amount = $0 }))
@@ -51,12 +58,6 @@ struct StepEditorSheet: View {
                     Text("How to use it")
                 } footer: {
                     Text("A wait shows a timer in the routine, on your Lock Screen, and pings you when it’s over.")
-                }
-                Section {
-                    TextField("Exactly what they told you", text: Binding(get: { product.note ?? "" }, set: { product.note = $0 }), axis: .vertical)
-                        .lineLimit(2...6)
-                } header: {
-                    Text("Your dermatologist’s instructions")
                 }
                 Section {
                     Picker("How often", selection: $freq) {
@@ -107,13 +108,16 @@ struct StepEditorSheet: View {
                 Section {
                     Button("Remove from \(target.slot.name(model.state.plan).lowercased())", role: .destructive) { confirmRemove = true }
                 }
+                }
+                .rows()
             }
+            .barrierList()
             .navigationTitle(product.name.isEmpty ? "Step" : product.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(product.name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Save", action: save).disabled(product.name.trimmingCharacters(in: .whitespaces).isEmpty).tint(Palette.accent)
                 }
             }
             .confirmationDialog("Remove \(product.name)?", isPresented: $confirmRemove, titleVisibility: .visible) {
@@ -222,6 +226,7 @@ struct AddProductSheet: View {
         let suggestions = Presets.suggestions(for: slot, existing: model.state.products)
         NavigationStack {
             Form {
+                Group {
                 if !fromOther.isEmpty {
                     Section("Already in your \(slot == .pm ? "morning" : "evening")") {
                         ForEach(fromOther) { p in
@@ -232,7 +237,7 @@ struct AddProductSheet: View {
                                     if let h = p.kind.hue { HueDot(hue: h, size: 9) }
                                     Text(p.name).foregroundStyle(Palette.ink)
                                     Spacer()
-                                    Image(systemName: "plus").foregroundStyle(Palette.accent)
+                                    Image(systemName: "plus").foregroundStyle(Palette.ink2)
                                 }
                             }
                         }
@@ -256,10 +261,18 @@ struct AddProductSheet: View {
                     Picker("Type", selection: $kind) {
                         ForEach(ProductKind.allCases) { Text($0.label).tag($0) }
                     }
-                    Button("Add") { add(custom: name, kind: kind) }
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    // The add row appears once there's a name to add.
+                    let typed = name.trimmingCharacters(in: .whitespaces)
+                    if !typed.isEmpty {
+                        Button { add(custom: name, kind: kind) } label: {
+                            Label("Add \(typed)", systemImage: "plus")
+                        }
+                    }
                 }
+                }
+                .rows()
             }
+            .barrierList()
             .navigationTitle("Add to \(slot.name(model.state.plan).lowercased())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

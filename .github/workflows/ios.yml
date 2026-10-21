@@ -87,6 +87,9 @@ jobs:
           xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
           xcrun simctl install "$UDID" "$APP"
           BID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          # No permission alerts in the shots.
+          xcrun simctl privacy "$UDID" grant camera "$BID" || true
+          xcrun simctl privacy "$UDID" grant photos "$BID" || true
           mkdir -p shots
           shot () {
             name=$1; shift
