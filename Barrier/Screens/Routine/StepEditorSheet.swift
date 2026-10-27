@@ -27,6 +27,8 @@ struct StepEditorSheet: View {
     @State private var buildOn = false
     @State private var stages: [BuildStage] = Presets.buildUpStages
     @State private var originalBuild: BuildUp?
+    /// When the current stage began ("I've been doing this since Oct 8").
+    @State private var stageSince = Date()
 
     enum Freq: Hashable {
         case every(Int)
@@ -101,7 +103,7 @@ struct StepEditorSheet: View {
                 }
                 if canBuildUp {
                     BuildUpSection(slot: target.slot, on: $buildOn, stages: $stages, existing: runningBuild, goal: goalEvery,
-                                   moveUpNow: moveUpNow)
+                                   since: $stageSince, moveUpNow: moveUpNow)
                 }
                 Section {
                     Toggle("Started on", isOn: $hasFrom)
@@ -168,6 +170,7 @@ struct StepEditorSheet: View {
             buildOn = true
             stages = b.stages
             originalBuild = b
+            stageSince = b.stageStart(b.stage).date()
             // The picker shows the goal; the step's own schedule is the current stage.
             freq = .every(b.goal)
         } else if p.kind == .retinoid && !(s.buildUp?.done ?? false) {
@@ -276,7 +279,8 @@ extension StepEditorSheet {
                 if Engine.every(of: s.plan[slot].steps[i], length: s.plan[slot].length) != goal {
                     s.lineUp(slot, stepID: st.id, every: goal, wait: 0, today: today)
                 }
-                let start = p.from.map { max($0, today) } ?? today
+                // Started earlier ("since Oct 8")? The first stage counts from then.
+                let start = Day(date: stageSince) < today ? Day(date: stageSince) : (p.from ?? today)
                 failed = !s.startBuildUp(slot, stepID: st.id, stages: wanted, start: start, today: today)
             case (var b?, true):
                 // Editing a running build-up: stages already passed stay as they were.
@@ -286,6 +290,14 @@ extension StepEditorSheet {
                 if b.stages.count < passed.count { b.stages = passed }
                 b.goal = goal
                 if b.moves.count > b.stages.count { b.moves = Array(b.moves.prefix(b.stages.count)) }
+                // The current stage's start, as set: never before the stage before it, never after today.
+                let since = min(Day(date: stageSince), today)
+                if b.moves.isEmpty {
+                    b.start = since
+                } else {
+                    let floor = b.moves.count >= 2 ? b.moves[b.moves.count - 2] : b.start
+                    b.moves[b.moves.count - 1] = max(floor, since)
+                }
                 if b.every != before {
                     let wait = s.waitFor(slot, stepID: st.id, every: b.every, today: today)
                     failed = !s.lineUp(slot, stepID: st.id, every: b.every, wait: wait, today: today)
@@ -318,6 +330,7 @@ struct BuildUpSection: View {
     @Binding var stages: [BuildStage]
     var existing: BuildUp?
     var goal: Int
+    @Binding var since: Date
     var moveUpNow: () -> Void
 
     var body: some View {
@@ -332,6 +345,8 @@ struct BuildUpSection: View {
                 }
             }
             if on {
+                DatePicker(existing == nil ? "Doing this since" : "On this stage since",
+                           selection: $since, in: ...Date(), displayedComponents: .date)
                 ForEach(Array(stages.enumerated()), id: \.offset) { i, stage in
                     if i < passed, let b = existing {
                         pastRow(i, stage, b)
@@ -379,7 +394,7 @@ struct BuildUpSection: View {
             Text("Starting it")
         } footer: {
             if on {
-                Text("Tendwell asks how your skin is before each move up. Every move is dated in your history and report.")
+                Text("Already doing it? Set the date you started, and the weeks count from then. Tendwell asks how your skin is before each move up, and dates every move for your report.")
             } else {
                 Text("Dermatologists often start retinoids and acids 2–3 times a week, then build up if your skin is OK.")
             }
