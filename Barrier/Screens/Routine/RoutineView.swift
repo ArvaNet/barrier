@@ -146,7 +146,7 @@ struct SlotEditorSections: View {
                         Button {
                             editing = StepTarget(slot: slot, stepID: step.id)
                         } label: {
-                            StepRow(step: step, product: p, sp: sp, slot: slot, handle: sp.steps.count > 1)
+                            StepRow(step: step, product: p, sp: sp, slot: slot)
                         }
                         .buttonStyle(.plain)
                     }
@@ -177,7 +177,7 @@ struct SlotEditorSections: View {
                 if sp.steps.isEmpty {
                     Text("Add what your dermatologist gave you, in the order you apply it.")
                 } else if sp.steps.count > 1 {
-                    Text("Hold and drag to reorder. Tap a step for how often, the amount, or to start it slowly.")
+                    Text("Tap a step for how often, the amount, or to start it slowly. To change the order, tap Add or reorder.")
                 }
             }
             if !sp.steps.isEmpty && (slot == .pm || sp.length > 1 || !BuildUps.running(sp).isEmpty) {

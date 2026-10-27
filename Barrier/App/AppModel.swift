@@ -137,7 +137,14 @@ final class AppModel {
     /// Saves from before per-product build-ups eased in a whole routine at once.
     /// That ease-in moves onto its treatments, keeping tonight and the next nights.
     private func migrateOldSave() {
+        let before = state
         guard state.migrateEaseIn(today: today) else { return }
+        // The save as it was, kept in the app's own Documents (reachable from Xcode) in case it's ever needed.
+        if !launch.sandbox && !loadFailed, let data = try? StateCoder.encode(before) {
+            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("before-build-up-\(today.iso).json")
+            try? data.write(to: url, options: .atomic)
+        }
         if state.onboarded { state.recordPlan(today: today) }
         if !launch.sandbox && !loadFailed { saveNow() }
     }
