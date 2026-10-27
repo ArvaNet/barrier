@@ -29,9 +29,10 @@ public extension PlanSnapshot {
             for step in sp.steps {
                 guard let p = products[step.productId], !items.contains(where: { $0.slot == slot && $0.productID == p.id }) else { continue }
                 let amount = step.amount?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let goal = step.buildUp.flatMap { $0.done ? nil : Engine.everyPhrase($0.goal, word: slot.word) }
                 items.append(SnapshotItem(slot: slot, productID: p.id, name: p.name, schedule: Engine.describe(step, in: sp, slot: slot),
                                           amount: amount?.isEmpty == false ? amount : nil, until: p.until,
-                                          active: p.kind.isActive || p.kind == .oral, from: p.from))
+                                          active: p.kind.isActive || p.kind == .oral, from: p.from, goal: goal))
             }
         }
         // What the replay needs, without the visit notes.
@@ -48,7 +49,7 @@ public extension PlanSnapshot {
     /// snapshot (the replay needs it), but only a strength change makes a line.
     func sameRoutine(as other: PlanSnapshot) -> Bool {
         func key(_ i: SnapshotItem) -> String {
-            "\(i.slot.rawValue)|\(i.productID)|\(i.schedule)|\(i.amount ?? "")|\(i.until?.iso ?? "")|\(i.from?.iso ?? "")|\(PlanHistory.strength(i.name) ?? "")"
+            "\(i.slot.rawValue)|\(i.productID)|\(i.schedule)|\(i.amount ?? "")|\(i.until?.iso ?? "")|\(i.from?.iso ?? "")|\(PlanHistory.strength(i.name) ?? "")|\(i.goal ?? "")"
         }
         guard Set(items.map(key)) == Set(other.items.map(key)), easing == other.easing, Set(names.keys) == Set(other.names.keys) else { return false }
         if let p = plan, let q = other.plan, p != q { return false }
@@ -162,7 +163,21 @@ public enum PlanHistory {
                 if let s1 = strength(o.name), let s2 = strength(n.name), s1 != s2 {
                     lines.append("\(Product.shortName(n.name)): \(s1) → \(s2)")
                 }
-                if o.schedule != n.schedule { lines.append("\(n.name): \(lowered(o.schedule)) → \(lowered(n.schedule))") }
+                switch (o.goal, n.goal) {
+                case (nil, _?) where a.easing[slot.rawValue] != nil:
+                    // The routine's ease-in, now set on the product: the same plan, not a change.
+                    break
+                case (nil, let g?):
+                    lines.append("\(n.name): starting slowly, \(lowered(n.schedule)), building up to \(lowered(g))")
+                case (_?, let g?) where o.schedule != n.schedule:
+                    lines.append("\(n.name): moved up to \(lowered(n.schedule)), building up to \(lowered(g))")
+                case (_?, nil):
+                    lines.append(o.goal.map(lowered) == lowered(n.schedule)
+                                 ? "\(n.name): now \(lowered(n.schedule)), build-up done"
+                                 : "\(n.name): build-up stopped, \(lowered(n.schedule))")
+                default:
+                    if o.schedule != n.schedule { lines.append("\(n.name): \(lowered(o.schedule)) → \(lowered(n.schedule))") }
+                }
                 switch (o.amount, n.amount) {
                 case let (x?, y?) where x != y: lines.append("\(n.name): amount \(lowerFirst(x)) → \(lowerFirst(y))")
                 case let (nil, y?): lines.append("\(n.name): amount set to \(lowerFirst(y))")
@@ -182,11 +197,12 @@ public enum PlanHistory {
                     continue
                 }
                 let start = n.from.flatMap { $0 > b.day ? ", from \($0.monthDay)" : nil } ?? ""
+                let building = n.goal.map { ", building up to \(lowered($0))" } ?? ""
                 if slot != .body, n.schedule.lowercased().contains(slot.word) {
-                    lines.append("\(n.name): started, \(lowered(n.schedule))\(start)")
+                    lines.append("\(n.name): started, \(lowered(n.schedule))\(building)\(start)")
                 } else {
                     let place = slot == .body ? "the \(routine(slot, b)) routine" : "the \(routine(slot, b))"
-                    lines.append("\(n.name): started in \(place), \(lowered(n.schedule))\(start)")
+                    lines.append("\(n.name): started in \(place), \(lowered(n.schedule))\(building)\(start)")
                 }
             }
             for o in restOld where !movedOut(o) {
@@ -198,7 +214,9 @@ public enum PlanHistory {
             if a.easing[key] == nil, let end = b.easing[key], !new.isEmpty {
                 let date = Day(iso: end).map { ", full routine from \($0.monthDay)" } ?? ""
                 lines.append("\(title): easing in\(date)")
-            } else if a.easing[key] != nil, b.easing[key] == nil, !new.isEmpty {
+            } else if let end = a.easing[key], b.easing[key] == nil, !new.isEmpty,
+                      !new.contains(where: { $0.goal != nil }), Day(iso: end).map({ $0 > b.day }) ?? true {
+                // An ease-in now set per product, or one that had already finished, isn't a removal.
                 lines.append("\(title): ease-in removed")
             }
         }

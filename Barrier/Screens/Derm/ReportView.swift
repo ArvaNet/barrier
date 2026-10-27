@@ -202,6 +202,23 @@ struct ReportData {
         if let e = s.plan.pm.easeIn {
             let end = e.start.adding(e.totalDays)
             easing = end > today ? "Easing in since \(e.start.short), full routine from \(end.short)." : "Eased in from \(e.start.short) to \(end.short)."
+        } else {
+            // Build-ups, product by product: "Adapalene: every 3rd night from Oct 8, every other night from Oct 22."
+            var parts: [String] = []
+            for slot in [Slot.pm, .am, .body] where s.plan[slot].enabled {
+                for st in s.plan[slot].steps {
+                    guard let b = st.buildUp, let p = products[st.productId] else { continue }
+                    let word = slot.word
+                    var steps: [String] = []
+                    for (i, stage) in b.stages.enumerated() where i <= b.moves.count {
+                        steps.append("\(PlanHistory.lowered(Engine.everyPhrase(stage.every, word: word))) from \(b.stageStart(i).short)")
+                    }
+                    if let f = b.finished { steps.append("\(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: word))) from \(f.short)") }
+                    else { steps.append("building up to \(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: word)))") }
+                    parts.append("\(p.shortName): " + steps.joined(separator: ", ") + ".")
+                }
+            }
+            easing = parts.isEmpty ? nil : parts.joined(separator: " ")
         }
         let used = s.usedProductIDs
         self.products = s.products.filter { used.contains($0.id) && ($0.kind.isActive || $0.kind == .oral || $0.note != nil) }
@@ -217,6 +234,8 @@ struct ReportData {
                 var ease = ""
                 if p.kind.isActive, let e = sp.easeIn, !e.phases.isEmpty, e.start.adding(e.totalDays) > today {
                     ease = ", easing in until \(e.start.adding(e.totalDays).short)"
+                } else if let b = st.buildUp, !b.done {
+                    ease = ", building up to \(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: slot.word)))"
                 }
                 now.append("\(p.name) \(PlanHistory.lowered(Engine.describe(st, in: sp, slot: slot)))\(place)\(ease)")
             }

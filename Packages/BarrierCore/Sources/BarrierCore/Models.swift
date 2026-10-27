@@ -148,14 +148,17 @@ public struct Step: Codable, Identifiable, Hashable, Sendable {
     /// Minutes to wait after this step before the next one.
     public var waitMin: Int?
     public var on: StepOn
+    /// Starting this product slowly (see BuildUp.swift). While it runs, `on` is the current stage.
+    public var buildUp: BuildUp?
 
-    public init(id: String = makeID(), productId: String, amount: String? = nil, how: String? = nil, waitMin: Int? = nil, on: StepOn = .all) {
+    public init(id: String = makeID(), productId: String, amount: String? = nil, how: String? = nil, waitMin: Int? = nil, on: StepOn = .all, buildUp: BuildUp? = nil) {
         self.id = id
         self.productId = productId
         self.amount = amount
         self.how = how
         self.waitMin = waitMin
         self.on = on
+        self.buildUp = buildUp
     }
 }
 
@@ -513,6 +516,8 @@ public struct SnapshotItem: Codable, Hashable, Sendable {
     public var active: Bool?
     /// First day of use, when set.
     public var from: Day?
+    /// While building up: the schedule it's building up to ("Every night").
+    public var goal: String?
 }
 
 /// The routine as it stood at the end of a day it was edited.

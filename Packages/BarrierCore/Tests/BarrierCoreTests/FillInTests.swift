@@ -32,7 +32,7 @@ final class FillInTests: XCTestCase {
         var s = base()
         s.fillIn(since: paper, missed: [:], today: setup)
         XCTAssertEqual(s.products.first { $0.kind == .retinoid }?.from, paper)
-        XCTAssertEqual(s.plan.pm.easeIn?.start, paper)
+        XCTAssertEqual(s.plan.pm.steps.compactMap(\.buildUp).first?.start, paper)
         // So the filled-in weeks include tretinoin nights, not just the basics.
         XCTAssertTrue(entries(s, .pm).contains { $0.label?.lowercased().contains("retinoid") == true })
     }

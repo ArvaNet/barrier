@@ -105,6 +105,7 @@ public extension AppState {
         p.createdAt = new
         for slot in Slot.allCases {
             if p[slot].easeIn?.start == old { p[slot].easeIn?.start = new }
+            for i in p[slot].steps.indices where p[slot].steps[i].buildUp?.start == old { p[slot].steps[i].buildUp?.start = new }
             if p[slot].anchor.day == old, slot != .body || p[slot].enabled { p[slot].anchor.day = new }
         }
         return p

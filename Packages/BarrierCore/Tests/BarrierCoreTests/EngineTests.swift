@@ -91,8 +91,10 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(Engine.next(s, slot: .pm, today: start, where: { $0.product.kind == .exfoliant })?.day, start.adding(4))
     }
 
+    /// Old saves eased in the whole evening; their history still replays this way.
     func testRetinoidEaseIn() {
         var s = Presets.apply(.retinoid, to: Presets.blankState(today: start), today: start)
+        s.legacyEaseIn(start: start)
         s.onboarded = true
         s.log = (0..<34).map { done(start.adding($0)) }
         let tl = Engine.timeline(s, slot: .pm, from: start, to: start.adding(33), today: start.adding(40))

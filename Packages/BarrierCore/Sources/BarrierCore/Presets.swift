@@ -48,6 +48,11 @@ public enum Presets {
     ]
 
     /// Suggested quick-adds for a routine, minus what's already in it.
+    /// Every quick-add that fits a slot, added or not.
+    public static func pool(for slot: Slot) -> [QuickProduct] {
+        slot == .body ? bodyProducts : quickProducts.filter { $0.slot == nil || $0.slot == slot }
+    }
+
     public static func suggestions(for slot: Slot, existing: [Product]) -> [QuickProduct] {
         let names = Set(existing.map { $0.name.lowercased() })
         let pool = slot == .body ? bodyProducts : quickProducts.filter { $0.slot == nil || $0.slot == slot }
@@ -76,13 +81,18 @@ public enum Presets {
     }
 
     /// Insert a step in a sensible position for its kind.
+    /// After the last step that goes before it, so an order the user arranged by hand stays put
+    /// (a moisturizer dragged to the top doesn't pull a new retinoid up with it).
     public static func insert(_ step: Step, kind: ProductKind, into steps: [Step], kinds: [String: ProductKind]) -> [Step] {
-        if let idx = steps.firstIndex(where: { (kinds[$0.productId] ?? .other).order > kind.order }) {
-            var s = steps
-            s.insert(step, at: idx)
-            return s
+        var s = steps
+        if let last = steps.lastIndex(where: { (kinds[$0.productId] ?? .other).order <= kind.order }) {
+            s.insert(step, at: last + 1)
+        } else if let first = steps.firstIndex(where: { (kinds[$0.productId] ?? .other).order > kind.order }) {
+            s.insert(step, at: first)
+        } else {
+            s.append(step)
         }
-        return steps + [step]
+        return s
     }
 
     /// Weeks 1–2: every 3rd night. Weeks 3–4: every other night. Then the full plan.
@@ -140,8 +150,12 @@ public enum Presets {
                 let ret = add("tretinoin")
                 var c = makeStep(productId: cleanser.0.id, from: cleanser.1)
                 c.waitMin = 20
-                pm.steps = [c, makeStep(productId: ret.0.id, from: ret.1), makeStep(productId: moist.0.id, from: moist.1)]
-                pm.easeIn = EaseIn(start: today, phases: easeInPhases)
+                var r = makeStep(productId: ret.0.id, from: ret.1)
+                r.buildUp = BuildUp(start: today, stages: buildUpStages, goal: 1)
+                pm.steps = [c, r, makeStep(productId: moist.0.id, from: moist.1)]
+                // The first stage: every 3rd night, starting tonight.
+                pm.length = buildUpStages[0].every
+                pm.steps[1].on = .nights([0])
             case .cycling:
                 let ex = add("exfoliant")
                 let ret = add("retinol")

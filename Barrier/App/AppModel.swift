@@ -66,6 +66,12 @@ final class AppModel {
             var s = Presets.apply(.retinoid, to: Presets.blankState(today: today), today: today)
             s.onboarded = true
             if let theme = launch.theme { s.settings.theme = theme }
+            // `-screen today-moveup`: two weeks into the retinoid's first stage, so Tendwell asks.
+            if launch.screen == "today-moveup" {
+                for i in s.plan.pm.steps.indices where s.plan.pm.steps[i].buildUp != nil {
+                    s.plan.pm.steps[i].buildUp?.start = today.adding(-15)
+                }
+            }
             // `-screen filled-…`: three weeks on paper before Barrier, filled in.
             if launch.screen?.hasPrefix("filled-") == true {
                 s.recordPlan(today: today)
@@ -86,6 +92,7 @@ final class AppModel {
         }
         // Saves from before the change log: today's routine is where it starts (today's edits still count).
         if state.onboarded && state.history.isEmpty { state.recordPlan(today: today, start: true) }
+        migrateOldSave()
         if launch.demo {
             DemoPhotos.ensure(state.photos, in: photos)
         } else {
@@ -123,7 +130,16 @@ final class AppModel {
             state = s
             loadFailed = false
             if state.onboarded && state.history.isEmpty { state.recordPlan(today: today, start: true) }
+            migrateOldSave()
         }
+    }
+
+    /// Saves from before per-product build-ups eased in a whole routine at once.
+    /// That ease-in moves onto its treatments, keeping tonight and the next nights.
+    private func migrateOldSave() {
+        guard state.migrateEaseIn(today: today) else { return }
+        if state.onboarded { state.recordPlan(today: today) }
+        if !launch.sandbox && !loadFailed { saveNow() }
     }
 
     func ingestInbox() {

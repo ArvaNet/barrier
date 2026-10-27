@@ -188,6 +188,8 @@ struct Chip: View {
     var title: String
     var selected: Bool
     var hue: Hue?
+    /// A trailing "plus" or "checkmark", for chips that add.
+    var symbol: String? = nil
     var action: () -> Void
 
     var body: some View {
@@ -197,6 +199,12 @@ struct Chip: View {
                     Circle().fill(Palette.hue(hue)).frame(width: 8, height: 8)
                 }
                 Text(title)
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(selected ? Palette.ink : Palette.ink3)
+                        .contentTransition(.symbolEffect(.replace))
+                }
             }
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Palette.ink)
@@ -267,10 +275,38 @@ struct HueDot: View {
     }
 }
 
+/// The evidence behind a note: one quiet "Sources" link that opens to the list.
+/// There for trust, out of the way of reading.
 struct SourcesView: View {
     var sources: [Source]
+    @State private var open = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(Motion.ui) { open.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "text.book.closed").font(.system(size: 10, weight: .semibold))
+                    Text(sources.count == 1 ? "Source" : "Sources")
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .rotationEffect(.degrees(open ? 180 : 0))
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Palette.ink3)
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(open ? "Hide sources" : "Show \(sources.count) sources")
+            if open {
+                links.transition(.opacity)
+            }
+        }
+    }
+
+    private var links: some View {
         FlowLayout(spacing: 10) {
             ForEach(sources) { s in
                 if let url = URL(string: s.url) {

@@ -197,7 +197,7 @@ struct OnboardingView: View {
 
     private func pageText(_ slot: Slot) -> String {
         switch slot {
-        case .pm: return "Add what you use at night, in order. Tap a step to set how often, the amount, and your dermatologist’s exact words."
+        case .pm: return "Add what you use at night. Drag to put them in order, tap one for how often or to start it slowly."
         case .am: return "Same for the morning. Sunscreen usually goes last."
         case .body: return "Got something for your back, chest or body too, like a lotion after the shower? Turn this on and it gets its own reminder and log. Otherwise, skip."
         }

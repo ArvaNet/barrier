@@ -65,7 +65,7 @@ struct RoutineView: View {
                 case "step-editor":
                     let actives = model.state.plan.pm.steps.first { model.product($0.productId)?.kind.isActive == true }
                     if editing == nil, let st = actives ?? model.state.plan.pm.steps.first { editing = StepTarget(slot: .pm, stepID: st.id) }
-                case "add-product": if adding == nil { adding = .am }
+                case "add-product": if adding == nil { adding = .pm }
                 case "pause": showPause = true
                 default: break
                 }
@@ -140,16 +140,13 @@ struct SlotEditorSections: View {
         }
 
         if sp.enabled {
-            if slot == .pm || sp.length > 1 {
-                rotationSection(sp, products: products)
-            }
             Section {
                 ForEach(sp.steps) { step in
                     if let p = products[step.productId] {
                         Button {
                             editing = StepTarget(slot: slot, stepID: step.id)
                         } label: {
-                            StepRow(step: step, product: p, sp: sp, slot: slot)
+                            StepRow(step: step, product: p, sp: sp, slot: slot, handle: sp.steps.count > 1)
                         }
                         .buttonStyle(.plain)
                     }
@@ -167,21 +164,24 @@ struct SlotEditorSections: View {
                     adding = slot
                 } label: {
                     // The plus sits in the dot column, so the text lines up with the step names.
-                    HStack(spacing: 12) {
-                        Image(systemName: "plus").font(.footnote.weight(.bold)).frame(width: 10)
-                        Text("Add a product")
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle.fill").font(.title3).frame(width: 10)
+                        Text(sp.steps.isEmpty ? "Add a product" : "Add or reorder products")
+                            .font(.body.weight(.semibold))
                     }
-                    .foregroundStyle(Palette.ink)
+                    .foregroundStyle(Palette.accent)
                 }
             } header: {
                 Text("Steps, in order")
             } footer: {
                 if sp.steps.isEmpty {
                     Text("Add what your dermatologist gave you, in the order you apply it.")
+                } else if sp.steps.count > 1 {
+                    Text("Hold and drag to reorder. Tap a step for how often, the amount, or to start it slowly.")
                 }
             }
-            if slot == .pm && sp.steps.contains(where: { products[$0.productId]?.kind.isActive == true }) {
-                EaseInSection(slot: slot)
+            if !sp.steps.isEmpty && (slot == .pm || sp.length > 1 || !BuildUps.running(sp).isEmpty) {
+                rotationSection(sp, products: products)
             }
         }
     }
@@ -189,72 +189,44 @@ struct SlotEditorSections: View {
     @ViewBuilder
     private func rotationSection(_ sp: SlotPlan, products: [String: Product]) -> some View {
         let today = model.today
-        let tonight = model.instance(slot)
         let unit = slot.word
         let nowWord = slot == .pm ? "tonight" : (slot == .am ? "this morning" : "today")
-        let nodes = Engine.rotationNodes(model.state, slot: slot, on: today)
+        let building = BuildUps.running(sp).compactMap { st in products[st.productId] }
         Section {
-            Stepper(value: Binding(
-                get: { sp.length },
-                set: { n in
-                    model.editPlan(slot) { s in
-                        s.plan[slot] = Engine.resize(s.plan[slot], to: n)
-                    }
-                }
-            ), in: 1...Engine.maxRotation) {
-                Text(sp.length == 1 ? (nodes.count > 1 ? "Every \(unit), easing in" : "Same every \(unit)") : "Repeats every \(sp.length) \(unit)s")
-            }
-            if nodes.count > 1 {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(nodes, id: \.pos) { n in
-                            Button {
-                                if n.pos != tonight.pos { confirmTonight = n.pos }
-                            } label: {
-                                let isNow = n.pos == tonight.pos
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack(spacing: 5) {
-                                        HueDot(hue: n.hue, size: 9)
-                                        Text(isNow ? nowWord.capitalized : "\(unit.capitalized) \(n.pos + 1)")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(isNow ? Palette.ink : Palette.ink3)
-                                    }
-                                    Text(n.label.replacingOccurrences(of: " night", with: ""))
-                                        .font(.footnote.weight(.medium))
-                                        .foregroundStyle(Palette.ink)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                }
-                                // Every chip the same height; "tonight" is an ink outline, not an extra line.
-                                .frame(width: 86, alignment: .topLeading)
-                                .frame(minHeight: 52, alignment: .topLeading)
-                                .padding(10)
-                                .background(Palette.fill, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous).strokeBorder(isNow ? Palette.ink : .clear, lineWidth: 1.5))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(n.pos == tonight.pos ? .isSelected : [])
+            if building.isEmpty {
+                Stepper(value: Binding(
+                    get: { sp.length },
+                    set: { n in
+                        model.editPlan(slot) { s in
+                            s.plan[slot] = Engine.resize(s.plan[slot], to: n)
                         }
                     }
-                    .padding(.vertical, 2)
+                ), in: 1...Engine.maxRotation) {
+                    Text(sp.length == 1 ? "Same every \(unit)" : "Repeats every \(sp.length) \(unit)s")
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
+            NextNights(slot: slot) { inst in
+                if inst.day != today { confirmTonight = inst.pos }
+            }
+            .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
         } header: {
-            Text("Rotation")
+            Text("Next 7 \(unit)s")
         } footer: {
-            Text(nodes.count > sp.length ? "Recovery nights are added while you ease in. Tap a \(unit) to make it \(nowWord)."
-                 : sp.length == 1 ? "Add \(unit)s for alternating routines." : "Tap a \(unit) to make it \(nowWord).")
+            if let p = building.first {
+                Text("\(p.shortName) is building up, so the pattern changes as you move up. Tap a \(unit) to make it \(nowWord).")
+            } else {
+                Text(sp.length == 1 ? "Add \(unit)s for alternating routines, or tap a product to start it slowly." : "Tap a \(unit) to make it \(nowWord).")
+            }
         }
-        .confirmationDialog("Make \(nowWord) \(unit) \((confirmTonight ?? 0) + 1)?", isPresented: Binding(get: { confirmTonight != nil }, set: { if !$0 { confirmTonight = nil } }), titleVisibility: .visible) {
-            Button("Yes, \(nowWord) is \(unit) \((confirmTonight ?? 0) + 1)") {
+        .confirmationDialog("Make \(nowWord) like this \(unit)?", isPresented: Binding(get: { confirmTonight != nil }, set: { if !$0 { confirmTonight = nil } }), titleVisibility: .visible) {
+            Button("Yes, change \(nowWord)") {
                 if let pos = confirmTonight {
                     model.update { s in
                         s.plan[slot].anchor = Anchor(day: today, pos: pos)
                         // Today's own log entry would advance it past `pos`.
                         if let e = s.entry(today, slot), e.status != .done { s.clearEntry(today, slot) }
                     }
-                    model.show("\(nowWord.capitalized) is now \(unit) \(pos + 1).")
+                    model.show("\(nowWord.capitalized) is now \(model.instance(slot).label.lowercased()).")
                 }
                 confirmTonight = nil
             }
@@ -264,11 +236,91 @@ struct SlotEditorSections: View {
     }
 }
 
+/// The next seven nights as they'll actually run: build-ups, recovery nights and all.
+struct NextNights: View {
+    @Environment(AppModel.self) private var model
+    var slot: Slot
+    var onTap: (Instance) -> Void
+
+    var body: some View {
+        let today = model.today
+        let nights = Engine.timeline(model.state, slot: slot, from: today, to: today.adding(6), today: today)
+        // One line per kind of night, in the order they first appear.
+        var seen: [String] = []
+        var legend: [(label: String, hue: Hue, active: Bool)] = []
+        for n in nights {
+            let l = short(n)
+            if !seen.contains(l) {
+                seen.append(l)
+                legend.append((l, n.hue, n.hasActives))
+            }
+        }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 4) {
+                ForEach(nights) { n in
+                    Button { onTap(n) } label: {
+                        VStack(spacing: 6) {
+                            Text(n.day == today ? (slot == .pm ? "Tonight" : "Today") : n.day.date().formatted(.dateTime.weekday(.abbreviated)))
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(n.day == today ? Palette.ink : Palette.ink3)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            dot(n)
+                            Text("\(n.day.day)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(Palette.ink3)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(n.day == today ? Palette.fill : .clear, in: RoundedRectangle(cornerRadius: Metrics.compactRadius, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(n.day.relative(to: today)): \(n.label)")
+                }
+            }
+            FlowLayout(spacing: 14) {
+                ForEach(legend, id: \.label) { item in
+                    HStack(spacing: 6) {
+                        legendDot(item.hue, active: item.active)
+                        Text(item.label).font(.footnote).foregroundStyle(Palette.ink2)
+                    }
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+
+    /// "Adapalene", "Recovery", "Exfoliant + Tretinoin".
+    private func short(_ n: Instance) -> String {
+        if n.rest == .pause { return "Basics only" }
+        let actives = n.steps.filter(\.active).map(\.product.shortName)
+        if actives.isEmpty { return slot == .pm ? "Recovery" : (slot == .am ? "Basics" : n.label) }
+        return actives.joined(separator: " + ")
+    }
+
+    private func dot(_ n: Instance) -> some View {
+        legendDot(n.hue, active: n.hasActives, size: 14)
+    }
+
+    private func legendDot(_ hue: Hue, active: Bool, size: CGFloat = 9) -> some View {
+        ZStack {
+            if active {
+                Circle().fill(Palette.hue(hue))
+            } else {
+                Circle().strokeBorder(Palette.hue(hue), lineWidth: 1.5)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 struct StepRow: View {
     var step: Step
     var product: Product
     var sp: SlotPlan
     var slot: Slot
+    /// A drag handle instead of the chevron, where rows reorder by holding and dragging.
+    var handle = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -290,7 +342,14 @@ struct StepRow: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Palette.ink3)
             }
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Palette.ink3.opacity(0.6))
+            if handle {
+                Image(systemName: "line.3.horizontal")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Palette.ink3)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Palette.ink3.opacity(0.6))
+            }
         }
         .contentShape(Rectangle())
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
@@ -298,6 +357,9 @@ struct StepRow: View {
 
     private var detail: String {
         var parts = [Engine.describe(step, in: sp, slot: slot)]
+        if let b = step.buildUp, !b.done {
+            parts[0] += ", building up to \(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: slot.word)))"
+        }
         if let a = step.amount, !a.isEmpty { parts.append(a) }
         if let u = product.until { parts.append("until \(u.short)") }
         return parts.joined(separator: " · ")
@@ -313,98 +375,6 @@ extension ProductKind {
         case .treatment: return .rose
         default: return nil
         }
-    }
-}
-
-// MARK: - Ease in
-
-struct EaseInSection: View {
-    @Environment(AppModel.self) private var model
-    var slot: Slot
-
-    var body: some View {
-        let sp = model.state.plan[slot]
-        let today = model.today
-        Section {
-            Toggle("Ease in gradually", isOn: Binding(
-                get: { sp.easeIn != nil },
-                set: { on in
-                    model.editPlan(slot) { s in
-                        s.plan[slot].easeIn = on ? EaseIn(start: today, phases: Presets.easeInPhases) : nil
-                    }
-                }
-            ))
-            if let ease = sp.easeIn {
-                DatePicker("Started", selection: Binding(
-                    get: { ease.start.date() },
-                    set: { d in model.editPlan(slot) { $0.plan[slot].easeIn?.start = Day(date: d) } }
-                ), displayedComponents: .date)
-                ForEach(Array(ease.phases.enumerated()), id: \.offset) { i, phase in
-                    phaseRow(i, phase, ease: ease, length: sp.length)
-                }
-                HStack {
-                    Button("Add a step") {
-                        model.editPlan(slot) { s in
-                            let last = s.plan[slot].easeIn?.phases.last?.extraRest ?? 1
-                            s.plan[slot].easeIn?.phases.append(EaseInPhase(days: 14, extraRest: max(0, last - 1)))
-                        }
-                    }
-                    Spacer()
-                    if ease.phases.count > 1 {
-                        Button("Remove last", role: .destructive) {
-                            model.editPlan(slot) { _ = $0.plan[slot].easeIn?.phases.popLast() }
-                        }
-                    }
-                }
-                .font(.subheadline.weight(.medium))
-                .buttonStyle(.borderless)
-                let end = ease.start.adding(ease.totalDays)
-                Text(end > today ? "Full routine from \(end.short)." : "Ease-in finished on \(end.short). You’re on the full routine.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-        } header: {
-            Text("Easing in")
-        } footer: {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(Guidance.easeIn.body)
-                SourcesView(sources: Guidance.easeIn.sources)
-            }
-        }
-    }
-
-    private func phaseRow(_ i: Int, _ phase: EaseInPhase, ease: EaseIn, length: Int) -> some View {
-        let startDay = ease.phases.prefix(i).reduce(0) { $0 + $1.days }
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("Days \(startDay + 1)–\(startDay + phase.days)").font(.subheadline.weight(.semibold))
-            Stepper(value: Binding(
-                get: { phase.days },
-                set: { v in model.editPlan(slot) { $0.plan[slot].easeIn?.phases[i].days = v } }
-            ), in: 7...56, step: 7) {
-                Text("\(phase.days / 7) week\(phase.days == 7 ? "" : "s")").font(.subheadline)
-            }
-            Stepper(value: Binding(
-                get: { phase.extraRest },
-                set: { v in
-                    model.editPlan(slot) { s in
-                        s.plan[slot].easeIn?.phases[i].extraRest = v
-                    }
-                }
-            ), in: 0...6) {
-                Text(frequencyText(extra: phase.extraRest, length: length)).font(.subheadline)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func frequencyText(extra: Int, length: Int) -> String {
-        if length == 1 {
-            switch extra {
-            case 0: return "Actives every night"
-            case 1: return "Actives every other night"
-            default: return "Actives every \(extra + 1)\(extra + 1 == 3 ? "rd" : "th") night"
-            }
-        }
-        return extra == 0 ? "Normal rotation" : "+\(extra) recovery night\(extra == 1 ? "" : "s") per cycle"
     }
 }
 

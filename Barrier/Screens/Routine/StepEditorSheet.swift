@@ -23,6 +23,10 @@ struct StepEditorSheet: View {
     @State private var originalFreq: Freq = .every(1)
     @State private var originalNights: Set<Int> = []
     @State private var originalWeekdays: Set<Int> = []
+    /// Starting slowly: on, the stages, and the build-up as it was opened.
+    @State private var buildOn = false
+    @State private var stages: [BuildStage] = Presets.buildUpStages
+    @State private var originalBuild: BuildUp?
 
     enum Freq: Hashable {
         case every(Int)
@@ -60,7 +64,7 @@ struct StepEditorSheet: View {
                     Text("A wait shows a timer in the routine, on your Lock Screen, and pings you when it’s over.")
                 }
                 Section {
-                    Picker("How often", selection: $freq) {
+                    Picker(buildOn ? "Building up to" : "How often", selection: $freq) {
                         Text("Every \(target.slot.word)").tag(Freq.every(1))
                         Text("Every other \(target.slot.word)").tag(Freq.every(2))
                         Text("Every 3rd \(target.slot.word)").tag(Freq.every(3))
@@ -94,6 +98,10 @@ struct StepEditorSheet: View {
                     if case .every(let n) = freq, n > 1 {
                         Text("Tendwell counts \(target.slot.word)s you actually do. Miss one and the next \(target.slot.word) picks up where you left off.")
                     }
+                }
+                if canBuildUp {
+                    BuildUpSection(slot: target.slot, on: $buildOn, stages: $stages, existing: runningBuild, goal: goalEvery,
+                                   moveUpNow: moveUpNow)
                 }
                 Section {
                     Toggle("Started on", isOn: $hasFrom)
@@ -156,9 +164,45 @@ struct StepEditorSheet: View {
             nights = Set(n)
             if let gap = Engine.every(of: s, length: sp.length), gap <= 4 { freq = .every(gap) } else { freq = .nights }
         }
+        if let b = s.buildUp, !b.done {
+            buildOn = true
+            stages = b.stages
+            originalBuild = b
+            // The picker shows the goal; the step's own schedule is the current stage.
+            freq = .every(b.goal)
+        } else if p.kind == .retinoid && !(s.buildUp?.done ?? false) {
+            stages = Presets.buildUpStages
+        }
         originalFreq = freq
         originalNights = nights
         originalWeekdays = weekdays
+    }
+
+    /// Starting slowly fits an "every Nth" goal, for treatments (or one already building up).
+    private var canBuildUp: Bool {
+        guard case .every = freq else { return false }
+        return product.kind.isActive || runningBuild != nil
+    }
+
+    private var goalEvery: Int {
+        if case .every(let n) = freq { return n }
+        return 1
+    }
+
+    private var runningBuild: BuildUp? { originalBuild }
+
+    private func moveUpNow() {
+        var ok = true
+        model.update { ok = $0.moveUp(target.slot, stepID: target.stepID, today: model.today) }
+        if ok {
+            Haptics.success(model.state.settings.haptics)
+            if let b = model.state.plan[target.slot].steps.first(where: { $0.id == target.stepID })?.buildUp {
+                model.show("\(product.shortName): \(PlanHistory.lowered(Engine.everyPhrase(b.every, word: target.slot.word))) from now.")
+            }
+        } else {
+            model.show("That doesn’t fit your rotation.")
+        }
+        dismiss()
     }
 
     private func save() {
@@ -184,6 +228,11 @@ struct StepEditorSheet: View {
                 return
             }
         }
+        let building = buildOn && canBuildUp && !stages.isEmpty
+        if building || originalBuild != nil {
+            saveBuildUp(product: p, step: st, building: building, scheduleChanged: scheduleChanged)
+            return
+        }
         // Any change here (type, dates, schedule) can change what's due, so keep tonight fixed.
         model.editPlan(slot) { s in
             s.upsertProduct(p)
@@ -204,6 +253,194 @@ struct StepEditorSheet: View {
     }
 }
 
+extension StepEditorSheet {
+    /// Save when starting slowly, or when a build-up was running: the step's schedule is
+    /// the current stage, the picker is the goal.
+    fileprivate func saveBuildUp(product p: Product, step st: Step, building: Bool, scheduleChanged: Bool) {
+        let slot = target.slot
+        let today = model.today
+        let goal = goalEvery
+        let wanted = stages.filter { $0.every > goal }
+        var failed = false
+        model.update { s in
+            s.upsertProduct(p)
+            guard let i = s.plan[slot].steps.firstIndex(where: { $0.id == st.id }) else { return }
+            var fields = st
+            fields.on = s.plan[slot].steps[i].on
+            fields.buildUp = s.plan[slot].steps[i].buildUp
+            s.plan[slot].steps[i] = fields
+            let old = fields.buildUp.flatMap { $0.done ? nil : $0 }
+            switch (old, building && !wanted.isEmpty) {
+            case (nil, true):
+                // Starting now: the goal first, then the first stage.
+                if Engine.every(of: s.plan[slot].steps[i], length: s.plan[slot].length) != goal {
+                    s.lineUp(slot, stepID: st.id, every: goal, wait: 0, today: today)
+                }
+                let start = p.from.map { max($0, today) } ?? today
+                failed = !s.startBuildUp(slot, stepID: st.id, stages: wanted, start: start, today: today)
+            case (var b?, true):
+                // Editing a running build-up: stages already passed stay as they were.
+                let before = b.every
+                let passed = Array(b.stages.prefix(b.moves.count))
+                b.stages = passed + wanted.dropFirst(min(passed.count, wanted.count))
+                if b.stages.count < passed.count { b.stages = passed }
+                b.goal = goal
+                if b.moves.count > b.stages.count { b.moves = Array(b.moves.prefix(b.stages.count)) }
+                if b.every != before {
+                    let wait = s.waitFor(slot, stepID: st.id, every: b.every, today: today)
+                    failed = !s.lineUp(slot, stepID: st.id, every: b.every, wait: wait, today: today)
+                }
+                if !failed, let j = s.plan[slot].steps.firstIndex(where: { $0.id == st.id }) { s.plan[slot].steps[j].buildUp = b }
+            case (_?, false):
+                // Turned off: straight to the goal from tonight.
+                s.plan[slot].steps[i].buildUp?.goal = goal
+                s.endBuildUp(slot, stepID: st.id, today: today)
+            case (nil, false):
+                if scheduleChanged {
+                    let wait = s.waitFor(slot, stepID: st.id, every: goal, today: today)
+                    failed = !s.lineUp(slot, stepID: st.id, every: goal, wait: wait, today: today)
+                }
+            }
+        }
+        if failed {
+            cantFit = true
+            return
+        }
+        dismiss()
+    }
+}
+
+/// "Start slowly": stages before the goal, each a frequency and a few weeks.
+/// Menus, not steppers, so each stage reads as one clean line.
+struct BuildUpSection: View {
+    var slot: Slot
+    @Binding var on: Bool
+    @Binding var stages: [BuildStage]
+    var existing: BuildUp?
+    var goal: Int
+    var moveUpNow: () -> Void
+
+    var body: some View {
+        let word = slot.word
+        let passed = existing?.moves.count ?? 0
+        Section {
+            Toggle(isOn: $on.animation()) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Start slowly")
+                    Text("A few times a week first, then more often.")
+                        .font(.footnote).foregroundStyle(Palette.ink3)
+                }
+            }
+            if on {
+                ForEach(Array(stages.enumerated()), id: \.offset) { i, stage in
+                    if i < passed, let b = existing {
+                        pastRow(i, stage, b)
+                    } else {
+                        stageRow(i, stage, isNow: existing != nil && i == passed)
+                    }
+                }
+                .onDelete { idx in
+                    let removable = idx.filter { $0 >= passed }
+                    stages.remove(atOffsets: IndexSet(removable))
+                }
+                HStack(spacing: 12) {
+                    Image(systemName: "flag.checkered")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Palette.ink2)
+                        .frame(width: 24, height: 24)
+                    Text("Then \(PlanHistory.lowered(Engine.everyPhrase(goal, word: word)))")
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    Text("your goal").font(.footnote).foregroundStyle(Palette.ink3)
+                }
+                if stages.count < 4 {
+                    Button {
+                        let slowest = stages.first?.every ?? 3
+                        stages.insert(BuildStage(every: min(4, slowest + 1), days: 14), at: passed)
+                    } label: {
+                        Label("Add a slower stage", systemImage: "plus.circle.fill")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Palette.accent)
+                    }
+                    .disabled((stages.first?.every ?? 3) >= 4 || passed > 0)
+                }
+                if let b = existing, !b.done {
+                    Button(action: moveUpNow) {
+                        Label(b.stage + 1 < b.stages.count
+                              ? "Move up to \(PlanHistory.lowered(Engine.everyPhrase(b.stages[b.stage + 1].every, word: word))) now"
+                              : "Move up to \(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: word))) now",
+                              systemImage: "arrow.up.circle.fill")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Palette.accent)
+                    }
+                }
+            }
+        } header: {
+            Text("Starting it")
+        } footer: {
+            if on {
+                Text("Tendwell asks how your skin is before each move up. Every move is dated in your history and report.")
+            } else {
+                Text("Dermatologists often start retinoids and acids 2–3 times a week, then build up if your skin is OK.")
+            }
+        }
+    }
+
+    private func pastRow(_ i: Int, _ stage: BuildStage, _ b: BuildUp) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Palette.ink3)
+                .frame(width: 24, height: 24)
+                .background(Palette.fill, in: Circle())
+            Text(Engine.everyPhrase(stage.every, word: slot.word)).foregroundStyle(Palette.ink3)
+            Spacer()
+            Text("\(b.stageStart(i).short) – \(b.stageStart(i + 1).short)")
+                .font(.footnote.monospacedDigit()).foregroundStyle(Palette.ink3)
+        }
+        .deleteDisabled(true)
+    }
+
+    private func stageRow(_ i: Int, _ stage: BuildStage, isNow: Bool) -> some View {
+        HStack(spacing: 12) {
+            Text("\(i + 1)")
+                .font(.footnote.weight(.bold).monospacedDigit())
+                .foregroundStyle(isNow ? Color(hex: 0xFFFDF9) : Palette.ink)
+                .frame(width: 24, height: 24)
+                .background(isNow ? Palette.ink : Palette.fill, in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Picker("How often", selection: Binding(
+                    get: { stage.every },
+                    set: { v in if i < stages.count { stages[i].every = v } }
+                )) {
+                    ForEach([4, 3, 2].filter { $0 > goal }, id: \.self) { n in
+                        Text(Engine.everyPhrase(n, word: slot.word)).tag(n)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .tint(Palette.ink)
+                .fixedSize()
+                .padding(.leading, -12)
+                Text(isNow ? "Now · \(Engine.perWeek(stage.every))" : Engine.perWeek(stage.every))
+                    .font(.caption).foregroundStyle(Palette.ink3)
+            }
+            Spacer(minLength: 8)
+            Picker("For", selection: Binding(
+                get: { max(1, stage.days / 7) },
+                set: { v in if i < stages.count { stages[i].days = v * 7 } }
+            )) {
+                ForEach(1...8, id: \.self) { w in Text("\(w) week\(w == 1 ? "" : "s")").tag(w) }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .tint(Palette.ink2)
+            .fixedSize()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
@@ -216,56 +453,97 @@ struct AddProductSheet: View {
     var slot: Slot
     @State private var name = ""
     @State private var kind: ProductKind = .treatment
+    @State private var editing: StepTarget?
+    /// The step just added, briefly highlighted so you see where it landed.
+    @State private var justAdded: String?
 
     var body: some View {
-        let inSlot = Set(model.state.plan[slot].steps.map(\.productId))
+        let sp = model.state.plan[slot]
+        let products = model.products
+        let inSlot = Set(sp.steps.compactMap { products[$0.productId]?.name.lowercased() })
         // Morning and evening can share products; the body routine keeps its own.
         let otherFace: Slot? = slot == .am ? .pm : (slot == .pm ? .am : nil)
         let otherIDs = Set(otherFace.map { model.state.plan[$0].steps.map(\.productId) } ?? [])
-        let fromOther = model.state.products.filter { otherIDs.contains($0.id) && !inSlot.contains($0.id) }
-        let suggestions = Presets.suggestions(for: slot, existing: model.state.products)
+        let fromOther = model.state.products.filter { otherIDs.contains($0.id) && !inSlot.contains($0.name.lowercased()) }
+        let pool = Presets.pool(for: slot).filter { q in !fromOther.contains { $0.name.lowercased() == q.name.lowercased() } }
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 Group {
-                if !fromOther.isEmpty {
-                    Section("Already in your \(slot == .pm ? "morning" : "evening")") {
-                        ForEach(fromOther) { p in
+                Section {
+                    if sp.steps.isEmpty {
+                        Text("Nothing yet. Tap what you use below.")
+                            .foregroundStyle(Palette.ink3)
+                    }
+                    ForEach(sp.steps) { step in
+                        if let p = products[step.productId] {
                             Button {
-                                add(existing: p)
+                                editing = StepTarget(slot: slot, stepID: step.id)
                             } label: {
-                                HStack {
-                                    if let h = p.kind.hue { HueDot(hue: h, size: 9) }
-                                    Text(p.name).foregroundStyle(Palette.ink)
-                                    Spacer()
-                                    Image(systemName: "plus").foregroundStyle(Palette.ink2)
-                                }
+                                StepRow(step: step, product: p, sp: sp, slot: slot)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(justAdded == step.id ? Palette.selected : Palette.surface)
+                            .id(step.id)
+                        }
+                    }
+                    .onMove { from, to in
+                        model.update { $0.plan[slot].steps.move(fromOffsets: from, toOffset: to) }
+                        Haptics.tap(model.state.settings.haptics)
+                    }
+                    .onDelete { idx in
+                        model.editPlan(slot) { s in
+                            s.plan[slot].steps.remove(atOffsets: idx)
+                            s.pruneOrphanProducts()
+                        }
+                    }
+                } header: {
+                    Text("Your \(slot.name(model.state.plan).lowercased()), in order")
+                } footer: {
+                    if sp.steps.count > 1 {
+                        Text("Drag the handles to reorder. Tap a step to set how often, the amount, or to start it slowly.")
+                    }
+                }
+                if !fromOther.isEmpty {
+                    Section("Also in your \(slot == .pm ? "morning" : "evening")") {
+                        FlowLayout(spacing: 8) {
+                            ForEach(fromOther) { p in
+                                Chip(title: p.name, selected: false, hue: p.kind.hue, symbol: "plus") { add(existing: p, proxy: proxy) }
                             }
                         }
+                        .padding(.vertical, 6)
                     }
                 }
                 Section {
                     FlowLayout(spacing: 8) {
-                        ForEach(suggestions) { q in
-                            Chip(title: q.name, selected: false, hue: q.kind.hue) { add(quick: q) }
+                        ForEach(pool) { q in
+                            let on = inSlot.contains(q.name.lowercased())
+                            Chip(title: q.name, selected: on, hue: q.kind.hue, symbol: on ? "checkmark" : "plus") {
+                                if on { remove(named: q.name) } else { add(quick: q, proxy: proxy) }
+                            }
                         }
                     }
                     .padding(.vertical, 6)
                 } header: {
                     Text("Common ones")
                 } footer: {
-                    Text("Tap to add. You can rename it to the exact product and strength afterwards.")
+                    Text("Tap to add, tap again to remove. Rename it to your exact product and strength from its step.")
                 }
                 Section("Something else") {
                     TextField("Name, e.g. Epiduo gel", text: $name)
                         .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                        .onSubmit { add(custom: name, kind: kind, proxy: proxy) }
                     Picker("Type", selection: $kind) {
                         ForEach(ProductKind.allCases) { Text($0.label).tag($0) }
                     }
                     // The add row appears once there's a name to add.
                     let typed = name.trimmingCharacters(in: .whitespaces)
                     if !typed.isEmpty {
-                        Button { add(custom: name, kind: kind) } label: {
-                            Label("Add \(typed)", systemImage: "plus")
+                        Button { add(custom: name, kind: kind, proxy: proxy) } label: {
+                            Label("Add \(typed)", systemImage: "plus.circle.fill")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Palette.accent)
                         }
                     }
                 }
@@ -273,33 +551,49 @@ struct AddProductSheet: View {
                 .rows()
             }
             .barrierList()
+            // Reorder handles always showing: drag straight away, no hold needed.
+            .environment(\.editMode, .constant(.active))
+            }
             .navigationTitle("Add to \(slot.name(model.state.plan).lowercased())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.fontWeight(.semibold) }
             }
+            .sheet(item: $editing) { t in StepEditorSheet(target: t).barrier(model) }
         }
     }
 
-    private func add(existing p: Product) {
-        insert(product: p, quick: Presets.quickProducts.first { $0.name == p.name }, isNew: false)
+    private func remove(named n: String) {
+        let products = model.products
+        guard let step = model.state.plan[slot].steps.first(where: { products[$0.productId]?.name.lowercased() == n.lowercased() }) else { return }
+        model.editPlan(slot) { s in
+            s.plan[slot].steps.removeAll { $0.id == step.id }
+            s.pruneOrphanProducts()
+        }
+        Haptics.tap(model.state.settings.haptics)
     }
 
-    private func add(quick q: QuickProduct) {
+    private func add(existing p: Product, proxy: ScrollViewProxy) {
+        insert(product: p, quick: Presets.quickProducts.first { $0.name == p.name }, isNew: false, proxy: proxy)
+    }
+
+    private func add(quick q: QuickProduct, proxy: ScrollViewProxy) {
         let p = Presets.makeProduct(name: q.name, kind: q.kind, today: model.today)
-        insert(product: p, quick: q, isNew: true)
+        insert(product: p, quick: q, isNew: true, proxy: proxy)
     }
 
-    private func add(custom: String, kind: ProductKind) {
+    private func add(custom: String, kind: ProductKind, proxy: ScrollViewProxy) {
         let n = custom.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return }
         let p = Presets.makeProduct(name: n, kind: kind, today: model.today)
-        insert(product: p, quick: nil, isNew: true)
+        insert(product: p, quick: nil, isNew: true, proxy: proxy)
         name = ""
     }
 
-    private func insert(product p: Product, quick q: QuickProduct?, isNew: Bool) {
+    private func insert(product p: Product, quick q: QuickProduct?, isNew: Bool, proxy: ScrollViewProxy) {
         var unscheduled = false
+        var slow = false
+        var newID: String?
         model.editPlan(slot) { s in
             if isNew { s.upsertProduct(p) }
             var step = Presets.makeStep(productId: p.id, from: q)
@@ -321,8 +615,24 @@ struct AddProductSheet: View {
                 }
             }
             if !s.plan[slot].enabled { s.plan[slot].enabled = true }
+            newID = step.id
+            // A new retinoid starts slowly, the way dermatologists start them. One tap to change.
+            if isNew, p.kind == .retinoid, slot != .body, !unscheduled {
+                slow = s.startBuildUp(slot, stepID: step.id, stages: Presets.buildUpStages, start: p.from.map { max($0, model.today) } ?? model.today, today: model.today)
+            }
         }
         Haptics.tap(model.state.settings.haptics)
-        model.show(unscheduled ? "Added \(p.name). Tap it to choose its nights." : "Added \(p.name).")
+        withAnimation(Motion.ui) { justAdded = newID }
+        if let id = newID {
+            withAnimation { proxy.scrollTo(id, anchor: .center) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                if justAdded == id { withAnimation(.easeOut(duration: 0.6)) { justAdded = nil } }
+            }
+        }
+        if unscheduled {
+            model.show("Added \(p.name). Tap it to choose its nights.")
+        } else if slow {
+            model.show("Added \(p.shortName), starting slowly: every 3rd night. Tap it to change.")
+        }
     }
 }

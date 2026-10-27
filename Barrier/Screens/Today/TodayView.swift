@@ -25,6 +25,9 @@ struct TodayView: View {
                 if !others.isEmpty {
                     AlsoTodayCard(slots: others, notTonight: $notTonight)
                 }
+                ForEach(BuildUps.asks(model.state, today: today).prefix(1)) { ask in
+                    MoveUpCard(ask: ask)
+                }
                 if let m = Procedures.moments(model.state, today: today).first {
                     ProcedureCard(moment: m, camera: $cameraArea)
                         .id("procedure")
@@ -154,7 +157,9 @@ struct SlotHero: View {
         } else if inst.cycleLen > 1 {
             parts.append("\(slot.word.capitalized) \(inst.pos + 1) of \(inst.cycleLen)")
         }
-        if inst.easing, let ease = model.state.plan[slot].easeIn {
+        if let b = BuildUps.running(model.state.plan[slot]).first?.buildUp {
+            parts.append("building up, week \(max(0, b.start.days(to: inst.day)) / 7 + 1)")
+        } else if inst.easing, let ease = model.state.plan[slot].easeIn {
             let week = ease.start.days(to: inst.day) / 7 + 1
             parts.append("easing in, week \(week)")
         }

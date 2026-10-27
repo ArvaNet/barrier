@@ -30,6 +30,66 @@ struct ReconcileCard: View {
     }
 }
 
+/// "Two weeks of adapalene every 3rd night. How's your skin?" Moving up is the
+/// user's call, the way a dermatologist says it: "if your skin is OK".
+struct MoveUpCard: View {
+    @Environment(AppModel.self) private var model
+    var ask: MoveUpAsk
+
+    var body: some View {
+        let word = ask.slot.word
+        let now = PlanHistory.lowered(Engine.everyPhrase(ask.from, word: word))
+        let next = PlanHistory.lowered(Engine.everyPhrase(ask.to, word: word))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                if let h = ask.product.kind.hue { HueDot(hue: h, size: 10) }
+                Kicker("Building up")
+            }
+            Text("\(ask.weeks) week\(ask.weeks == 1 ? "" : "s") of \(ask.product.shortName) \(now). How’s your skin?")
+                .font(.barrierH2)
+                .foregroundStyle(Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Handling it well? Move up to \(next) (\(Engine.perWeek(ask.to))). Still red, stinging or peeling? Stay another week.")
+                .font(.subheadline)
+                .foregroundStyle(Palette.ink2)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Button("Move up") { moveUp() }
+                    .buttonStyle(PrimaryButtonStyle())
+                Button("Another week") {
+                    model.update { $0.notYet(ask.slot, stepID: ask.stepID, today: model.today) }
+                    model.show("\(ask.product.shortName) stays \(now). Tendwell asks again in a week.")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+        }
+        .card()
+    }
+
+    private func moveUp() {
+        let word = ask.slot.word
+        var ok = true
+        model.update { ok = $0.moveUp(ask.slot, stepID: ask.stepID, today: model.today) }
+        guard ok else {
+            model.show("That doesn’t fit your rotation. Change it in Routine.")
+            return
+        }
+        Haptics.success(model.state.settings.haptics)
+        let next = PlanHistory.lowered(Engine.everyPhrase(ask.to, word: word))
+        let id = ask.stepID
+        let tonight = model.instance(ask.slot)
+        let first: String
+        if tonight.steps.contains(where: { $0.step.id == id }) && !tonight.isResolved {
+            first = ask.slot == .pm ? "from tonight" : "from today"
+        } else if let d = Engine.next(model.state, slot: ask.slot, today: model.today, horizon: 10, where: { $0.step.id == id })?.day {
+            first = "next one \(d.relative(to: model.today))"
+        } else {
+            first = "from now"
+        }
+        model.show("\(ask.product.shortName): \(next), \(first).")
+    }
+}
+
 struct PauseBanner: View {
     @Environment(AppModel.self) private var model
     var pause: Pause
