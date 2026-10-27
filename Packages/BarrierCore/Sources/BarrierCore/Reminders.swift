@@ -78,7 +78,7 @@ public enum Reminders {
     }
 
     public static func nudgeCopy(_ inst: Instance, sp: SlotPlan? = nil) -> (title: String, body: String) {
-        if inst.slot == .body {
+        if inst.slot.isBody {
             let name = (sp?.displayName ?? "Body").lowercased()
             return ("Still to do: \(name)", "One minute and it’s logged. Long-press for Done or Skip today.")
         }
@@ -98,7 +98,7 @@ public enum Reminders {
         switch slot {
         case .pm: return ("Evening routine", "Open Tendwell to see tonight’s steps.")
         case .am: return ("Morning routine", "Open Tendwell to see this morning’s steps.")
-        case .body: return (sp.map(bodyTitle) ?? "Body routine", "Open Tendwell to see today’s steps.")
+        case .body, .body2: return (sp.map(bodyTitle) ?? "Body routine", "Open Tendwell to see today’s steps.")
         }
     }
 
@@ -134,7 +134,7 @@ public enum Reminders {
                 if fireDate > now {
                     let specific = ahead < specificDays && !uncertain
                     let brk = inst.rest == .pause ? Procedures.breakFor(state, slot: slot, on: inst.day) : nil
-                    let c = slot == .body
+                    let c = slot.isBody
                         ? (specific ? bodyCopy(inst, sp: sp, breakFor: brk) : generic(slot, sp: sp))
                         : (specific ? mainCopy(inst, photoNight: photoNight, breakFor: brk) : generic(slot))
                     out.append(PlannedReminder(

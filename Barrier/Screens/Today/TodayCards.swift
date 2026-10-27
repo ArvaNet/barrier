@@ -114,7 +114,7 @@ struct PauseBanner: View {
 
     private func detail(_ p: Procedure?) -> String {
         guard let p else { return "Basics only. Your rotation waits right where it was." }
-        let scope = pause.area == .body ? "\(model.state.plan.body.displayName) routine: basics only" : "Basics only"
+        let scope = pause.area == .body ? "\(model.bodyAreaName) routine: basics only" : "Basics only"
         return "For \(p.name), as your clinic asked. \(scope)."
     }
 }
@@ -228,6 +228,108 @@ struct AlsoTodayCard: View {
 
 // MARK: - Check in: skin today, and the weekly overall rating
 
+/// "How's your skin?": one big "All calm" for the usual answer, then a tile for each
+/// thing that can be going on. Big targets, an icon and one word each, a check when picked.
+struct SkinPicker: View {
+    @Environment(AppModel.self) private var model
+    var area: Area
+    var selected: Set<Feeling>
+    var onChange: (Set<Feeling>) -> Void
+
+    private let cols = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
+
+    var body: some View {
+        let calm = selected.contains(.calm)
+        VStack(alignment: .leading, spacing: 10) {
+            Button { pick(.calm) } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: calm ? "checkmark.seal.fill" : "checkmark.seal")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(calm ? Palette.hueInk(.sage) : Palette.ink2)
+                        .symbolEffect(.bounce, value: calm)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("All calm").font(.headline).foregroundStyle(Palette.ink)
+                        Text("Nothing bothering it today").font(.footnote).foregroundStyle(Palette.ink3)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, minHeight: 60)
+                .background(calm ? Palette.hue(.sage).opacity(0.35) : Palette.fill, in: RoundedRectangle(cornerRadius: Metrics.compactRadius + 2, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Metrics.compactRadius + 2, style: .continuous).strokeBorder(calm ? Palette.hueInk(.sage).opacity(0.6) : .clear, lineWidth: 1.5))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(calm ? .isSelected : [])
+            Text("Or what’s going on? Pick any.")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Palette.ink3)
+                .padding(.top, 2)
+            LazyVGrid(columns: cols, spacing: 8) {
+                ForEach(Feeling.symptoms(for: area)) { f in tile(f) }
+            }
+        }
+        .animation(Motion.ui, value: selected)
+    }
+
+    private func tile(_ f: Feeling) -> some View {
+        let on = selected.contains(f)
+        let hue: Hue = f.isIrritation ? .rose : .gold
+        let shape = RoundedRectangle(cornerRadius: Metrics.compactRadius + 2, style: .continuous)
+        return Button { pick(f) } label: {
+            VStack(spacing: 6) {
+                Image(systemName: f.symbol)
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(on ? Palette.hueInk(hue) : Palette.ink2)
+                    .frame(height: 22)
+                Text(f.label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+            }
+            .frame(maxWidth: .infinity, minHeight: 68)
+            .background(on ? Palette.hue(hue).opacity(0.3) : Palette.fill, in: shape)
+            .overlay(shape.strokeBorder(on ? Palette.hueInk(hue).opacity(0.55) : .clear, lineWidth: 1.5))
+            .overlay(alignment: .topTrailing) {
+                if on {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Palette.hueInk(hue))
+                        .padding(6)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(f.label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func pick(_ f: Feeling) {
+        var set = selected
+        if set.contains(f) { set.remove(f) } else { set.insert(f) }
+        // Calm and a symptom don't go together.
+        if f == .calm && set.contains(.calm) { set = [.calm] } else if f != .calm { set.remove(.calm) }
+        Haptics.tap(model.state.settings.haptics)
+        onChange(set)
+    }
+}
+
+extension Feeling {
+    var symbol: String {
+        switch self {
+        case .calm: return "checkmark.seal"
+        case .dry: return "drop"
+        case .tight: return "arrow.down.right.and.arrow.up.left"
+        case .flaky: return "snowflake"
+        case .red: return "flame"
+        case .stinging: return "bolt"
+        case .breakout: return "circle.hexagongrid"
+        case .itchy: return "allergens"
+        }
+    }
+}
+
 struct CheckInCard: View {
     @Environment(AppModel.self) private var model
     @State private var editing = false
@@ -255,20 +357,13 @@ struct CheckInCard: View {
                 .padding(.top, 2)
             }
             if existing == nil || editing {
-                FlowLayout(spacing: 8) {
-                    ForEach(Feeling.allCases) { f in
-                        Chip(title: f.label, selected: selected.contains(f), hue: nil) {
-                            var set = selected
-                            if set.contains(f) { set.remove(f) } else { set.insert(f) }
-                            if f == .calm && set.contains(.calm) { set = [.calm] } else if f != .calm { set.remove(.calm) }
-                            let ordered = Feeling.allCases.filter { set.contains($0) }
-                            if existing == nil { editing = true }
-                            model.update { $0.checkIn(today, feel: ordered, note: existing?.note, area: place) }
-                            Haptics.tap(model.state.settings.haptics)
-                        }
-                    }
+                SkinPicker(area: place, selected: selected) { set in
+                    let ordered = Feeling.allCases.filter { set.contains($0) }
+                    // "All calm" is a whole answer: it closes. A symptom stays open for another.
+                    editing = !(set == [.calm])
+                    model.update { $0.checkIn(today, feel: ordered, note: existing?.note, area: place) }
                 }
-                .padding(.top, 2)
+                .padding(.top, 4)
                 if existing != nil {
                     Button("Done") { editing = false }
                         .buttonStyle(SecondaryButtonStyle(compact: true))
@@ -353,7 +448,7 @@ struct IrritationHelp: View {
 
     var body: some View {
         let inst = model.instance(slot)
-        let isBody = slot == .body
+        let isBody = slot.isBody
         VStack(alignment: .leading, spacing: 10) {
             if !isBody, let derm = model.state.plan.ifIrritated, !derm.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -574,15 +669,15 @@ struct TipCard: View {
     var body: some View {
         let used = model.state.faceProductIDs
         let kinds = Set(model.state.products.filter { used.contains($0.id) }.map(\.kind))
-        let bp = model.state.plan.body
-        let bodyOn = bp.enabled && !bp.steps.isEmpty
+        let bodySteps = model.state.plan.activeSlots.filter(\.isBody).flatMap { model.state.plan[$0].steps }
+        let bodyOn = !bodySteps.isEmpty
         // With a body routine, every other day's tip is about it.
         let useBody = bodyOn && model.today.ordinal % 2 == 1
-        let hasBpo = bp.steps.contains { model.product($0.productId)?.name.lowercased().contains("benzoyl") == true }
+        let hasBpo = bodySteps.contains { model.product($0.productId)?.name.lowercased().contains("benzoyl") == true }
         let tip = useBody
             ? Guidance.bodyTip(hasBpo: hasBpo, dayNumber: model.today.ordinal / 2)
             : Guidance.tip(for: kinds, dayNumber: model.today.ordinal)
-        TodayCard(kicker: useBody ? "Good to know · \(bp.displayName)" : "Good to know", tint: true) {
+        TodayCard(kicker: useBody ? "Good to know · \(model.bodyAreaName)" : "Good to know", tint: true) {
             Text(tip.text).font(.subheadline).foregroundStyle(Palette.ink2).fixedSize(horizontal: false, vertical: true)
             if let s = tip.source { SourcesView(sources: [s]) }
         }

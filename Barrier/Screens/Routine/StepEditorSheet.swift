@@ -476,9 +476,9 @@ struct AddProductSheet: View {
         let sp = model.state.plan[slot]
         let products = model.products
         let inSlot = Set(sp.steps.compactMap { products[$0.productId]?.name.lowercased() })
-        // Morning and evening can share products; the body routine keeps its own.
-        let otherFace: Slot? = slot == .am ? .pm : (slot == .pm ? .am : nil)
-        let otherIDs = Set(otherFace.map { model.state.plan[$0].steps.map(\.productId) } ?? [])
+        // Morning and evening share products; so do the two body routines.
+        let sibling: Slot = slot == .am ? .pm : (slot == .pm ? .am : (slot == .body ? .body2 : .body))
+        let otherIDs = model.state.plan[sibling].enabled || !sibling.isBody ? Set(model.state.plan[sibling].steps.map(\.productId)) : []
         let fromOther = model.state.products.filter { otherIDs.contains($0.id) && !inSlot.contains($0.name.lowercased()) }
         let pool = Presets.pool(for: slot).filter { q in !fromOther.contains { $0.name.lowercased() == q.name.lowercased() } }
         NavigationStack {
@@ -520,7 +520,7 @@ struct AddProductSheet: View {
                     }
                 }
                 if !fromOther.isEmpty {
-                    Section("Also in your \(slot == .pm ? "morning" : "evening")") {
+                    Section("Also in your \(sibling.isBody ? model.state.plan.shortName(sibling).lowercased() : (slot == .pm ? "morning" : "evening"))") {
                         FlowLayout(spacing: 8) {
                             ForEach(fromOther) { p in
                                 Chip(title: p.name, selected: false, hue: p.kind.hue, symbol: "plus") { add(existing: p, proxy: proxy) }
@@ -632,7 +632,7 @@ struct AddProductSheet: View {
             if !s.plan[slot].enabled { s.plan[slot].enabled = true }
             newID = step.id
             // A new retinoid starts slowly, the way dermatologists start them. One tap to change.
-            if isNew, p.kind == .retinoid, slot != .body, !unscheduled {
+            if isNew, p.kind == .retinoid, !slot.isBody, !unscheduled {
                 slow = s.startBuildUp(slot, stepID: step.id, stages: Presets.buildUpStages, start: p.from.map { max($0, model.today) } ?? model.today, today: model.today)
             }
         }

@@ -3,18 +3,24 @@ import Foundation
 // The whole app state is plain Codable data saved as one JSON file. Every
 // decoder tolerates missing fields so older saves keep loading after updates.
 
-/// A routine: the face routines morning and evening, plus one body routine
-/// (back, chest, body) with its own time.
+/// A routine: the face routines morning and evening, plus up to two body routines
+/// (back, chest, body), each with its own time ("After shower", "Before bed").
 public enum Slot: String, Codable, CaseIterable, Sendable, Identifiable {
-    case am, pm, body
+    case am, pm, body, body2
     public var id: String { rawValue }
+
+    /// One of the body routines.
+    public var isBody: Bool { self == .body || self == .body2 }
+    public static let bodies: [Slot] = [.body, .body2]
+    /// Evening first, as everywhere in the app.
+    public static let ordered: [Slot] = [.pm, .am, .body, .body2]
 
     /// The unit a rotation counts in: "every other night / morning / day".
     public var word: String {
         switch self {
         case .am: return "morning"
         case .pm: return "night"
-        case .body: return "day"
+        case .body, .body2: return "day"
         }
     }
 
@@ -22,12 +28,12 @@ public enum Slot: String, Codable, CaseIterable, Sendable, Identifiable {
         switch self {
         case .am: return "Morning"
         case .pm: return "Evening"
-        case .body: return "Body"
+        case .body, .body2: return "Body"
         }
     }
 
     /// Where on the body this routine is applied.
-    public var area: Area { self == .body ? .body : .face }
+    public var area: Area { isBody ? .body : .face }
 }
 
 /// Face or body, for photos and skin check-ins.
@@ -246,16 +252,19 @@ public struct Plan: Codable, Hashable, Sendable {
     public var pm: SlotPlan
     /// Back, chest or body treatment. Off until set up.
     public var body: SlotPlan
+    /// A second body routine at another moment (body wash after the shower, a back cream before bed).
+    public var body2: SlotPlan
     public var followUp: FollowUp?
     /// What the dermatologist said to do if skin gets irritated.
     public var ifIrritated: String?
     public var dermNotes: String?
     public var createdAt: Day
 
-    public init(am: SlotPlan, pm: SlotPlan, body: SlotPlan? = nil, followUp: FollowUp? = nil, ifIrritated: String? = nil, dermNotes: String? = nil, createdAt: Day) {
+    public init(am: SlotPlan, pm: SlotPlan, body: SlotPlan? = nil, body2: SlotPlan? = nil, followUp: FollowUp? = nil, ifIrritated: String? = nil, dermNotes: String? = nil, createdAt: Day) {
         self.am = am
         self.pm = pm
         self.body = body ?? Plan.defaultBody(createdAt)
+        self.body2 = body2 ?? Plan.defaultBody2(createdAt)
         self.followUp = followUp
         self.ifIrritated = ifIrritated
         self.dermNotes = dermNotes
@@ -266,8 +275,12 @@ public struct Plan: Codable, Hashable, Sendable {
         SlotPlan(enabled: false, time: ClockTime(20, 30), length: 1, steps: [], anchor: Anchor(day: day, pos: 0), name: "Back")
     }
 
+    public static func defaultBody2(_ day: Day) -> SlotPlan {
+        SlotPlan(enabled: false, time: ClockTime(22, 30), length: 1, steps: [], anchor: Anchor(day: day, pos: 0), name: "Back", cue: "Before bed")
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case am, pm, body, followUp, ifIrritated, dermNotes, createdAt
+        case am, pm, body, body2, followUp, ifIrritated, dermNotes, createdAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -277,6 +290,7 @@ public struct Plan: Codable, Hashable, Sendable {
         createdAt = try c.decode(Day.self, forKey: .createdAt)
         // Saves from before the body routine existed have no "body" key.
         body = (try? c.decodeIfPresent(SlotPlan.self, forKey: .body)) ?? Plan.defaultBody(createdAt)
+        body2 = (try? c.decodeIfPresent(SlotPlan.self, forKey: .body2)) ?? Plan.defaultBody2(createdAt)
         followUp = try? c.decodeIfPresent(FollowUp.self, forKey: .followUp)
         ifIrritated = try? c.decodeIfPresent(String.self, forKey: .ifIrritated)
         dermNotes = try? c.decodeIfPresent(String.self, forKey: .dermNotes)
@@ -288,6 +302,7 @@ public struct Plan: Codable, Hashable, Sendable {
             case .am: return am
             case .pm: return pm
             case .body: return body
+            case .body2: return body2
             }
         }
         set {
@@ -295,6 +310,7 @@ public struct Plan: Codable, Hashable, Sendable {
             case .am: am = newValue
             case .pm: pm = newValue
             case .body: body = newValue
+            case .body2: body2 = newValue
             }
         }
     }
@@ -302,6 +318,18 @@ public struct Plan: Codable, Hashable, Sendable {
     /// Routines that are on and have at least one step.
     public var activeSlots: [Slot] {
         Slot.allCases.filter { self[$0].enabled && !self[$0].steps.isEmpty }
+    }
+
+    /// The body routines that are on, first one first.
+    public var bodySlots: [Slot] { Slot.bodies.filter { self[$0].enabled } }
+
+    /// What a body routine is called on a tab or a row: its moment ("Before bed") when
+    /// there are two (both are often "Back"), otherwise its name.
+    public func shortName(_ slot: Slot) -> String {
+        let sp = self[slot]
+        guard slot.isBody else { return slot.title }
+        if bodySlots.count > 1, let cue = sp.cue, !cue.isEmpty { return cue }
+        return sp.displayName
     }
 }
 
@@ -340,11 +368,16 @@ public struct Entry: Codable, Hashable, Sendable {
 }
 
 public enum Feeling: String, Codable, CaseIterable, Sendable, Identifiable {
-    case calm, dry, tight, flaky, red, stinging, breakout
+    case calm, dry, tight, flaky, red, stinging, breakout, itchy
     public var id: String { rawValue }
     public var label: String { rawValue.capitalized }
     /// Signs that point toward a recovery night.
     public var isIrritation: Bool { self == .tight || self == .red || self == .stinging }
+
+    /// What to ask about, besides calm: a back itches more than it feels tight.
+    public static func symptoms(for area: Area) -> [Feeling] {
+        area == .face ? [.dry, .tight, .flaky, .red, .stinging, .breakout] : [.dry, .itchy, .flaky, .red, .stinging, .breakout]
+    }
 }
 
 public struct CheckIn: Codable, Hashable, Sendable {
@@ -465,6 +498,13 @@ public struct Procedure: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// Which way the face looks in a photo. Acne along the jaw and cheeks often shows best from the side.
+public enum PhotoSide: String, Codable, CaseIterable, Sendable, Identifiable {
+    case front, left, right
+    public var id: String { rawValue }
+    public var label: String { rawValue.capitalized }
+}
+
 public struct PhotoMeta: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var day: Day
@@ -472,16 +512,23 @@ public struct PhotoMeta: Codable, Identifiable, Hashable, Sendable {
     public var note: String?
     /// nil = face (saves from before body photos).
     public var area: Area?
+    /// Face photos only. nil = front (saves from before side photos).
+    public var side: PhotoSide?
 
-    public init(id: String = makeID(), day: Day, at: Date = Date(), note: String? = nil, area: Area = .face) {
+    public init(id: String = makeID(), day: Day, at: Date = Date(), note: String? = nil, area: Area = .face, side: PhotoSide = .front) {
         self.id = id
         self.day = day
         self.at = at
         self.note = note
         self.area = area == .face ? nil : area
+        self.side = area == .face && side != .front ? side : nil
     }
 
     public var place: Area { area ?? .face }
+    public var angle: PhotoSide { side ?? .front }
+
+    /// Same area and same side: the only photos worth comparing.
+    public func matches(_ other: PhotoMeta) -> Bool { place == other.place && angle == other.angle }
 }
 
 /// One-tap "how's your skin overall" (1 Rough … 5 Great), about once a week.

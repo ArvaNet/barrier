@@ -50,12 +50,12 @@ public enum Presets {
     /// Suggested quick-adds for a routine, minus what's already in it.
     /// Every quick-add that fits a slot, added or not.
     public static func pool(for slot: Slot) -> [QuickProduct] {
-        slot == .body ? bodyProducts : quickProducts.filter { $0.slot == nil || $0.slot == slot }
+        slot.isBody ? bodyProducts : quickProducts.filter { $0.slot == nil || $0.slot == slot }
     }
 
     public static func suggestions(for slot: Slot, existing: [Product]) -> [QuickProduct] {
         let names = Set(existing.map { $0.name.lowercased() })
-        let pool = slot == .body ? bodyProducts : quickProducts.filter { $0.slot == nil || $0.slot == slot }
+        let pool = slot.isBody ? bodyProducts : quickProducts.filter { $0.slot == nil || $0.slot == slot }
         return pool.filter { !names.contains($0.name.lowercased()) }
     }
 
@@ -170,7 +170,7 @@ public enum Presets {
             }
         }
         // Templates are for the face: keep the body routine and its products.
-        let bodyIDs = Set(state.plan.body.steps.map(\.productId))
+        let bodyIDs = Set(Slot.bodies.flatMap { state.plan[$0].steps.map(\.productId) })
         s.products = products + state.products.filter { bodyIDs.contains($0.id) }
         s.plan.am = am
         s.plan.pm = pm

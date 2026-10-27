@@ -98,7 +98,7 @@ struct TimelineStrip: View {
     }
 
     private func bandLabel(_ b: TreatmentTimeline.Band) -> String {
-        guard let area = b.area, data.rows.contains(where: { $0.slot == .body }) else { return b.label }
+        guard let area = b.area, data.rows.contains(where: { $0.slot.isBody }) else { return b.label }
         return "\(b.label) (\(area == .face ? "face" : data.bodyName))"
     }
 

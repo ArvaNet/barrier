@@ -104,3 +104,44 @@ final class FillInTests: XCTestCase {
         XCTAssertEqual(entries(s, .pm).count, 20)
     }
 }
+
+final class FillInSkippedProductTests: XCTestCase {
+    let setup = Day(2026, 10, 21)
+    let paper = Day(2026, 10, 1)
+
+    func nightly() -> AppState {
+        var s = Presets.apply(.retinoid, to: Presets.blankState(today: setup), today: setup)
+        s.nightlyRetinoid()
+        s.onboarded = true
+        s.recordPlan(today: setup)
+        return s
+    }
+
+    func testANightWithoutTheRetinoidIsDoneWithTheRest() {
+        var s = nightly()
+        let tret = s.products.first { $0.kind == .retinoid }!
+        let off = Day(2026, 10, 10)
+        XCTAssertTrue(s.fillInDue(.pm, productID: tret.id, since: paper, missed: [:], today: setup).contains(off))
+        s.fillIn(since: paper, missed: [:], skipped: [.pm: [off: [tret.id]]], today: setup)
+        let e = s.entry(off, .pm)!
+        XCTAssertEqual(e.status, .done)
+        XCTAssertEqual(e.steps?.count, 2)
+        XCTAssertFalse(e.steps!.contains { id in s.plan.pm.steps.first { $0.id == id }?.productId == tret.id })
+        // Every other night is a full night.
+        XCTAssertNil(s.entry(off.adding(1), .pm)?.steps)
+        // The report's timeline draws it as basics, not a treatment night.
+        let tl = TreatmentTimeline.build(s, today: setup)
+        let pm = tl.rows.first { $0.slot == .pm }!
+        XCTAssertEqual(pm.marks[tl.index(off)], .basicsDone)
+        XCTAssertEqual(pm.marks[tl.index(off.adding(1))], .activeDone)
+    }
+
+    func testDueDaysFollowABuildUp() {
+        var s = Presets.apply(.retinoid, to: Presets.blankState(today: setup), today: setup)
+        s.onboarded = true
+        let tret = s.products.first { $0.kind == .retinoid }!
+        let due = s.fillInDue(.pm, productID: tret.id, since: setup.adding(-9), missed: [:], today: setup)
+        // Every 3rd night, not every night.
+        XCTAssertEqual(due.count, 3)
+    }
+}

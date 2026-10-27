@@ -5,13 +5,14 @@ import UserNotifications
 import WidgetKit
 
 enum RoutineChoice: String, AppEnum {
-    case evening, morning, body
+    case evening, morning, body, body2
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Routine"
     static var caseDisplayRepresentations: [RoutineChoice: DisplayRepresentation] = [
         .evening: "Evening routine",
         .morning: "Morning routine",
         .body: "Body routine",
+        .body2: "Second body routine",
     ]
 
     var slot: Slot {
@@ -19,6 +20,7 @@ enum RoutineChoice: String, AppEnum {
         case .evening: return .pm
         case .morning: return .am
         case .body: return .body
+        case .body2: return .body2
         }
     }
 
@@ -33,6 +35,7 @@ enum RoutineChoice: String, AppEnum {
         case .pm: self = .evening
         case .am: self = .morning
         case .body: self = .body
+        case .body2: self = .body2
         }
     }
 
@@ -43,7 +46,7 @@ enum RoutineChoice: String, AppEnum {
         guard let state else { return preferred }
         let active = state.plan.activeSlots
         if active.contains(preferred) { return preferred }
-        if active.contains(.body) && (now == .evening || !active.contains(.am)) { return .body }
+        if let b = active.first(where: \.isBody), now == .evening || !active.contains(.am) { return b }
         return active.first ?? preferred
     }
 }
@@ -75,7 +78,7 @@ struct MarkRoutineDoneIntent: AppIntent {
             switch slot {
             case .pm: return .result(dialog: "Already logged. Sleep well.")
             case .am: return .result(dialog: "Already logged for this morning.")
-            case .body: return .result(dialog: "Already logged for today.")
+            case .body, .body2: return .result(dialog: "Already logged for today.")
             }
         }
         SharedStore.appendInbox(InboxItem(day: today, slot: slot, action: .done))

@@ -191,7 +191,7 @@ struct OnboardingView: View {
         switch slot {
         case .pm: return "Your evening"
         case .am: return "Your morning"
-        case .body: return "Back or body?"
+        case .body, .body2: return "Back or body?"
         }
     }
 
@@ -199,7 +199,7 @@ struct OnboardingView: View {
         switch slot {
         case .pm: return "Add what you use at night, in order. Tap one for how often or to start it slowly."
         case .am: return "Same for the morning. Sunscreen usually goes last."
-        case .body: return "Got something for your back, chest or body too, like a lotion after the shower? Turn this on and it gets its own reminder and log. Otherwise, skip."
+        case .body, .body2: return "Got something for your back, chest or body too, like a lotion after the shower? Turn this on and it gets its own reminder and log. Otherwise, skip."
         }
     }
 
@@ -280,8 +280,8 @@ struct OnboardingView: View {
                 if am.enabled && !am.steps.isEmpty {
                     bullet("sun.max", "Mornings at \(am.time.formatted).")
                 }
-                if s.plan.body.enabled && !s.plan.body.steps.isEmpty {
-                    let b = s.plan.body
+                ForEach(s.plan.activeSlots.filter(\.isBody), id: \.self) { slot in
+                    let b = s.plan[slot]
                     bullet("drop.halffull", "\(b.displayName): \((b.cue ?? "daily").lowercased()), around \(b.time.formatted).")
                 }
                 bullet("hand.tap", "Long-press a reminder: Done, In 30 minutes, or Not tonight.")

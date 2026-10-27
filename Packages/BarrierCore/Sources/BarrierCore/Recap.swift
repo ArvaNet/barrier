@@ -68,13 +68,16 @@ public enum Recaps {
                 if i.rest == .inserted { r.recoveryNights += 1 }
             }
         }
-        if state.plan.body.enabled && start <= to {
-            r.bodyName = state.plan.body.displayName
-            for i in Engine.timeline(state, slot: .body, from: start, to: to, today: today) where counts(i) {
+        var bodyNames: [String] = []
+        for slot in state.plan.bodySlots where start <= to {
+            let name = state.plan[slot].displayName
+            if !bodyNames.contains(name) { bodyNames.append(name) }
+            for i in Engine.timeline(state, slot: slot, from: start, to: to, today: today) where counts(i) {
                 r.bodyDue += 1
                 if i.status == .done { r.bodyDone += 1 }
             }
         }
+        if !bodyNames.isEmpty { r.bodyName = bodyNames.joined(separator: " and ") }
         r.morningsDone = state.log.filter { $0.slot == .am && $0.status == .done && $0.day >= from && $0.day <= to }.count
         for c in state.checkins where c.day >= from && c.day <= to {
             if c.place == .body {

@@ -69,7 +69,7 @@ public extension AppState {
             switch slot {
             case .pm: e.label = "Recovery night"
             case .am: e.label = "Gentle morning"
-            case .body: e.label = "\(plan.body.displayName), gentle"
+            case .body, .body2: e.label = "\(plan[slot].displayName), gentle"
             }
             e.hue = .sage
             upsert(e)

@@ -262,7 +262,7 @@ final class AppModel {
         return state.plan.activeSlots
             .filter { $0 != lead }
             .filter { slot in
-                guard slot == .body else { return true }
+                guard slot.isBody else { return true }
                 let inst = instance(.body)
                 return !inst.steps.isEmpty || inst.entry != nil
             }
@@ -270,10 +270,12 @@ final class AppModel {
     }
 
     /// The body routine is set up with at least one step.
-    var hasBodyRoutine: Bool { state.plan.activeSlots.contains(.body) }
+    var hasBodyRoutine: Bool { state.plan.activeSlots.contains(where: \.isBody) }
 
-    /// What the body area is called: the body routine's name ("Back"), or "Body" without one.
-    var bodyAreaName: String { hasBodyRoutine ? state.plan.body.displayName : "Body" }
+    /// What the body area is called: the first body routine's name ("Back"), or "Body" without one.
+    var bodyAreaName: String {
+        state.plan.activeSlots.first(where: \.isBody).map { state.plan[$0].displayName } ?? "Body"
+    }
 
     // MARK: Actions
 
@@ -331,7 +333,7 @@ final class AppModel {
     func setRecovery(_ day: Day, _ slot: Slot, on: Bool) {
         update { $0.setRecovery(day, slot, on: on) }
         if on {
-            show(slot == .body ? "\(state.plan.body.displayName): gentle day, treatment left out." : "Tonight is a recovery night. Actives are off.")
+            show(slot.isBody ? "\(state.plan.shortName(slot)): gentle day, treatment left out." : "Tonight is a recovery night. Actives are off.")
         }
     }
 

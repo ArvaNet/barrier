@@ -12,9 +12,9 @@ public extension AppState {
     /// (a back routine added later has nothing to fill in before it began).
     func fillInSlots() -> [Slot] {
         // Evening first, as everywhere in the app.
-        [Slot.pm, .am, .body].filter { slot in
+        Slot.ordered.filter { slot in
             let sp = plan[slot]
-            return sp.enabled && !sp.steps.isEmpty && (slot != .body || sp.anchor.day <= plan.createdAt)
+            return sp.enabled && !sp.steps.isEmpty && (!slot.isBody || sp.anchor.day <= plan.createdAt)
         }
     }
 
@@ -38,7 +38,9 @@ public extension AppState {
 
     /// Move the plan's start back to `start` and log every day before the old start:
     /// done, or skipped for the days in `missed`.
-    mutating func fillIn(since start: Day, missed: [Slot: Set<Day>], today: Day, at now: Date = Date()) {
+    /// `skipped`: days a routine was done without some of its products (product ids), like
+    /// a few nights without the retinoid. Those nights log as done with the rest of the steps.
+    mutating func fillIn(since start: Day, missed: [Slot: Set<Day>], skipped: [Slot: [Day: Set<String>]] = [:], today: Day, at now: Date = Date()) {
         let oldStart = plan.createdAt
         let start = max(start, Self.fillInEarliest(today: today))
         guard start < oldStart, oldStart <= today else { return }
@@ -70,7 +72,7 @@ public extension AppState {
 
         for slot in slots {
             let fill = { (s: inout AppState) in
-                s.logFilledIn(slot, from: start, to: oldStart.adding(-1), missed: missed[slot] ?? [], today: today, at: now)
+                s.logFilledIn(slot, from: start, to: oldStart.adding(-1), missed: missed[slot] ?? [], skipped: skipped[slot] ?? [:], today: today, at: now)
             }
             if plan[slot].anchor.day <= oldStart {
                 // The rotation hasn't changed since the start: replay it from the real start
@@ -106,7 +108,7 @@ public extension AppState {
         for slot in Slot.allCases {
             if p[slot].easeIn?.start == old { p[slot].easeIn?.start = new }
             for i in p[slot].steps.indices where p[slot].steps[i].buildUp?.start == old { p[slot].steps[i].buildUp?.start = new }
-            if p[slot].anchor.day == old, slot != .body || p[slot].enabled { p[slot].anchor.day = new }
+            if p[slot].anchor.day == old, !slot.isBody || p[slot].enabled { p[slot].anchor.day = new }
         }
         return p
     }
@@ -129,15 +131,20 @@ public extension AppState {
     }
 
     /// Day by day, since each day's place in the rotation depends on the days before it.
-    private mutating func logFilledIn(_ slot: Slot, from: Day, to: Day, missed: Set<Day>, today: Day, at: Date) {
+    private mutating func logFilledIn(_ slot: Slot, from: Day, to: Day, missed: Set<Day>, skipped: [Day: Set<String>] = [:], today: Day, at: Date) {
         guard from <= to else { return }
         var d = from
         while d <= to {
             if entry(d, slot) == nil {
                 let inst = Engine.instance(self, slot: slot, on: d, today: today)
                 if !inst.steps.isEmpty && inst.status != .off {
-                    var e = Entry(day: d, slot: slot, status: missed.contains(d) ? .skipped : .done,
-                                  pos: inst.pos, label: inst.label, hue: inst.hue, at: at)
+                    // Done, but without the products left out that day: the steps that were put on.
+                    let left = skipped[d] ?? []
+                    let kept = inst.steps.filter { !left.contains($0.product.id) }.map(\.step.id)
+                    let partial = !missed.contains(d) && kept.count < inst.steps.count
+                    let status: EntryStatus = missed.contains(d) || (partial && kept.isEmpty) ? .skipped : .done
+                    var e = Entry(day: d, slot: slot, status: status,
+                                  pos: inst.pos, label: inst.label, hue: inst.hue, steps: partial && !kept.isEmpty ? kept : nil, at: at)
                     e.filledIn = true
                     log.append(e)
                 }
@@ -145,5 +152,25 @@ public extension AppState {
             d = d.adding(1)
         }
         log.sort { a, b in a.day == b.day ? a.slot.rawValue < b.slot.rawValue : a.day < b.day }
+    }
+}
+
+
+public extension AppState {
+    /// For the fill-in calendar: the days a product would have been due, if the weeks
+    /// before were followed as marked so far. Empty when the replay can't tell.
+    func fillInDue(_ slot: Slot, productID: String, since start: Day, missed: [Slot: Set<Day>], today: Day) -> Set<Day> {
+        var trial = self
+        trial.fillIn(since: start, missed: missed, today: today)
+        var out: Set<Day> = []
+        for d in fillInDays(since: start) {
+            let e = trial.entry(d, slot)
+            let inst = Engine.instance(trial, slot: slot, on: d, today: today)
+            if inst.steps.contains(where: { $0.product.id == productID }) { out.insert(d) }
+            // Before the replay starts, the night's colour is all there is: treatments wear one.
+            else if inst.steps.isEmpty, let h = e?.hue, [.clay, .gold, .rose].contains(h),
+                    product(productID)?.kind.isActive == true { out.insert(d) }
+        }
+        return out
     }
 }

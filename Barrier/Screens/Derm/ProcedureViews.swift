@@ -161,7 +161,7 @@ struct ProcedureSheet: View {
     }
 
     private var today: Day { model.today }
-    private var bodyName: String { model.state.plan.body.displayName }
+    private var bodyName: String { model.bodyAreaName }
     private var trimmedName: String { p.name.trimmingCharacters(in: .whitespacesAndNewlines) }
     /// The saved version, for photos (the sheet's edits aren't saved yet).
     private var saved: Procedure? { model.state.procedures.first { $0.id == p.id } }

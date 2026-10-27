@@ -82,7 +82,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @un
         content.threadIdentifier = r.slot?.rawValue ?? r.kind.rawValue
         content.interruptionLevel = r.kind == .keepAlive ? .passive : .active
         content.relevanceScore = r.kind == .main ? 1 : 0.5
-        if r.actionable { content.categoryIdentifier = r.slot == .body ? Self.dayCategory : Self.routineCategory }
+        if r.actionable { content.categoryIdentifier = r.slot?.isBody == true ? Self.dayCategory : Self.routineCategory }
         var info: [String: Any] = ["link": r.link, "kind": r.kind.rawValue]
         if let s = r.slot { info["slot"] = s.rawValue }
         if let d = r.day { info["day"] = d.iso }

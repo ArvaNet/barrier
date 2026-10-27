@@ -412,7 +412,7 @@ extension Slot {
         switch self {
         case .am: return "sun.max"
         case .pm: return "moon"
-        case .body: return "drop.halffull"
+        case .body, .body2: return "drop.halffull"
         }
     }
 
@@ -421,7 +421,7 @@ extension Slot {
         switch self {
         case .am: return "sun.max.fill"
         case .pm: return "moon.fill"
-        case .body: return "drop.halffull"
+        case .body, .body2: return "drop.halffull"
         }
     }
 
@@ -430,7 +430,7 @@ extension Slot {
         switch self {
         case .am: return "This morning"
         case .pm: return "Tonight"
-        case .body: return (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
+        case .body, .body2: return (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
         }
     }
 
@@ -439,13 +439,13 @@ extension Slot {
         switch self {
         case .am: return "Not this morning"
         case .pm: return "Not tonight"
-        case .body: return "Not today"
+        case .body, .body2: return "Not today"
         }
     }
 
     /// The routine's name in the app ("Evening", "Morning", "Back").
     func name(_ plan: Plan) -> String {
-        self == .body ? plan.body.displayName : title
+        self.isBody ? plan.shortName(self) : title
     }
 
     /// Whether this routine's screens wear the dusk look.
@@ -453,7 +453,7 @@ extension Slot {
         switch self {
         case .pm: return true
         case .am: return false
-        case .body: return sp.time.hour >= 17 || sp.time.hour < dayRolloverHour
+        case .body, .body2: return sp.time.hour >= 17 || sp.time.hour < dayRolloverHour
         }
     }
 }

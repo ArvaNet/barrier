@@ -392,7 +392,7 @@ struct SlotHero: View {
         switch slot {
         case .pm: return "Tonight · \(inst.label)"
         case .am: return inst.label == "Morning routine" ? "This morning" : "This morning · \(inst.label)"
-        case .body: return inst.label
+        case .body, .body2: return inst.label
         }
     }
 
@@ -403,7 +403,7 @@ struct SlotHero: View {
         default:
             if inst.steps.isEmpty { return "Nothing today" }
             let steps = "\(inst.steps.count) step\(inst.steps.count == 1 ? "" : "s")"
-            if slot == .body, let cue = model.state.plan.body.cue, !cue.isEmpty {
+            if slot.isBody, let cue = model.state.plan[slot].cue, !cue.isEmpty {
                 // Kept to one line: the cue says more than a step count.
                 return "\(cue) · \(time.formatted)"
             }

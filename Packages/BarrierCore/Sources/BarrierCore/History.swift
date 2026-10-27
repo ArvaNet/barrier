@@ -24,7 +24,7 @@ public extension PlanSnapshot {
         for slot in Slot.allCases {
             let sp = s.plan[slot]
             guard sp.enabled, !sp.steps.isEmpty else { continue }
-            names[slot.rawValue] = slot == .body ? sp.displayName : slot.title
+            names[slot.rawValue] = slot.isBody ? s.plan.shortName(slot) : slot.title
             if let e = sp.easeIn, !e.phases.isEmpty { easing[slot.rawValue] = e.start.adding(e.totalDays).iso }
             for step in sp.steps {
                 guard let p = products[step.productId], !items.contains(where: { $0.slot == slot && $0.productID == p.id }) else { continue }
@@ -108,7 +108,7 @@ public enum PlanHistory {
         switch slot {
         case .am: return "morning"
         case .pm: return "evening"
-        case .body: return snap.names[slot.rawValue] ?? "Body"
+        case .body, .body2: return snap.names[slot.rawValue] ?? "Body"
         }
     }
 
@@ -149,12 +149,12 @@ public enum PlanHistory {
             }
 
             // A body routine starting or stopping reads as one line.
-            if slot == .body && old.isEmpty && !new.isEmpty {
+            if slot.isBody && old.isEmpty && !new.isEmpty {
                 lines.append("\(routine(slot, b)) routine started: " + new.map { "\($0.name), \(lowered($0.schedule))" }.joined(separator: "; "))
                 for n in new { if let from = movedIn(n) { lines.append("\(n.name): moved from \(routine(from.slot, a))") } }
                 continue
             }
-            if slot == .body && !old.isEmpty && new.isEmpty {
+            if slot.isBody && !old.isEmpty && new.isEmpty {
                 lines.append("\(routine(slot, a)) routine stopped")
                 continue
             }
@@ -198,10 +198,10 @@ public enum PlanHistory {
                 }
                 let start = n.from.flatMap { $0 > b.day ? ", from \($0.monthDay)" : nil } ?? ""
                 let building = n.goal.map { ", building up to \(lowered($0))" } ?? ""
-                if slot != .body, n.schedule.lowercased().contains(slot.word) {
+                if !slot.isBody, n.schedule.lowercased().contains(slot.word) {
                     lines.append("\(n.name): started, \(lowered(n.schedule))\(building)\(start)")
                 } else {
-                    let place = slot == .body ? "the \(routine(slot, b)) routine" : "the \(routine(slot, b))"
+                    let place = slot.isBody ? "the \(routine(slot, b)) routine" : "the \(routine(slot, b))"
                     lines.append("\(n.name): started in \(place), \(lowered(n.schedule))\(building)\(start)")
                 }
             }
@@ -210,7 +210,7 @@ public enum PlanHistory {
             }
 
             let key = slot.rawValue
-            let title = slot == .body ? routine(slot, b) : slot.title
+            let title = slot.isBody ? routine(slot, b) : slot.title
             if a.easing[key] == nil, let end = b.easing[key], !new.isEmpty {
                 let date = Day(iso: end).map { ", full routine from \($0.monthDay)" } ?? ""
                 lines.append("\(title): easing in\(date)")
@@ -278,7 +278,7 @@ public enum Scores {
 
     /// Areas to ask about: the face, and the body area when its routine is on.
     public static func areas(_ s: AppState) -> [Area] {
-        s.plan.activeSlots.contains(.body) ? [.face, .body] : [.face]
+        s.plan.activeSlots.contains(where: \.isBody) ? [.face, .body] : [.face]
     }
 }
 
@@ -355,7 +355,7 @@ public struct TreatmentTimeline: Sendable {
 
     public func index(_ d: Day) -> Int { from.days(to: d) }
 
-    public var showsBodySkin: Bool { rows.contains { $0.slot == .body } || !bodySkin.isEmpty }
+    public var showsBodySkin: Bool { rows.contains { $0.slot.isBody } || !bodySkin.isEmpty }
 
     /// The routine's start (or an event in the two weeks before it) to today:
     /// at least `minDays` so a new routine isn't drawn as giant blocks, at most `maxDays`.
@@ -400,13 +400,15 @@ public struct TreatmentTimeline: Sendable {
         }
 
         // Evening first: it's usually where the treatment is.
-        for slot in [Slot.pm, .am, .body] {
+        for slot in Slot.ordered {
             var marks = Array(repeating: Mark.none, count: t.days)
             for stretch in stretches {
                 for inst in Engine.timeline(stretch.state, slot: slot, from: stretch.lo, to: stretch.hi, today: today) {
                     let i = ix(inst.day)
                     guard i >= 0, i < marks.count, inst.day >= created else { continue }
-                    let active = inst.steps.contains { $0.product.kind.isActive || $0.product.kind == .oral }
+                    // A night done without its treatment (only some steps ticked) reads as basics.
+                    let ticked = inst.entry?.steps.map(Set.init)
+                    let active = inst.steps.contains { ($0.product.kind.isActive || $0.product.kind == .oral) && (ticked?.contains($0.step.id) ?? true) }
                     switch inst.status {
                     case .done: marks[i] = active ? .activeDone : .basicsDone
                     case .skipped, .unlogged: marks[i] = inst.steps.isEmpty ? .none : (active ? .activeMissed : .basicsMissed)
@@ -417,7 +419,7 @@ public struct TreatmentTimeline: Sendable {
             }
             if marks.contains(where: { $0 != .none }) {
                 let sp = s.plan[slot]
-                t.rows.append(Row(slot: slot, name: slot == .body ? sp.displayName : slot.title, marks: marks))
+                t.rows.append(Row(slot: slot, name: slot.isBody ? s.plan.shortName(slot) : slot.title, marks: marks))
             }
         }
 

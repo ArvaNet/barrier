@@ -24,14 +24,17 @@ struct RoutineView: View {
                     Picker("Routine", selection: $slot) {
                         Text("Evening").tag(Slot.pm)
                         Text("Morning").tag(Slot.am)
-                        Text(model.state.plan.body.displayName).tag(Slot.body)
+                        Text(model.state.plan.shortName(.body)).tag(Slot.body)
+                        if model.state.plan.body2.enabled {
+                            Text(model.state.plan.shortName(.body2)).tag(Slot.body2)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                 }
                 Group {
-                    SlotEditorSections(slot: slot, editing: $editing, adding: $adding)
+                    SlotEditorSections(slot: slot, editing: $editing, adding: $adding, select: { slot = $0 })
                     PausesSection(showPause: $showPause)
                     RoutineHistorySection()
                         .id("history")
@@ -115,14 +118,16 @@ struct SlotEditorSections: View {
     @Binding var editing: StepTarget?
     @Binding var adding: Slot?
     var showTime = true
+    /// Switch the screen to another routine (after adding a second body routine).
+    var select: ((Slot) -> Void)? = nil
     @State private var confirmTonight: Int?
 
     var body: some View {
         let sp = model.state.plan[slot]
         let products = model.products
         if showTime {
-            if slot == .body {
-                BodyHeaderSection(sp: sp)
+            if slot.isBody {
+                BodyHeaderSection(slot: slot, sp: sp, select: select)
             } else {
                 Section {
                     Toggle(slot == .pm ? "Evening routine" : "Morning routine", isOn: Binding(
@@ -466,23 +471,28 @@ struct RoutineHistorySection: View {
 
 // MARK: - Body routine header
 
-/// Name, cue ("After shower") and time for the body routine.
+/// Name, cue ("After shower") and time for a body routine, and the way to add a second
+/// one for another moment (a body wash after the shower, a back cream before bed).
 struct BodyHeaderSection: View {
     @Environment(AppModel.self) private var model
+    var slot: Slot = .body
     var sp: SlotPlan
+    var select: ((Slot) -> Void)? = nil
+    @State private var confirmRemove = false
 
     var body: some View {
+        let other: Slot = slot == .body ? .body2 : .body
         Section {
             Toggle("\(sp.displayName) routine", isOn: Binding(
                 get: { sp.enabled },
-                set: { v in model.update { $0.plan.body.enabled = v } }
+                set: { v in model.update { $0.plan[slot].enabled = v } }
             ))
             if sp.enabled {
                 HStack {
                     Text("Name")
                     TextField("Back", text: Binding(
                         get: { sp.name ?? "" },
-                        set: { v in model.update { $0.plan.body.name = v } }
+                        set: { v in model.update { $0.plan[slot].name = v } }
                     ))
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.sentences)
@@ -491,22 +501,60 @@ struct BodyHeaderSection: View {
                 }
                 Picker("When", selection: Binding(
                     get: { sp.cue ?? "" },
-                    set: { v in model.update { $0.plan.body.cue = v.isEmpty ? nil : v } }
+                    set: { v in model.update { $0.plan[slot].cue = v.isEmpty ? nil : v } }
                 )) {
                     Text("At a set time").tag("")
                     ForEach(Presets.bodyCues, id: \.self) { Text($0).tag($0) }
                 }
                 DatePicker((sp.cue ?? "").isEmpty ? "Remind me at" : "Usually around", selection: Binding(
                     get: { sp.time.date },
-                    set: { d in model.update { $0.plan.body.time = ClockTime(date: d) } }
+                    set: { d in model.update { $0.plan[slot].time = ClockTime(date: d) } }
                 ), displayedComponents: .hourAndMinute)
+                if slot == .body && !model.state.plan.body2.enabled {
+                    Button {
+                        model.update { s in
+                            s.plan.body2.enabled = true
+                            // Another moment than the first one, and its own reminder.
+                            let first = s.plan.body.cue ?? ""
+                            s.plan.body2.cue = first == "Before bed" ? "After shower" : "Before bed"
+                            s.plan.body2.name = s.plan.body.name ?? "Back"
+                            s.plan.body2.anchor = Anchor(day: model.today, pos: 0)
+                        }
+                        select?(.body2)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "plus.circle.fill").font(.title3)
+                            Text("Add another body routine").font(.body.weight(.semibold))
+                        }
+                        .foregroundStyle(Palette.accent)
+                    }
+                }
+                if slot == .body2 {
+                    Button("Remove this routine", role: .destructive) { confirmRemove = true }
+                }
             }
         } header: {
-            Text("Body routine")
+            Text(slot == .body2 ? "Second body routine" : "Body routine")
         } footer: {
-            Text(sp.enabled
-                 ? "Its own reminder and log, and it never changes your face routine. The reminder reads “\(sp.cue ?? sp.displayName)\(sp.cue == nil ? "" : ": " + sp.displayName.lowercased())”."
-                 : "For a treatment on your back, chest or body, like a lotion after the shower.")
+            if slot == .body && sp.enabled && !model.state.plan.body2.enabled {
+                Text("Its own reminder and log, and it never changes your face routine. Something at another moment too, like a cream before bed? Add another routine.")
+            } else if sp.enabled {
+                Text("Its own reminder and log. The reminder reads “\(sp.cue ?? sp.displayName)\(sp.cue == nil ? "" : ": " + sp.displayName.lowercased())”.")
+            } else {
+                Text("For a treatment on your back, chest or body, like a lotion after the shower.")
+            }
+        }
+        .confirmationDialog("Remove the \(model.state.plan.shortName(slot).lowercased()) routine?", isPresented: $confirmRemove, titleVisibility: .visible) {
+            Button("Remove", role: .destructive) {
+                select?(other)
+                model.editPlan(slot) { s in
+                    s.plan[slot].enabled = false
+                    s.plan[slot].steps = []
+                    s.pruneOrphanProducts()
+                }
+            }
+        } message: {
+            Text("Its steps go. What you logged stays in your history.")
         }
     }
 }
