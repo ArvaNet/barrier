@@ -68,33 +68,7 @@ struct OnboardingView: View {
     // MARK: Pages
 
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Spacer()
-            WelcomeOrbit(size: 180)
-            .environment(\.colorScheme, .dark)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 28)
-            .background(Palette.stage, in: RoundedRectangle(cornerRadius: Metrics.stageRadius, style: .continuous))
-            .padding(.bottom, 32)
-            Text("Your dermatologist’s routine, remembered.")
-                .font(.barrierLargeTitle).tracking(-0.5)
-                .foregroundStyle(Palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Tendwell tells you exactly what to do tonight, reminds you at the right time, and adjusts when life gets in the way.")
-                .font(.body)
-                .foregroundStyle(Palette.ink2)
-                .padding(.top, 14)
-            Spacer()
-            Button("Set up my routine") { next() }
-                .buttonStyle(PrimaryButtonStyle())
-            Text("Everything stays on your iPhone.")
-                .font(.footnote)
-                .foregroundStyle(Palette.ink3)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 12)
-        }
-        .padding(.horizontal, Metrics.margin)
-        .padding(.vertical, 16)
+        WelcomePage(onStart: next)
     }
 
     /// A page title on the 16 pt line, above the list (never inside a row, where corners clip it).

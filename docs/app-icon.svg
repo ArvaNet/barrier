@@ -1,20 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Tendwell: growth rings. The PNG in AppIcon.appiconset is drawn by scripts/make-icon.swift. -->
   <defs>
-    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
-      <stop offset="0" stop-color="#1A2824"/>
-      <stop offset="1" stop-color="#0F1714"/>
-    </radialGradient>
-    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="46"/>
-    </filter>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12603F"/>
+      <stop offset="1" stop-color="#0B3F2B"/>
+    </linearGradient>
   </defs>
   <rect width="1024" height="1024" fill="url(#bg)"/>
-  <circle cx="512" cy="540" r="300" fill="none" stroke="#ECE7DE" stroke-opacity="0.18" stroke-width="12"/>
-  <!-- tonight: gold, glowing, at the top -->
-  <circle cx="512" cy="240" r="120" fill="#E8C87A" opacity="0.55" filter="url(#glow)"/>
-  <circle cx="512" cy="240" r="74" fill="#E8C87A"/>
-  <!-- the rest of the rotation -->
-  <circle cx="812" cy="540" r="44" fill="#D97E5A"/>
-  <circle cx="512" cy="840" r="40" fill="none" stroke="#9DB89C" stroke-width="14"/>
-  <circle cx="212" cy="540" r="40" fill="none" stroke="#A8C0C8" stroke-width="14"/>
+  <circle cx="512" cy="552" r="330" fill="none" stroke="#7FD8A8" stroke-opacity="0.30" stroke-width="36"/>
+  <circle cx="512" cy="552" r="222" fill="none" stroke="#7FD8A8" stroke-opacity="0.58" stroke-width="36"/>
+  <circle cx="512" cy="552" r="116" fill="#7FD8A8"/>
+  <circle cx="512" cy="222" r="98" fill="#F5B83D" fill-opacity="0.22"/>
+  <circle cx="512" cy="222" r="64" fill="#F5B83D"/>
 </svg>

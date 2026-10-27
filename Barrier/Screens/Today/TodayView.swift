@@ -275,7 +275,7 @@ struct SlotHero: View {
             } label: {
                 Label("Start", systemImage: "play.fill").labelStyle(.titleOnly)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: slot.isDusk(model.state.plan[slot]) ? Palette.stageAccent : Palette.accent))
+            .buttonStyle(PrimaryButtonStyle(fill: slot.isDusk(model.state.plan[slot]) ? Palette.stageAccent : Palette.cta))
             .disabled(inst.steps.isEmpty)
 
             Button("Done") { model.markDone(inst) }

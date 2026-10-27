@@ -37,6 +37,7 @@
 		8EB0A30131179527B4CEDFA5 /* Visuals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D435C851B437433C1595F27 /* Visuals.swift */; };
 		91ACE6D2AFA5735668225142 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 62FA48C683816BB021B9A749 /* WidgetKit.framework */; };
 		92D3A3EBB8518C5F42924F9C /* RitualTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E95D6D57CBDA89FCA9B37CD7 /* RitualTimerAttributes.swift */; };
+		9813775527C3F967F59C38BF /* WelcomePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDFFBE9181D902B20380F523 /* WelcomePage.swift */; };
 		9A4E822389ED54773ED5473B /* BarrierApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2C4EC17B9D3BC77B7ADAD7 /* BarrierApp.swift */; };
 		A482A818D1AD9C9EC8965506 /* TonightWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8BE8096E08028BFB22D993 /* TonightWidget.swift */; };
 		A629C10C41E49D590B6FE6DF /* TodaySheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0875E361812E1DCADDD595ED /* TodaySheets.swift */; };
@@ -111,6 +112,7 @@
 		A95B6CBE432A170E6168D85E /* BarrierWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarrierWidgetBundle.swift; sourceTree = "<group>"; };
 		AA066203F188277E8FE6C01E /* RitualView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RitualView.swift; sourceTree = "<group>"; };
 		B7229435848F0251D2BE91F0 /* DermView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DermView.swift; sourceTree = "<group>"; };
+		BDFFBE9181D902B20380F523 /* WelcomePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomePage.swift; sourceTree = "<group>"; };
 		C4571244BD96B4C214DDC87F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		C5F00503A613EB83C736277D /* TimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerLiveActivity.swift; sourceTree = "<group>"; };
 		CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcedureViews.swift; sourceTree = "<group>"; };
@@ -252,6 +254,7 @@
 			isa = PBXGroup;
 			children = (
 				58A229727D3E45439AB1796F /* OnboardingView.swift */,
+				BDFFBE9181D902B20380F523 /* WelcomePage.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -475,6 +478,7 @@
 				A629C10C41E49D590B6FE6DF /* TodaySheets.swift in Sources */,
 				0EFDEB5295ED86061F2C7A83 /* TodayView.swift in Sources */,
 				8EB0A30131179527B4CEDFA5 /* Visuals.swift in Sources */,
+				9813775527C3F967F59C38BF /* WelcomePage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

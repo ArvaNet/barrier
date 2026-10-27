@@ -116,12 +116,12 @@ struct SectionTitle: View {
 // MARK: - Buttons (rounded rectangles, never pills)
 
 struct PrimaryButtonStyle: ButtonStyle {
-    var fill: Color = Palette.accent
+    var fill: Color = Palette.cta
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold))
-            .foregroundStyle(Color(hex: 0xFFFDF9))
+            .foregroundStyle(Palette.onCta)
             .frame(maxWidth: .infinity, minHeight: 52)
             .padding(.horizontal, 16)
             .background(fill.opacity(configuration.isPressed ? 0.85 : 1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

@@ -2,8 +2,9 @@ import BarrierCore
 import SwiftUI
 import UIKit
 
-// Barrier's look: dermatological calm. Day is a cool mineral porcelain for
-// mornings; Dusk is the night ritual. Cycle hues always mean their night.
+// Tendwell's look, two layers: emerald for trust (the brand, the night stage, links),
+// marigold for joy (the one main action on a screen). Day is a cool mineral porcelain;
+// Dusk is the night ritual. Cycle hues always mean their night.
 
 extension UIColor {
     convenience init(hex: UInt32, alpha: CGFloat = 1) {
@@ -29,11 +30,11 @@ extension Color {
 }
 
 enum Palette {
-    static let bg = Color(uiColor: .dynamic(light: 0xEDF0ED, dark: 0x0E1513))
+    static let bg = Color(uiColor: .dynamic(light: 0xEDF0ED, dark: 0x0B1612))
     /// Cards and list rows: one surface for both, so every tab is one app.
-    static let surface = Color(uiColor: .dynamic(light: 0xFFFFFF, dark: 0x16211E))
-    static let surface2 = Color(uiColor: .dynamic(light: 0xE3E8E4, dark: 0x1E2B27))
-    static let surface3 = Color(uiColor: .dynamic(light: 0xD6DDD8, dark: 0x283733))
+    static let surface = Color(uiColor: .dynamic(light: 0xFFFFFF, dark: 0x12221C))
+    static let surface2 = Color(uiColor: .dynamic(light: 0xE3E8E4, dark: 0x1A2E26))
+    static let surface3 = Color(uiColor: .dynamic(light: 0xD6DDD8, dark: 0x233A31))
     /// Button and chip fills. Translucent at dusk so they read on any card, the stage included.
     static let fill = Color(uiColor: .dynamic(light: 0xE3E8E4, dark: 0xECE7DE, darkAlpha: 0.1))
     static let ink = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE))
@@ -42,9 +43,17 @@ enum Palette {
     static let ink3 = Color(uiColor: .dynamic(light: 0x56635E, dark: 0x85908B))
     static let line = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE, lightAlpha: 0.12, darkAlpha: 0.1))
     static let line2 = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE, lightAlpha: 0.22, darkAlpha: 0.18))
-    /// The primary action and treatment marks only. Dusk value keeps a white label at 4.6:1.
-    static let accent = Color(uiColor: .dynamic(light: 0xA6512E, dark: 0xB35B36))
-    static let accentSoft = Color(uiColor: .dynamic(light: 0xA6512E, dark: 0xB35B36, lightAlpha: 0.1, darkAlpha: 0.18))
+    /// Emerald, for actions written as text or icons (Add a product, Save) and for marks.
+    /// 5.3:1 on white by day; mint at dusk.
+    static let accent = Color(uiColor: .dynamic(light: 0x1F7A52, dark: 0x7FD8A8))
+    static let accentSoft = Color(uiColor: .dynamic(light: 0x1F7A52, dark: 0x7FD8A8, lightAlpha: 0.1, darkAlpha: 0.16))
+    /// Marigold: the one main button on a screen, in both themes. Its label is `onCta`.
+    static let cta = Color(hex: 0xF5B83D)
+    static let onCta = Color(hex: 0x33240A)
+    /// The brand's deep emerald (the icon, the welcome) and its mint rings.
+    static let brand = Color(hex: 0x0E4D35)
+    static let brandMint = Color(hex: 0x7FD8A8)
+    static let marigold = Color(hex: 0xF5B83D)
     /// Selection: an ink outline, never a clay wash.
     static let selected = Color(uiColor: .dynamic(light: 0x1B2A26, dark: 0xECE7DE, lightAlpha: 0.06, darkAlpha: 0.08))
     static let warnSoft = Color(uiColor: .dynamic(light: 0xC99A3C, dark: 0xE8C87A, lightAlpha: 0.15, darkAlpha: 0.12))
@@ -52,15 +61,15 @@ enum Palette {
     static let danger = Color(uiColor: .dynamic(light: 0xA4402F, dark: 0xE08A78))
     static let ok = Color(uiColor: .dynamic(light: 0x4F7A4E, dark: 0x9DB89C))
 
-    /// The night stage: always dusk, in both themes.
-    static let stage = Color(hex: 0x131D1A)
-    static let stage2 = Color(hex: 0x1B2824)
+    /// The night stage: deep emerald, in both themes.
+    static let stage = Color(hex: 0x0F3B2B)
+    static let stage2 = Color(hex: 0x164A37)
     /// The Tonight card: the stage by day; one step lighter than the cards at dusk, so it leads.
-    static let stageCard = Color(uiColor: .dynamic(light: 0x131D1A, dark: 0x1B2824))
+    static let stageCard = Color(uiColor: .dynamic(light: 0x0F3B2B, dark: 0x164A37))
     static let stageInk = Color(hex: 0xECE7DE)
     static let stageInk2 = Color(hex: 0xA9B2AD)
     static let stageLine = Color(hex: 0xECE7DE, alpha: 0.12)
-    static let stageAccent = Color(hex: 0xB35B36)
+    static let stageAccent = Color(hex: 0xF5B83D)
 
     static func hue(_ h: Hue?) -> Color {
         switch h ?? .sage {

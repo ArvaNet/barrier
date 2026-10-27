@@ -170,7 +170,7 @@ struct RitualView: View {
             .padding(.bottom, 10)
             bottomSlot {
                 Button("Done") { complete(i) }
-                    .buttonStyle(PrimaryButtonStyle(fill: isNight ? Palette.stageAccent : Palette.accent))
+                    .buttonStyle(PrimaryButtonStyle(fill: isNight ? Palette.stageAccent : Palette.cta))
             } left: {
                 if i > 0 { Button("Back") { forward = false; withAnimation(Motion.ui(reduceMotion)) { p.index = i - 1 } } }
             } right: {
@@ -400,7 +400,7 @@ struct RitualFinish: View {
                 .buttonStyle(SecondaryButtonStyle())
             }
             Button("Back to today", action: close)
-                .buttonStyle(PrimaryButtonStyle(fill: inst.slot.isDusk(model.state.plan[inst.slot]) ? Palette.stageAccent : Palette.accent))
+                .buttonStyle(PrimaryButtonStyle(fill: inst.slot.isDusk(model.state.plan[inst.slot]) ? Palette.stageAccent : Palette.cta))
                 .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity)
