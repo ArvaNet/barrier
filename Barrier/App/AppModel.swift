@@ -93,6 +93,7 @@ final class AppModel {
         // Saves from before the change log: today's routine is where it starts (today's edits still count).
         if state.onboarded && state.history.isEmpty { state.recordPlan(today: today, start: true) }
         migrateOldSave()
+        if !launch.sandbox { Self.pruneMigrationCopies(today: today) }
         if launch.demo {
             DemoPhotos.ensure(state.photos, in: photos)
         } else {
@@ -134,16 +135,28 @@ final class AppModel {
         }
     }
 
+    /// Pre-conversion copies are a short-term safety net, not an archive.
+    private static func pruneMigrationCopies(today: Day) {
+        let fm = FileManager.default
+        let dir = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let names = try? fm.contentsOfDirectory(atPath: dir.path) else { return }
+        for name in names where name.hasPrefix("before-build-up-") && name.hasSuffix(".json") {
+            let iso = String(name.dropFirst("before-build-up-".count).dropLast(".json".count))
+            if let d = Day(iso: iso), d.days(to: today) > 30 { try? fm.removeItem(at: dir.appendingPathComponent(name)) }
+        }
+    }
+
     /// Saves from before per-product build-ups eased in a whole routine at once.
     /// That ease-in moves onto its treatments, keeping tonight and the next nights.
     private func migrateOldSave() {
         let before = state
         guard state.migrateEaseIn(today: today) else { return }
         // The save as it was, kept in the app's own Documents (reachable from Xcode) in case it's ever needed.
+        // Same protection as the real save; it's removed after 30 days (see pruneMigrationCopies).
         if !launch.sandbox && !loadFailed, let data = try? StateCoder.encode(before) {
             let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("before-build-up-\(today.iso).json")
-            try? data.write(to: url, options: .atomic)
+            try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         }
         if state.onboarded { state.recordPlan(today: today) }
         if !launch.sandbox && !loadFailed { saveNow() }
