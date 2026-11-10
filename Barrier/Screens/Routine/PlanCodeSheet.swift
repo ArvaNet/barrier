@@ -69,20 +69,13 @@ struct PlanCodeReview: View {
                     } header: {
                         Text("\(section.title), in this order")
                     } footer: {
-                        VStack(alignment: .leading, spacing: 0) {
-                            if let note = footer(section) { Text(note) }
-                            if sum.ifIrritated == nil && section.id == sum.sections.last?.id { endSpace }
-                        }
+                        if let note = footer(section) { Text(note) }
                     }
                     .id(section.id)
                 }
                 if let text = sum.ifIrritated {
-                    Section {
+                    Section("If your skin gets irritated") {
                         Text(text).font(.subheadline).foregroundStyle(Palette.ink)
-                    } header: {
-                        Text("If your skin gets irritated")
-                    } footer: {
-                        endSpace
                     }
                     .id("if-irritated")
                 }
@@ -92,6 +85,8 @@ struct PlanCodeReview: View {
         .barrierList()
         .listSectionSpacing(.compact)
         .contentMargins(.top, 4, for: .scrollContent)
+        // At the end, the last section clears the fade above the button.
+        .contentMargins(.bottom, 28, for: .scrollContent)
         // The title stays on the 16 pt line above the list (inside a row, its edge gets clipped).
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
@@ -113,7 +108,8 @@ struct PlanCodeReview: View {
         .onAppear {
             // Screenshot hook: `-screen plan-code-bottom`.
             guard model.launch.screen == "plan-code-bottom", let end = sum.ifIrritated != nil ? "if-irritated" : sum.sections.last?.id else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo(end, anchor: .bottom) }
+            // To the top: the list stops at its very end, margin included.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo(end, anchor: .top) }
         }
         }
         .navigationTitle("Routine from your clinic")
@@ -145,11 +141,6 @@ struct PlanCodeReview: View {
                 .allowsHitTesting(false)
             }
         }
-    }
-
-    /// Room under the last section, so it clears the fade above the button.
-    private var endSpace: some View {
-        Color.clear.frame(height: 28).accessibilityHidden(true)
     }
 
     /// "Replaces your evening routine. Starts tomorrow: tonight is already logged."
