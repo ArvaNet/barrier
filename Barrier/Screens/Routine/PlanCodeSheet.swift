@@ -55,17 +55,6 @@ struct PlanCodeReview: View {
                         ForEach(section.rows) { row in
                             PlanCodeRow(row: row)
                         }
-                        if !section.easeIn.isEmpty {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Easing in").font(.subheadline.weight(.semibold)).foregroundStyle(Palette.ink)
-                                ForEach(section.easeIn, id: \.self) { line in
-                                    Text(line).font(.subheadline).foregroundStyle(Palette.ink2)
-                                }
-                            }
-                            .padding(.leading, 22)
-                            .padding(.vertical, 2)
-                            .accessibilityElement(children: .combine)
-                        }
                     } header: {
                         Text("\(section.title), in this order")
                     } footer: {
@@ -147,7 +136,7 @@ struct PlanCodeReview: View {
     private func footer(_ section: PlanCodeSummary.Section) -> String? {
         var parts: [String] = []
         if section.replaces {
-            parts.append("Replaces your \(section.slot == .body ? section.title : section.title.lowercased()) routine.")
+            parts.append("Replaces your \(section.slot.isBody ? section.title : section.title.lowercased()) routine.")
         }
         if section.starts > model.today {
             parts.append("Starts tomorrow: \(section.slot == .pm ? "tonight" : "today") is already logged.")
