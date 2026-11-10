@@ -16,6 +16,7 @@
 		1B597BFF309C1089789B2616 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 23CE6B3650E48720A130F903 /* Assets.xcassets */; };
 		22E0B3BF47C7F0B37301BC3A /* ProcedureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */; };
 		2605CC38C130B9A180F8FC26 /* TimelineStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF74AFED2271B7697D1EB25 /* TimelineStrip.swift */; };
+		26BD457DF599559D92907A78 /* PlanCodeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C43479901BCBC72F53E914EE /* PlanCodeSheet.swift */; };
 		3102CA74B7474C7990036A5E /* ProgressScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033E5CEE7509285637D4A5AB /* ProgressScreen.swift */; };
 		32FEFB8C8B62F7FD727EC0C9 /* BarrierWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A95B6CBE432A170E6168D85E /* BarrierWidgetBundle.swift */; };
 		3AC41B86FB262C977062BED7 /* Fraunces.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 458B15AA882EF8242AB7970B /* Fraunces.ttf */; };
@@ -111,6 +112,7 @@
 		A95B6CBE432A170E6168D85E /* BarrierWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarrierWidgetBundle.swift; sourceTree = "<group>"; };
 		AA066203F188277E8FE6C01E /* RitualView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RitualView.swift; sourceTree = "<group>"; };
 		B7229435848F0251D2BE91F0 /* DermView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DermView.swift; sourceTree = "<group>"; };
+		C43479901BCBC72F53E914EE /* PlanCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCodeSheet.swift; sourceTree = "<group>"; };
 		C4571244BD96B4C214DDC87F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		C5F00503A613EB83C736277D /* TimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerLiveActivity.swift; sourceTree = "<group>"; };
 		CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcedureViews.swift; sourceTree = "<group>"; };
@@ -329,6 +331,7 @@
 		EBC08C83BEBEB96A10E98EC7 /* Routine */ = {
 			isa = PBXGroup;
 			children = (
+				C43479901BCBC72F53E914EE /* PlanCodeSheet.swift */,
 				951B8F8018598E8F58D9D35A /* RoutineView.swift */,
 				E6A961FEB6D1E25EDE235B06 /* StepEditorSheet.swift */,
 			);
@@ -458,6 +461,7 @@
 				6F8A867014F0E4E5BBFEF988 /* NotificationService.swift in Sources */,
 				0C3387CB7BBE9E5FB42222C1 /* OnboardingView.swift in Sources */,
 				AC9D4C3BA8D1B20A6D37C6B3 /* Palette.swift in Sources */,
+				26BD457DF599559D92907A78 /* PlanCodeSheet.swift in Sources */,
 				22E0B3BF47C7F0B37301BC3A /* ProcedureViews.swift in Sources */,
 				3102CA74B7474C7990036A5E /* ProgressScreen.swift in Sources */,
 				751E74E620FF81EE69ABF2B8 /* ReportView.swift in Sources */,
