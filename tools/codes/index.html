@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Routine codes</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #16181d;
+    --ink-2: #545a66;
+    --line: #dfe2e8;
+    --accent: #2f5bd3;
+    --accent-ink: #ffffff;
+    --ok: #1d7a46;
+    --ok-bg: #e7f5ec;
+    --bad: #b42318;
+    --bad-bg: #fdecea;
+    --warn: #8a5a00;
+    --warn-bg: #fff4dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111316;
+      --surface: #1b1e23;
+      --ink: #eceef2;
+      --ink-2: #a3a9b5;
+      --line: #2e333b;
+      --accent: #7ea2ff;
+      --accent-ink: #0e1220;
+      --ok: #6fd39a;
+      --ok-bg: #16301f;
+      --bad: #ff8a80;
+      --bad-bg: #3a1714;
+      --warn: #f2c66d;
+      --warn-bg: #33270d;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111316; --surface: #1b1e23; --ink: #eceef2; --ink-2: #a3a9b5; --line: #2e333b;
+    --accent: #7ea2ff; --accent-ink: #0e1220; --ok: #6fd39a; --ok-bg: #16301f;
+    --bad: #ff8a80; --bad-bg: #3a1714; --warn: #f2c66d; --warn-bg: #33270d;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 48px; }
+  header h1 { font-size: 24px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--ink-2); }
+  header p + p { margin-top: 2px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 22px; }
+  @media (min-width: 900px) { .layout { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .hint { color: var(--ink-2); font-size: 13px; margin: 6px 0 0; }
+  select, textarea, button { font: inherit; color: inherit; }
+  select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+  }
+  textarea {
+    display: block; width: 100%; min-height: 380px; margin-top: 16px; padding: 12px;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg); resize: vertical;
+    white-space: pre; overflow-wrap: normal; overflow-x: auto;
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2;
+  }
+  select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .problems { margin: 14px 0 0; padding: 12px 14px; border-radius: 6px; background: var(--bad-bg); color: var(--bad); }
+  .problems h2 { font-size: 15px; margin: 0 0 4px; }
+  .problems ul { margin: 0; padding-left: 18px; }
+  .problems li::first-letter { text-transform: uppercase; }
+
+  .status { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 14px; }
+  .badge { font-weight: 600; padding: 4px 10px; border-radius: 6px; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .badge.wait { background: var(--bg); color: var(--ink-2); }
+  .size { color: var(--ink-2); }
+  .note { width: 100%; margin: 0; padding: 8px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
+  .actions { margin-left: auto; }
+  button {
+    padding: 8px 16px; border: 0; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .sheet { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  @media (min-width: 560px) { .sheet { grid-template-columns: 5cm minmax(0, 1fr); } }
+  .code svg { display: block; width: 100%; height: auto; max-width: 5cm; border-radius: 4px; }
+  .code .scan { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; max-width: 5cm; }
+  .words h2 { font-size: 18px; margin: 0 0 2px; }
+  .words .from { color: var(--ink-2); margin: 0 0 8px; }
+  .words h3 { font-size: 15px; margin: 16px 0 4px; }
+  .words h3:first-of-type { margin-top: 8px; }
+  .words ol { margin: 0; padding-left: 20px; }
+  .words li { margin: 0 0 6px; }
+  .words li strong { font-weight: 600; }
+  .words .line { display: block; color: var(--ink-2); }
+  .words .rotation, .words .ease { color: var(--ink-2); margin: 0 0 6px; }
+  .words .ease { margin-top: 4px; }
+  .words .ease strong { color: var(--ink); font-weight: 600; }
+  .empty { color: var(--ink-2); margin: 0; }
+  [hidden] { display: none !important; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 18mm; }
+    :root { color-scheme: light; --ink: #000; --ink-2: #333; }
+    body { background: #fff; color: #000; font-size: 11pt; }
+    main { padding: 0; max-width: none; }
+    header, .editor, .status { display: none !important; }
+    .layout { display: block; margin: 0; }
+    .panel { border: 0; padding: 0; background: none; }
+    .sheet { grid-template-columns: 5cm minmax(0, 1fr); gap: 10mm; }
+    .code svg { width: 5cm; max-width: 5cm; border-radius: 0; }
+    .code .scan { font-size: 9pt; color: #000; }
+    .words li { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Routine codes</h1>
+    <p>Write a routine, check it in words, print the sheet. Tendwell loads it by scanning the code.</p>
+    <p>Nothing is sent or stored: everything happens on this page.</p>
+  </header>
+
+  <div class="layout">
+    <section class="panel editor" aria-label="Routine">
+      <label for="example">Start from an example</label>
+      <select id="example"></select>
+      <p class="hint">Examples to edit. Not medical advice.</p>
+      <textarea id="json" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Routine as JSON" aria-describedby="format-hint"></textarea>
+      <p class="hint" id="format-hint">The format is in docs/plan-code.md. No patient names or dates: the code carries the routine only.</p>
+      <div class="problems" id="problems" role="alert" hidden>
+        <h2>The app would refuse this code</h2>
+        <ul id="problem-list"></ul>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Sheet">
+      <div class="status" aria-live="polite">
+        <span class="badge wait" id="check">Checking</span>
+        <span class="size" id="size"></span>
+        <span class="actions"><button type="button" id="print" disabled>Print sheet</button></span>
+        <p class="note" id="big" hidden>Over 1,000 bytes: print it larger than 5 cm.</p>
+      </div>
+      <div class="sheet" id="sheet">
+        <div class="code">
+          <div id="qr"></div>
+          <p class="scan">Scan with Tendwell. If the app and this sheet differ, follow this sheet.</p>
+        </div>
+        <div class="words" id="words"></div>
+      </div>
+      <p class="empty" id="no-sheet" hidden>Fix the problems on the left to see the code.</p>
+    </section>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="plancode.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    example: $("example"), json: $("json"), problems: $("problems"), list: $("problem-list"),
+    check: $("check"), size: $("size"), big: $("big"), print: $("print"),
+    sheet: $("sheet"), qr: $("qr"), words: $("words"), noSheet: $("no-sheet"),
+  };
+  var run = 0;
+  var timer = null;
+
+  // JSON that reads well: short objects and lists stay on one line.
+  function pretty(value, indent) {
+    indent = indent || "";
+    var flat = JSON.stringify(value);
+    if (indent && flat.length <= 76 - indent.length) return flat;
+    var inner = indent + "  ";
+    if (Array.isArray(value)) return "[\n" + value.map(function (v) { return inner + pretty(v, inner); }).join(",\n") + "\n" + indent + "]";
+    if (value && typeof value === "object") {
+      return "{\n" + Object.keys(value).map(function (k) { return inner + JSON.stringify(k) + ": " + pretty(value[k], inner); }).join(",\n") + "\n" + indent + "}";
+    }
+    return flat;
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function setCheck(kind, text) {
+    els.check.className = "badge " + kind;
+    els.check.textContent = text;
+    els.print.disabled = kind !== "ok";
+  }
+
+  function showProblems(list) {
+    els.list.textContent = "";
+    list.forEach(function (p) { els.list.appendChild(el("li", "", p)); });
+    els.problems.hidden = false;
+    els.sheet.hidden = true;
+    els.noSheet.hidden = false;
+    els.size.textContent = "";
+    els.big.hidden = true;
+    setCheck("bad", "No code");
+  }
+
+  function renderWords(d) {
+    var w = els.words;
+    w.textContent = "";
+    w.appendChild(el("h2", "", "Your routine"));
+    if (d.clinic) w.appendChild(el("p", "from", "From " + d.clinic));
+    d.sections.forEach(function (s) {
+      w.appendChild(el("h3", "", s.title + ", in this order"));
+      if (s.rotation) w.appendChild(el("p", "rotation", s.rotation));
+      var ol = el("ol");
+      s.rows.forEach(function (row) {
+        var li = el("li");
+        li.appendChild(el("strong", "", row.name));
+        row.lines.forEach(function (l) { li.appendChild(el("span", "line", l)); });
+        if (row.note) li.appendChild(el("span", "line", row.note));
+        ol.appendChild(li);
+      });
+      w.appendChild(ol);
+      if (s.easeIn.length) {
+        var ease = el("p", "ease");
+        ease.appendChild(el("strong", "", "Easing in"));
+        s.easeIn.forEach(function (l) { ease.appendChild(el("span", "line", l)); });
+        w.appendChild(ease);
+      }
+    });
+    if (d.ifIrritated) {
+      w.appendChild(el("h3", "", "If your skin gets irritated"));
+      w.appendChild(el("p", "", d.ifIrritated));
+    }
+  }
+
+  // The code as SVG: dark modules on white with the 4-module quiet zone.
+  function qrSvg(link) {
+    var qr = qrcode(0, "M");
+    qr.addData(link, "Byte");
+    qr.make();
+    var n = qr.getModuleCount();
+    var size = n + 8;
+    var d = "";
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (qr.isDark(r, c)) d += "M" + (c + 4) + " " + (r + 4) + "h1v1h-1z";
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + " " + size + '" width="' + size * 8 + '" height="' + size * 8 +
+      '" shape-rendering="crispEdges" role="img" aria-label="Routine code"><rect width="' + size + '" height="' + size +
+      '" fill="#fff"/><path fill="#000" d="' + d + '"/></svg>';
+  }
+
+  // Read the rendered SVG back with a separate decoder, as a phone would.
+  function readBack(svg, link, mine) {
+    if (typeof jsQR !== "function") { setCheck("bad", "Couldn't check: the reader library didn't load"); return; }
+    var img = new Image();
+    img.onload = function () {
+      if (mine !== run) return;
+      try {
+        var canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        var ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        var data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var got = jsQR(data.data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
+        if (got && got.data === link) setCheck("ok", "Reads back correctly");
+        else setCheck("bad", got ? "Reads back wrong: don't print this" : "Doesn't read back: don't print this");
+      } catch (e) {
+        setCheck("bad", "Couldn't check the code: " + e.message);
+      }
+    };
+    img.onerror = function () { if (mine === run) setCheck("bad", "Couldn't check: the code didn't render"); };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+
+  function update() {
+    var mine = ++run;
+    var obj;
+    try { obj = JSON.parse(els.json.value); }
+    catch (e) { showProblems(["this isn't valid JSON: " + e.message]); return; }
+
+    var problems = PlanCode.validate(obj);
+    if (problems.length) { showProblems(problems); return; }
+
+    var link = PlanCode.encode(obj);
+    var bytes = new TextEncoder().encode(link).length;
+    if (link.length - PlanCode.LINK_PREFIX.length > PlanCode.Limit.payload) { showProblems(["too much text to fit in one code"]); return; }
+    if (typeof qrcode !== "function") { showProblems(["the QR library didn't load: connect to the internet and reload"]); return; }
+
+    var svg;
+    try { svg = qrSvg(link); }
+    catch (e) { showProblems(["too much text for one code at medium error correction (" + bytes.toLocaleString("en") + " bytes): shorten the notes"]); return; }
+
+    els.problems.hidden = true;
+    els.sheet.hidden = false;
+    els.noSheet.hidden = true;
+    els.qr.innerHTML = svg;
+    renderWords(PlanCode.describe(obj));
+    els.size.textContent = "Link: " + bytes.toLocaleString("en") + " bytes";
+    els.big.hidden = bytes <= 1000;
+    setCheck("wait", "Checking");
+    readBack(svg, link, mine);
+  }
+
+  PlanCode.examples.forEach(function (ex, i) {
+    var o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = ex.title;
+    els.example.appendChild(o);
+  });
+  els.example.addEventListener("change", function () {
+    els.json.value = pretty(PlanCode.examples[+els.example.value].code);
+    update();
+  });
+  els.json.addEventListener("input", function () {
+    clearTimeout(timer);
+    timer = setTimeout(update, 120);
+  });
+  els.print.addEventListener("click", function () { window.print(); });
+
+  els.json.value = pretty(PlanCode.examples[0].code);
+  update();
+})();
+</script>
+</body>
+</html>

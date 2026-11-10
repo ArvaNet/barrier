@@ -105,7 +105,7 @@ final class PlanCodeTests: XCTestCase {
 
     func testAWebLinkCanCarryTheSameCode() throws {
         let code = try cyclingCode()
-        XCTAssertEqual(try PlanCode(link: "https://tendwell.app/c#plan/" + code.payload), code)
+        XCTAssertEqual(try PlanCode(link: "https://example.com/c#plan/" + code.payload), code)
         XCTAssertEqual(try PlanCode(link: "  BARRIER://plan/" + code.payload + "\n"), code)
     }
 

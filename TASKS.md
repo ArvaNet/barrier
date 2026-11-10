@@ -113,4 +113,6 @@ against the sheet, then it's set up; core tests; CI green with screenshots.
 - [x] Camera permission text mentions the code
 - [x] CI green, screenshots 46-53 checked (title moved above the list: it clipped inside a row; the list ends above the button fade)
 - [x] Committed project file current
+- [x] Pilot codes page (tools/codes) and the format (docs/plan-code.md); the page's codes are locked to the app's reader (PlanCodeToolTests)
 - [ ] Scan a printed code with a real iPhone (not possible in the simulator)
+- [ ] Open a code as a link from the iPhone camera (not covered by a screenshot)
