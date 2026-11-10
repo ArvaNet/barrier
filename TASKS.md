@@ -111,6 +111,6 @@ against the sheet, then it's set up; core tests; CI green with screenshots.
 - [x] App: scanner, check screen and problem screen (PlanCodeSheet.swift)
 - [x] Ways in: "I have a code from my clinic" on the welcome page, Routine tab row; onboarding moves on to the details after loading
 - [x] Camera permission text mentions the code
-- [ ] CI green, screenshots 46-53 checked
-- [ ] Committed project file current
+- [x] CI green, screenshots 46-53 checked (title moved above the list: it clipped inside a row; the list ends above the button fade)
+- [x] Committed project file current
 - [ ] Scan a printed code with a real iPhone (not possible in the simulator)
