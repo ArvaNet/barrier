@@ -102,7 +102,7 @@ struct OnboardingView: View {
                 .font(.footnote)
                 .foregroundStyle(Palette.ink3)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 12)
+                .padding(.top, 4)
         }
         .padding(.horizontal, Metrics.margin)
         .padding(.vertical, 16)

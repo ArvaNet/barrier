@@ -44,20 +44,6 @@ struct PlanCodeReview: View {
         let sum = code.summary(for: model.state, today: model.today)
         ScrollViewReader { proxy in
         List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let clinic = sum.clinic { Kicker("From \(clinic)") }
-                    Text("Check it against your sheet")
-                        .font(.barrierH2).tracking(-0.4)
-                        .foregroundStyle(Palette.ink)
-                    Text("This is what the code says. If anything differs from the sheet your clinic gave you, follow the sheet.")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.ink2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 0, trailing: 0))
-            }
             Group {
                 ForEach(sum.sections) { section in
                     Section {
@@ -83,13 +69,20 @@ struct PlanCodeReview: View {
                     } header: {
                         Text("\(section.title), in this order")
                     } footer: {
-                        if let note = footer(section) { Text(note) }
+                        VStack(alignment: .leading, spacing: 0) {
+                            if let note = footer(section) { Text(note) }
+                            if sum.ifIrritated == nil && section.id == sum.sections.last?.id { endSpace }
+                        }
                     }
                     .id(section.id)
                 }
                 if let text = sum.ifIrritated {
-                    Section("If your skin gets irritated") {
+                    Section {
                         Text(text).font(.subheadline).foregroundStyle(Palette.ink)
+                    } header: {
+                        Text("If your skin gets irritated")
+                    } footer: {
+                        endSpace
                     }
                     .id("if-irritated")
                 }
@@ -99,6 +92,24 @@ struct PlanCodeReview: View {
         .barrierList()
         .listSectionSpacing(.compact)
         .contentMargins(.top, 4, for: .scrollContent)
+        // The title stays on the 16 pt line above the list (inside a row, its edge gets clipped).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let clinic = sum.clinic { Kicker("From \(clinic)") }
+                Text("Check it against your sheet")
+                    .font(.barrierH2).tracking(-0.4)
+                    .foregroundStyle(Palette.ink)
+                Text("This is what the code says. If anything differs from the sheet your clinic gave you, follow the sheet.")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.ink2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Metrics.margin)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            .background(Palette.bg)
+        }
         .onAppear {
             // Screenshot hook: `-screen plan-code-bottom`.
             guard model.launch.screen == "plan-code-bottom", let end = sum.ifIrritated != nil ? "if-irritated" : sum.sections.last?.id else { return }
@@ -134,6 +145,11 @@ struct PlanCodeReview: View {
                 .allowsHitTesting(false)
             }
         }
+    }
+
+    /// Room under the last section, so it clears the fade above the button.
+    private var endSpace: some View {
+        Color.clear.frame(height: 28).accessibilityHidden(true)
     }
 
     /// "Replaces your evening routine. Starts tomorrow: tonight is already logged."
