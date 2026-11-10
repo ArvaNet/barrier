@@ -123,5 +123,5 @@ Re-fit onto main after per-product build-ups and two body routines (2026-11-10):
 - [x] Format, still version 1 (nothing printed yet): routine key `e` gone, step key `b` (stages before the step's own schedule), `body2`; limits mirror the step editor (docs/plan-code.md)
 - [x] Rules place every build-up the way loading does, so a code never loads halfway; loading starts each build-up on day 1 with `startBuildUp`
 - [x] Summary and check screen: build-up lines on the product's row, evening first; pilot page and its locked links regenerated; JS validator agrees with every broken-rule case
-- [ ] CI green, screenshots 09 and 46-53 checked
-- [ ] Committed project file current
+- [x] CI green (run 42884503280), screenshots 09 and 46-53 checked
+- [x] Committed project file current

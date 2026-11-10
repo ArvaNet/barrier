@@ -113,8 +113,8 @@
 		A95B6CBE432A170E6168D85E /* BarrierWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarrierWidgetBundle.swift; sourceTree = "<group>"; };
 		AA066203F188277E8FE6C01E /* RitualView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RitualView.swift; sourceTree = "<group>"; };
 		B7229435848F0251D2BE91F0 /* DermView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DermView.swift; sourceTree = "<group>"; };
-		C43479901BCBC72F53E914EE /* PlanCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCodeSheet.swift; sourceTree = "<group>"; };
 		BDFFBE9181D902B20380F523 /* WelcomePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomePage.swift; sourceTree = "<group>"; };
+		C43479901BCBC72F53E914EE /* PlanCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCodeSheet.swift; sourceTree = "<group>"; };
 		C4571244BD96B4C214DDC87F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		C5F00503A613EB83C736277D /* TimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerLiveActivity.swift; sourceTree = "<group>"; };
 		CB147755DE3A1F48ECE80D61 /* ProcedureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcedureViews.swift; sourceTree = "<group>"; };
