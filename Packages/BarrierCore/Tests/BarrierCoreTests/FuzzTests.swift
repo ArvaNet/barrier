@@ -156,7 +156,7 @@ final class FuzzTests: XCTestCase {
     func testSimulatedUsersNeverBreakTheRules() {
         var all: [String] = []
         // Proof the simulation reaches the tricky cases, so passing means something.
-        var seen = (pauses: 0, procedureBreaks: 0, recoveries: 0, edits: 0, restNights: 0, filled: 0, bodyUsers: 0)
+        var seen = (pauses: 0, procedureBreaks: 0, recoveries: 0, edits: 0, restNights: 0, filled: 0, bodyUsers: 0, codes: 0, codesFromTomorrow: 0)
         for seed in UInt64(1)...150 {
             let (s, today) = simulate(seed: seed)
             all += problems(s, today: today, tag: "seed \(seed)")
@@ -181,6 +181,50 @@ final class FuzzTests: XCTestCase {
             if f.plan.pm.easeIn == nil && tonightAfter.label != tonightBefore.label {
                 all.append("seed \(seed) filled in: tonight changed from \(tonightBefore.label) to \(tonightAfter.label)")
             }
+
+            // The same user loads a routine code from their clinic, in the middle of everything,
+            // then carries on for three weeks.
+            let code = Self.codes[Int(seed) % Self.codes.count]
+            // Some of today is already logged when the code arrives.
+            var logged = s
+            let noon = Date(timeIntervalSince1970: TimeInterval(today.ordinal) * 86_400)
+            for slot in [Slot.pm, .am, .body] where logged.plan[slot].enabled {
+                switch Int.random(in: 0..<10, using: &rng) {
+                case 0..<4: logged.markDone(slot, on: today, today: today, at: noon)
+                case 4: logged.markSkipped(slot, on: today, today: today)
+                case 5: logged.setRecovery(today, slot, on: true)
+                default: break
+                }
+            }
+            var c = logged.loading(code, today: today)
+            c.recordPlan(today: today)
+            seen.codes += 1
+            all += problems(c, today: today, tag: "seed \(seed) code loaded")
+            if c.log != logged.log { all.append("seed \(seed) code loaded: the log changed") }
+            if c.loading(code, today: today) != c { all.append("seed \(seed) code loaded: loading it again changed something") }
+            for slot in code.slots {
+                let day1 = logged.loadDay(slot, today: today)
+                if day1 > today { seen.codesFromTomorrow += 1 }
+                let first = Engine.instance(c, slot: slot, on: day1, today: today)
+                if first.pos != 0 || first.status == .off { all.append("seed \(seed) code loaded: \(slot) doesn't start on night 1 (\(first.pos), \(first.status))") }
+                let was = Engine.instance(logged, slot: slot, on: today, today: today)
+                let now = Engine.instance(c, slot: slot, on: today, today: today)
+                if was.isResolved && now.status != was.status { all.append("seed \(seed) code loaded: \(slot) today went from \(was.status) to \(now.status)") }
+            }
+            var last = today
+            for n in 1...21 {
+                last = today.adding(n)
+                let at = Date(timeIntervalSince1970: TimeInterval(last.ordinal) * 86_400)
+                for slot in [Slot.pm, .am, .body] where c.plan[slot].enabled {
+                    switch Int.random(in: 0..<20, using: &rng) {
+                    case 0..<13: c.markDone(slot, on: last, today: last, at: at)
+                    case 13..<15: c.markSkipped(slot, on: last, today: last)
+                    case 15: c.setRecovery(last, slot, on: true); c.markDone(slot, on: last, today: last, at: at)
+                    default: break
+                    }
+                }
+            }
+            all += problems(c, today: last, tag: "seed \(seed) three weeks after the code")
         }
         XCTAssertTrue(all.isEmpty, "\(all.count) problems, first ones:\n" + all.prefix(15).joined(separator: "\n"))
         print("Fuzz coverage: \(seen)")
@@ -192,5 +236,33 @@ final class FuzzTests: XCTestCase {
         // Users with more than 14 weeks in the app have no room to fill in: that's by design.
         XCTAssertGreaterThan(seen.filled, 60)
         XCTAssertGreaterThan(seen.bodyUsers, 40)
+        XCTAssertEqual(seen.codes, 150)
+        // Loaded after today's routine was already logged: the new one starts tomorrow.
+        XCTAssertGreaterThan(seen.codesFromTomorrow, 40)
     }
+
+    /// Clinic codes of every shape: an ease-in, a rotation, weekdays, a course, a body routine, all three routines.
+    static let codes: [PlanCode] = {
+        let ease = [EaseInPhase(days: 14, extraRest: 2), EaseInPhase(days: 14, extraRest: 1)]
+        do {
+            return [
+                try PlanCode(products: [.init(name: "Gentle cleanser", kind: .cleanser), .init(name: "Tretinoin 0.05% cream", kind: .retinoid), .init(name: "Moisturizer", kind: .moisturizer)],
+                             routines: [.pm: .init(steps: [.init(product: 0, waitMin: 20), .init(product: 1), .init(product: 2)], easeIn: ease)]),
+                try PlanCode(products: [.init(name: "Cleanser", kind: .cleanser), .init(name: "Glycolic acid 7%", kind: .exfoliant), .init(name: "Retinol serum", kind: .retinoid),
+                                        .init(name: "Moisturizer", kind: .moisturizer)],
+                             routines: [.pm: .init(length: 4, steps: [.init(product: 0), .init(product: 1, on: .nights([0])), .init(product: 2, on: .nights([1])), .init(product: 3)],
+                                                   easeIn: [EaseInPhase(days: 7, extraRest: 1)])]),
+                try PlanCode(products: [.init(name: "Benzoyl peroxide wash 5%", kind: .treatment)],
+                             routines: [.body: .init(steps: [.init(product: 0, on: .weekdays([1, 3, 5]))], name: "Chest", cue: "After shower")]),
+                try PlanCode(products: [.init(name: "Doxycycline 40 mg", kind: .oral, courseDays: 10), .init(name: "Gentle cleanser", kind: .cleanser),
+                                        .init(name: "Azelaic acid 15%", kind: .treatment), .init(name: "Sunscreen SPF 30+", kind: .spf),
+                                        .init(name: "Adapalene 0.1% gel", kind: .retinoid), .init(name: "Clindamycin lotion", kind: .treatment)],
+                             routines: [.am: .init(steps: [.init(product: 0), .init(product: 1), .init(product: 2), .init(product: 3)]),
+                                        .pm: .init(length: 2, steps: [.init(product: 1), .init(product: 4, on: .nights([0]))]),
+                                        .body: .init(length: 2, steps: [.init(product: 5, on: .nights([1]))], name: "Back")]),
+            ]
+        } catch {
+            fatalError("bad fuzz code: \(error)")
+        }
+    }()
 }
