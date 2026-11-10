@@ -164,6 +164,36 @@ public enum Presets {
         return s
     }
 
+    /// A clinic's routine code, for screenshots: tretinoin easing in, a course of doxycycline,
+    /// azelaic acid mornings and a lotion for the back.
+    public static let demoCode: PlanCode? = try? PlanCode(
+        clinic: "Dr. Petrauskienė",
+        products: [
+            .init(name: "Gentle cleanser", kind: .cleanser),
+            .init(name: "Tretinoin 0.05% cream", kind: .retinoid),
+            .init(name: "Moisturizer", kind: .moisturizer),
+            .init(name: "Doxycycline 40 mg", kind: .oral, courseDays: 84),
+            .init(name: "Azelaic acid 15%", kind: .treatment),
+            .init(name: "Sunscreen SPF 30+", kind: .spf),
+            .init(name: "Clindamycin lotion", kind: .treatment, note: "Thin layer on the upper back, after the shower, once a day."),
+        ],
+        routines: [
+            .pm: .init(steps: [
+                .init(product: 0, waitMin: 20),
+                .init(product: 1, amount: "Pea-size for the whole face", how: "On completely dry skin"),
+                .init(product: 2),
+            ], easeIn: [EaseInPhase(days: 14, extraRest: 1)]),
+            .am: .init(steps: [
+                .init(product: 3, how: "As prescribed, with water"),
+                .init(product: 0),
+                .init(product: 4, amount: "Thin layer"),
+                .init(product: 2),
+                .init(product: 5),
+            ]),
+            .body: .init(steps: [.init(product: 6)], name: "Back", cue: "After shower"),
+        ],
+        ifIrritated: "Skip tretinoin for 2 nights, moisturizer only, then restart every other night.")
+
     /// A believable few weeks of history, for screenshots and previews.
     public static func demoState(today: Day) -> AppState {
         let start = today.adding(-23)

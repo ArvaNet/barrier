@@ -8,7 +8,7 @@ final class PlanCodeTests: XCTestCase {
     /// Tretinoin easing in with a wait after cleansing, azelaic acid and a 12-week course in the morning.
     func retinoidCode() throws -> PlanCode {
         try PlanCode(
-            clinic: "Odos klinika",
+            clinic: "Dr. Petrauskienė",
             products: [
                 .init(name: "Gentle cleanser", kind: .cleanser),
                 .init(name: "Tretinoin 0.025% cream", kind: .retinoid, note: "Avoid the corners of the nose and mouth."),
@@ -81,13 +81,13 @@ final class PlanCodeTests: XCTestCase {
 
         // Every key, written by hand the way the clinic page writes it.
         let full = """
-        {"v":1,"c":"Odos klinika","i":"Stop for two nights.","p":[{"n":"Cleanser","k":"cleanser"},{"n":"Tretinoin 0.025% cream","k":"retinoid","o":"Avoid the eyes."},\
+        {"v":1,"c":"Dr. Petrauskienė","i":"Stop for two nights.","p":[{"n":"Cleanser","k":"cleanser"},{"n":"Tretinoin 0.025% cream","k":"retinoid","o":"Avoid the eyes."},\
         {"n":"Antibiotic","k":"oral","d":84},{"n":"Lotion","k":"treatment"}],\
         "pm":{"l":2,"s":[{"p":0,"w":20},{"p":1,"a":"Pea-size","h":"On dry skin","n":[0]}],"e":[[14,1]]},\
         "am":{"s":[{"p":2,"d":[1,3,5]},{"p":0}]},"body":{"s":[{"p":3}],"n":"Back","q":"After shower"}}
         """
         let read = try PlanCode(link: link(full))
-        XCTAssertEqual(read.clinic, "Odos klinika")
+        XCTAssertEqual(read.clinic, "Dr. Petrauskienė")
         XCTAssertEqual(read.ifIrritated, "Stop for two nights.")
         XCTAssertEqual(read.products.map(\.kind), [.cleanser, .retinoid, .oral, .treatment])
         XCTAssertEqual(read.products[1].note, "Avoid the eyes.")
@@ -204,7 +204,7 @@ final class PlanCodeTests: XCTestCase {
 
     func testACodeCanBeMadeFromARoutine() throws {
         let demo = Presets.demoState(today: today)
-        let code = try PlanCode(demo, clinic: "Odos klinika", today: today)
+        let code = try PlanCode(demo, clinic: "Dr. Petrauskienė", today: today)
         XCTAssertEqual(code.slots, [.am, .pm, .body])
         XCTAssertEqual(try PlanCode(link: code.link), code)
 
@@ -383,7 +383,7 @@ final class PlanCodeTests: XCTestCase {
 
     func testTheSummaryReadsLikeTheClinicsSheet() throws {
         let sum = try retinoidCode().summary(for: Presets.blankState(today: today), today: today)
-        XCTAssertEqual(sum.clinic, "Odos klinika")
+        XCTAssertEqual(sum.clinic, "Dr. Petrauskienė")
         XCTAssertEqual(sum.sections.map(\.title), ["Morning", "Evening"])
         XCTAssertEqual(sum.sections.map(\.replaces), [false, false])
         XCTAssertEqual(sum.sections.map(\.starts), [today, today])
@@ -418,6 +418,20 @@ final class PlanCodeTests: XCTestCase {
         XCTAssertEqual(back.sections[0].title, "Back")
         XCTAssertEqual(back.sections[0].rows[0].lines, ["Mon, Wed, Fri"])
         XCTAssertEqual(back.sections[0].replaces, false)
+    }
+
+    func testTheScreenshotCodeLoadsIntoTheDemo() throws {
+        let code = try XCTUnwrap(Presets.demoCode)
+        XCTAssertEqual(code.slots, [.am, .pm, .body])
+        XCTAssertEqual(try PlanCode(link: code.link), code)
+        let demo = Presets.demoState(today: today)
+        let after = demo.loading(code, today: today)
+        XCTAssertEqual(after.plan.am.steps.compactMap { after.product($0.productId)?.name },
+                       ["Doxycycline 40 mg", "Gentle cleanser", "Azelaic acid 15%", "Moisturizer", "Sunscreen SPF 30+"])
+        XCTAssertEqual(after.plan.pm.steps.compactMap { after.product($0.productId)?.name }, ["Gentle cleanser", "Tretinoin 0.05% cream", "Moisturizer"])
+        XCTAssertEqual(after.plan.body.displayName, "Back")
+        XCTAssertEqual(after.history, demo.history)
+        XCTAssertEqual(after.log, demo.log)
     }
 
     func testCourseAndEaseInWords() {
