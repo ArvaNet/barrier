@@ -10,6 +10,8 @@ struct CameraScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var area: Area
+    /// Face photos: front, or a side (acne along the jaw and cheeks shows best from the side).
+    @State private var side: PhotoSide = .front
 
     /// Opened for a body photo (e.g. a back procedure) without a body routine: still offer the choice.
     private let openedForBody: Bool
@@ -38,6 +40,9 @@ struct CameraScreen: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 0) {
+                // The image fills this space; it never sets the layout's width. (A scaled-to-fill
+                // photo used to widen the whole screen and push the buttons off the sides.)
+                Color.black.overlay {
                 ZStack {
                     if let captured {
                         Image(uiImage: captured).resizable().scaledToFill()
@@ -58,6 +63,7 @@ struct CameraScreen: View {
                         unavailable
                     }
                 }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 .overlay(alignment: .top) { topBar }
@@ -71,6 +77,12 @@ struct CameraScreen: View {
             started = true
             loadGhost()
             await camera.start(position: position(for: area))
+        }
+        .onChange(of: side) { _, _ in
+            cancelTimer()
+            captured = nil
+            capturedAt = nil
+            loadGhost()
         }
         .onChange(of: area) { _, new in
             cancelTimer()
@@ -97,8 +109,21 @@ struct CameraScreen: View {
 
     private func position(for area: Area) -> AVCaptureDevice.Position { area == .face ? .front : .back }
 
+    /// After this face photo, the next side to take: only for someone who takes side photos.
+    private var nextSide: PhotoSide? {
+        guard area == .face else { return nil }
+        let takesSides = model.state.photos.contains { $0.place == .face && $0.angle != .front } || side != .front
+        guard takesSides else { return nil }
+        switch side {
+        case .front: return .left
+        case .left: return .right
+        case .right: return nil
+        }
+    }
+
     private func loadGhost() {
-        let last = model.state.photos.filter { $0.place == area }.max { $0.at < $1.at }
+        let angle: PhotoSide = area == .face ? side : .front
+        let last = model.state.photos.filter { $0.place == area && $0.angle == angle }.max { $0.at < $1.at }
         lastPhoto = last.flatMap { model.photos.image($0.id)?.resized(maxSide: 1200) }
     }
 
@@ -107,7 +132,8 @@ struct CameraScreen: View {
         if area == .face {
             Ellipse()
                 .strokeBorder(.white.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
-                .frame(width: 240, height: 320)
+                // A side view is narrower: cheek, jaw and ear.
+                .frame(width: side == .front ? 240 : 200, height: 320)
         } else {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(.white.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
@@ -144,6 +170,15 @@ struct CameraScreen: View {
                 .frame(width: 220)
                 .colorScheme(.dark)
             }
+            if area == .face && captured == nil {
+                Picker("Side", selection: $side) {
+                    ForEach(PhotoSide.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 240)
+                .colorScheme(.dark)
+                .accessibilityLabel("Which side of your face")
+            }
             if captured == nil && camera.state == .running {
                 Text(hint)
                     .font(.footnote.weight(.medium))
@@ -161,7 +196,11 @@ struct CameraScreen: View {
         if area == .body {
             return lastPhoto == nil ? "Rear camera, 5-second timer. \(Guidance.backPhotoTips)" : "Line up with last time. Same spot, same distance, same light."
         }
-        return lastPhoto == nil ? "Window light, no makeup, face the camera." : "Line up with last time. Same spot, same light."
+        switch side {
+        case .left: return lastPhoto == nil ? "Turn so your left cheek faces the camera, jaw and ear in view." : "Your left side, lined up with last time."
+        case .right: return lastPhoto == nil ? "Turn so your right cheek faces the camera, jaw and ear in view." : "Your right side, lined up with last time."
+        case .front: return lastPhoto == nil ? "Window light, no makeup, face the camera." : "Line up with last time. Same spot, same light."
+        }
     }
 
     private var bottomBar: some View {
@@ -174,7 +213,7 @@ struct CameraScreen: View {
                 Button {
                     save()
                 } label: {
-                    Text(saving ? "Saving…" : "Save photo").frame(width: 160)
+                    Text(saving ? "Saving…" : (nextSide.map { "Save, then \($0.label.lowercased())" } ?? "Save photo")).frame(width: 160)
                 }
                 .buttonStyle(PrimaryButtonStyle(fill: Palette.stageAccent))
                 .frame(width: 170)
@@ -268,13 +307,22 @@ struct CameraScreen: View {
         saving = true
         // An imported photo keeps the day it was taken, so it pairs with procedures correctly.
         let day = capturedAt.map { Day.routineDay($0) } ?? model.today
-        let meta = PhotoMeta(day: day, at: capturedAt ?? Date(), area: area)
-        let firstOfArea = !model.state.photos.contains { $0.place == area }
+        let meta = PhotoMeta(day: day, at: capturedAt ?? Date(), area: area, side: area == .face ? side : .front)
+        let firstOfArea = !model.state.photos.contains { $0.matches(meta) }
+        let next = nextSide
         Task {
             do {
                 try model.photos.save(img, id: meta.id)
                 model.update { $0.photos.append(meta) }
-                model.show(firstOfArea ? "Your “before” is saved." : day == model.today ? "Photo saved." : "Photo saved, dated \(day.short).")
+                if let next {
+                    // Side photos are a habit: go straight on to the next side.
+                    model.show("\(meta.angle.label) saved. Now your \(next.label.lowercased()) side.")
+                    saving = false
+                    side = next
+                    return
+                }
+                let what = area == .face && side != .front ? "\(side.label) side" : "Photo"
+                model.show(firstOfArea ? "Your “before” is saved." : day == model.today ? "\(what) saved." : "\(what) saved, dated \(day.short).")
                 dismiss()
             } catch {
                 model.show("Couldn’t save the photo.")

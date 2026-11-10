@@ -191,32 +191,58 @@ struct ReportData {
         }
         pmSteps = lines(.pm)
         amSteps = lines(.am)
-        let bp = s.plan.body
-        let bodyOn = bp.enabled && !bp.steps.isEmpty
-        if bodyOn {
+        let bodies = s.plan.activeSlots.filter(\.isBody)
+        let bp = s.plan[bodies.first ?? .body]
+        if !bodies.isEmpty {
             bodyName = bp.displayName
-            bodyWhen = "\(bp.cue ?? "Daily"), around \(bp.time.formatted)."
-            bodySteps = lines(.body)
+            bodyWhen = bodies.map { "\(s.plan[$0].cue ?? "Daily"), around \(s.plan[$0].time.formatted)." }.joined(separator: " ")
+            // Two routines: each step says which moment it belongs to.
+            bodySteps = bodies.flatMap { slot in
+                lines(slot).map { l in
+                    var l = l
+                    if bodies.count > 1 { l.detail = "\(s.plan.shortName(slot)) · \(l.detail)" }
+                    return l
+                }
+            }
         }
         rotation = s.plan.pm.length > 1 ? "Evening repeats every \(s.plan.pm.length) nights." : nil
         if let e = s.plan.pm.easeIn {
             let end = e.start.adding(e.totalDays)
             easing = end > today ? "Easing in since \(e.start.short), full routine from \(end.short)." : "Eased in from \(e.start.short) to \(end.short)."
+        } else {
+            // Build-ups, product by product: "Adapalene: every 3rd night from Oct 8, every other night from Oct 22."
+            var parts: [String] = []
+            for slot in Slot.ordered where s.plan[slot].enabled {
+                for st in s.plan[slot].steps {
+                    guard let b = st.buildUp, let p = products[st.productId] else { continue }
+                    let word = slot.word
+                    var steps: [String] = []
+                    for (i, stage) in b.stages.enumerated() where i <= b.moves.count {
+                        steps.append("\(PlanHistory.lowered(Engine.everyPhrase(stage.every, word: word))) from \(b.stageStart(i).short)")
+                    }
+                    if let f = b.finished { steps.append("\(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: word))) from \(f.short)") }
+                    else { steps.append("building up to \(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: word)))") }
+                    parts.append("\(p.shortName): " + steps.joined(separator: ", ") + ".")
+                }
+            }
+            easing = parts.isEmpty ? nil : parts.joined(separator: " ")
         }
         let used = s.usedProductIDs
         self.products = s.products.filter { used.contains($0.id) && ($0.kind.isActive || $0.kind == .oral || $0.note != nil) }
         // What's in use now: treatments and medication, with how often.
         var now: [String] = []
-        for slot in [Slot.pm, .am, .body] {
+        for slot in Slot.ordered {
             let sp = s.plan[slot]
             guard sp.enabled else { continue }
             for st in sp.steps {
                 guard let p = products[st.productId], p.kind.isActive || p.kind == .oral, !now.contains(where: { $0.hasPrefix(p.name + " ") }) else { continue }
-                let place = slot == .body ? " (\(bp.displayName))" : ""
+                let place = slot.isBody ? " (\(s.plan.shortName(slot)))" : ""
                 // "Every night" while easing in isn't every night yet: say so.
                 var ease = ""
                 if p.kind.isActive, let e = sp.easeIn, !e.phases.isEmpty, e.start.adding(e.totalDays) > today {
                     ease = ", easing in until \(e.start.adding(e.totalDays).short)"
+                } else if let b = st.buildUp, !b.done {
+                    ease = ", building up to \(PlanHistory.lowered(Engine.everyPhrase(b.goal, word: slot.word)))"
                 }
                 now.append("\(p.name) \(PlanHistory.lowered(Engine.describe(st, in: sp, slot: slot)))\(place)\(ease)")
             }
@@ -246,7 +272,7 @@ struct ReportData {
         for area in Scores.areas(s) {
             let list = s.scores.filter { $0.place == area && $0.day >= span.from }.sorted { $0.day < $1.day }
             guard let first = list.first else { continue }
-            let name = area == .face ? "Face" : (bodyOn ? bp.displayName : "Body")
+            let name = area == .face ? "Face" : (bodies.isEmpty ? "Body" : bp.displayName)
             if let last = list.last, list.count > 1 {
                 scoreLines.append("\(name): \(Scores.label(first.value)) (\(first.day.short)) → \(Scores.label(last.value)) (\(last.day.short))")
             } else {
@@ -265,7 +291,9 @@ struct ReportData {
                 add(Procedures.afterPhoto(p, in: s))
             }
         }
-        let byArea = Area.allCases.map { a in s.photos.filter { $0.place == a }.sorted { $0.at < $1.at } }.filter { !$0.isEmpty }
+        // One list per view (face front, left, right, body), so first and last always match.
+        let views: [(Area, PhotoSide)] = [(.face, .front), (.face, .left), (.face, .right), (.body, .front)]
+        let byArea = views.map { v in s.photos.filter { $0.place == v.0 && $0.angle == v.1 }.sorted { $0.at < $1.at } }.filter { !$0.isEmpty }
         for list in byArea {
             add(list.first)
             add(list.last)

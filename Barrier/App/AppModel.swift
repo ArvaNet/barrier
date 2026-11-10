@@ -76,6 +76,12 @@ final class AppModel {
             var s = Presets.apply(.retinoid, to: Presets.blankState(today: today), today: today)
             s.onboarded = true
             if let theme = launch.theme { s.settings.theme = theme }
+            // `-screen today-moveup`: two weeks into the retinoid's first stage, so Tendwell asks.
+            if launch.screen == "today-moveup" {
+                for i in s.plan.pm.steps.indices where s.plan.pm.steps[i].buildUp != nil {
+                    s.plan.pm.steps[i].buildUp?.start = today.adding(-15)
+                }
+            }
             // `-screen filled-…`: three weeks on paper before Barrier, filled in.
             if launch.screen?.hasPrefix("filled-") == true {
                 s.recordPlan(today: today)
@@ -96,6 +102,8 @@ final class AppModel {
         }
         // Saves from before the change log: today's routine is where it starts (today's edits still count).
         if state.onboarded && state.history.isEmpty { state.recordPlan(today: today, start: true) }
+        migrateOldSave()
+        if !launch.sandbox { Self.pruneMigrationCopies(today: today) }
         if launch.demo {
             DemoPhotos.ensure(state.photos, in: photos)
         } else {
@@ -133,7 +141,35 @@ final class AppModel {
             state = s
             loadFailed = false
             if state.onboarded && state.history.isEmpty { state.recordPlan(today: today, start: true) }
+            migrateOldSave()
         }
+    }
+
+    /// Pre-conversion copies are a short-term safety net, not an archive.
+    private static func pruneMigrationCopies(today: Day) {
+        let fm = FileManager.default
+        let dir = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let names = try? fm.contentsOfDirectory(atPath: dir.path) else { return }
+        for name in names where name.hasPrefix("before-build-up-") && name.hasSuffix(".json") {
+            let iso = String(name.dropFirst("before-build-up-".count).dropLast(".json".count))
+            if let d = Day(iso: iso), d.days(to: today) > 30 { try? fm.removeItem(at: dir.appendingPathComponent(name)) }
+        }
+    }
+
+    /// Saves from before per-product build-ups eased in a whole routine at once.
+    /// That ease-in moves onto its treatments, keeping tonight and the next nights.
+    private func migrateOldSave() {
+        let before = state
+        guard state.migrateEaseIn(today: today) else { return }
+        // The save as it was, kept in the app's own Documents (reachable from Xcode) in case it's ever needed.
+        // Same protection as the real save; it's removed after 30 days (see pruneMigrationCopies).
+        if !launch.sandbox && !loadFailed, let data = try? StateCoder.encode(before) {
+            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("before-build-up-\(today.iso).json")
+            try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+        if state.onboarded { state.recordPlan(today: today) }
+        if !launch.sandbox && !loadFailed { saveNow() }
     }
 
     func ingestInbox() {
@@ -236,7 +272,7 @@ final class AppModel {
         return state.plan.activeSlots
             .filter { $0 != lead }
             .filter { slot in
-                guard slot == .body else { return true }
+                guard slot.isBody else { return true }
                 let inst = instance(.body)
                 return !inst.steps.isEmpty || inst.entry != nil
             }
@@ -244,10 +280,12 @@ final class AppModel {
     }
 
     /// The body routine is set up with at least one step.
-    var hasBodyRoutine: Bool { state.plan.activeSlots.contains(.body) }
+    var hasBodyRoutine: Bool { state.plan.activeSlots.contains(where: \.isBody) }
 
-    /// What the body area is called: the body routine's name ("Back"), or "Body" without one.
-    var bodyAreaName: String { hasBodyRoutine ? state.plan.body.displayName : "Body" }
+    /// What the body area is called: the first body routine's name ("Back"), or "Body" without one.
+    var bodyAreaName: String {
+        state.plan.activeSlots.first(where: \.isBody).map { state.plan[$0].displayName } ?? "Body"
+    }
 
     // MARK: Actions
 
@@ -305,7 +343,7 @@ final class AppModel {
     func setRecovery(_ day: Day, _ slot: Slot, on: Bool) {
         update { $0.setRecovery(day, slot, on: on) }
         if on {
-            show(slot == .body ? "\(state.plan.body.displayName): gentle day, treatment left out." : "Tonight is a recovery night. Actives are off.")
+            show(slot.isBody ? "\(state.plan.shortName(slot)): gentle day, treatment left out." : "Tonight is a recovery night. Actives are off.")
         }
     }
 

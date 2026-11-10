@@ -73,7 +73,7 @@ struct ProgressScreen: View {
             cells.append((first.short, "first night"))
         }
         if stats.morningsDone > 0 { cells.append(("\(stats.morningsDone)", "mornings")) }
-        if stats.bodyDone > 0 { cells.append(("\(stats.bodyDone)", "\(model.state.plan.body.displayName) days")) }
+        if stats.bodyDone > 0 { cells.append(("\(stats.bodyDone)", "\(model.bodyAreaName.lowercased()) routines")) }
         // Day one (nothing done yet): the first ring, waiting, not a stray arc.
         let waiting = rings.isEmpty || stats.nightsDone == 0
         return VStack(spacing: 16) {
@@ -203,10 +203,13 @@ struct ProgressScreen: View {
         let from = max(first, model.state.plan.createdAt)
         let pm = from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .pm, from: from, to: min(end, today.adding(30)), today: today) : []
         let am = from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .am, from: from, to: min(end, today.adding(30)), today: today) : []
-        let body = model.hasBodyRoutine && from <= min(end, today.adding(30)) ? Engine.timeline(model.state, slot: .body, from: from, to: min(end, today.adding(30)), today: today) : []
+        let body = model.hasBodyRoutine && from <= min(end, today.adding(30))
+            ? model.state.plan.bodySlots.flatMap { Engine.timeline(model.state, slot: $0, from: from, to: min(end, today.adding(30)), today: today) }.filter { !$0.steps.isEmpty || $0.entry != nil }
+            : []
         let pmBy = Dictionary(pm.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let amBy = Dictionary(am.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
-        let bodyBy = Dictionary(body.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
+        // Two body routines share one dot: it fills once both are done.
+        let bodyBy = Dictionary(body.map { ($0.day, $0) }, uniquingKeysWith: { a, b in a.isDone ? b : a })
         let procBy = Dictionary(model.state.procedures.filter { $0.day >= first && $0.day <= end }.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let cells: [Day?] = Array(repeating: nil, count: lead) + (0..<count).map { first.adding($0) }
         let rows: [[Day?]] = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0 + 7, cells.count)]) }
@@ -246,7 +249,7 @@ struct ProgressScreen: View {
                 if model.hasBodyRoutine {
                     HStack(spacing: 5) {
                         Circle().fill(Hue.lilac.color).frame(width: 5, height: 5)
-                        Text(model.state.plan.body.displayName)
+                        Text(model.bodyAreaName)
                     }
                 }
                 if !procBy.isEmpty {
@@ -293,7 +296,7 @@ struct ProgressScreen: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(d.long)\(procedure.map { ", \($0.name)" } ?? "")\(pm?.isDone == true ? ", evening done" : "")\(am?.isDone == true ? ", morning done" : "")\(body?.isDone == true ? ", \(model.state.plan.body.displayName.lowercased()) done" : "")")
+        .accessibilityLabel("\(d.long)\(procedure.map { ", \($0.name)" } ?? "")\(pm?.isDone == true ? ", evening done" : "")\(am?.isDone == true ? ", morning done" : "")\(body?.isDone == true ? ", \(model.bodyAreaName.lowercased()) done" : "")")
     }
 
     @ViewBuilder
@@ -325,7 +328,7 @@ struct ProgressScreen: View {
         let showAreas = showsAreas
         let filter = effectiveArea
         let photos = model.state.photos.filter { filter == nil || $0.place == filter }.sorted { $0.at > $1.at }
-        let canCompare = Area.allCases.contains { a in photos.filter { $0.place == a }.count >= 2 }
+        let canCompare = photos.contains { p in photos.filter { $0.matches(p) }.count >= 2 }
         let cols = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -353,7 +356,7 @@ struct ProgressScreen: View {
                 }
             }
             if selecting {
-                Text(selected.isEmpty ? "Pick two photos of the same area." : "Pick one more.").font(.footnote).foregroundStyle(Palette.ink3)
+                Text(selected.isEmpty ? "Pick two photos of the same view (front, left or right)." : "Pick one more of the same view.").font(.footnote).foregroundStyle(Palette.ink3)
             }
             HStack(spacing: 10) {
                 Button {
@@ -409,9 +412,10 @@ struct ProgressScreen: View {
             selected.remove(at: i)
             return
         }
-        // A face next to a back isn't a comparison.
-        if let first = selected.first, let other = model.state.photos.first(where: { $0.id == first }), other.place != ph.place {
-            model.show("Pick two \(areaName(other.place).lowercased()) photos.")
+        // A face next to a back, or a side next to the front, isn't a comparison.
+        if let first = selected.first, let other = model.state.photos.first(where: { $0.id == first }), !other.matches(ph) {
+            let view = other.place == .face && other.angle != .front ? "\(other.angle.label.lowercased()) side" : areaName(other.place).lowercased()
+            model.show("Pick two \(view) photos.")
             return
         }
         selected.append(ph.id)
@@ -522,7 +526,9 @@ struct PhotoThumb: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             }
-            Text(areaName.map { "\($0) · \(photo.day.short)" } ?? photo.day.short)
+            // A side photo says which side, so a grid of mixed views still reads.
+            let view = photo.place == .face && photo.angle != .front ? photo.angle.label : nil
+            Text(([areaName, view].compactMap { $0 } + [photo.day.short]).joined(separator: " · "))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 6)

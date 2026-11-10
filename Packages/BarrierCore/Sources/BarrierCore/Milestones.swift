@@ -30,7 +30,7 @@ public enum Milestones {
             out.append(Milestone(id: "weeks-\(w)", title: "\(w) weeks in", body: weeksCopy(w), symbol: "calendar"))
         }
         // Two photos of the same area: a face next to a back isn't a comparison.
-        if Area.allCases.contains(where: { a in state.photos.filter { $0.place == a }.count >= 2 }) {
+        if state.photos.contains(where: { p in state.photos.filter { $0.matches(p) }.count >= 2 }) {
             out.append(Milestone(id: "photos-2", title: "Before and after, unlocked", body: "Two photos means you can compare them side by side in Progress.", symbol: "photo.on.rectangle"))
         }
         return out

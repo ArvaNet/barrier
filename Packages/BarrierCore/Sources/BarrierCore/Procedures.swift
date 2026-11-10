@@ -101,7 +101,7 @@ public enum Procedures {
     /// taken before the appointment), otherwise the latest one before it.
     public static func beforePhoto(_ p: Procedure, in s: AppState) -> PhotoMeta? {
         let latest: (PhotoMeta, PhotoMeta) -> Bool = { $0.day == $1.day ? $0.at < $1.at : $0.day < $1.day }
-        let same = s.photos.filter { $0.place == p.place }
+        let same = s.photos.filter { $0.place == p.place && $0.angle == .front }
         // A procedure has no time, so a photo from the day itself could be from after the
         // appointment. The week before wins; the day itself only when there's nothing then.
         if let week = same.filter({ $0.day < p.day && $0.day.days(to: p.day) <= 7 }).max(by: latest) { return week }
@@ -116,7 +116,7 @@ public enum Procedures {
             guard let b = beforePhoto(n, in: s), b.day > p.day, b.id != before?.id else { return nil }
             return b
         }
-        return s.photos.filter { $0.place == p.place && $0.day > p.day }.max { $0.day == $1.day ? $0.at < $1.at : $0.day < $1.day }
+        return s.photos.filter { $0.place == p.place && $0.angle == .front && $0.day > p.day }.max { $0.day == $1.day ? $0.at < $1.at : $0.day < $1.day }
     }
 
     /// A same-area photo from the week before (or the day of) the procedure.

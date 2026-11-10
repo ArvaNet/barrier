@@ -116,12 +116,12 @@ struct SectionTitle: View {
 // MARK: - Buttons (rounded rectangles, never pills)
 
 struct PrimaryButtonStyle: ButtonStyle {
-    var fill: Color = Palette.accent
+    var fill: Color = Palette.cta
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold))
-            .foregroundStyle(Color(hex: 0xFFFDF9))
+            .foregroundStyle(Palette.onCta)
             .frame(maxWidth: .infinity, minHeight: 52)
             .padding(.horizontal, 16)
             .background(fill.opacity(configuration.isPressed ? 0.85 : 1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -188,6 +188,8 @@ struct Chip: View {
     var title: String
     var selected: Bool
     var hue: Hue?
+    /// A trailing "plus" or "checkmark", for chips that add.
+    var symbol: String? = nil
     var action: () -> Void
 
     var body: some View {
@@ -197,6 +199,12 @@ struct Chip: View {
                     Circle().fill(Palette.hue(hue)).frame(width: 8, height: 8)
                 }
                 Text(title)
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(selected ? Palette.ink : Palette.ink3)
+                        .contentTransition(.symbolEffect(.replace))
+                }
             }
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Palette.ink)
@@ -267,10 +275,38 @@ struct HueDot: View {
     }
 }
 
+/// The evidence behind a note: one quiet "Sources" link that opens to the list.
+/// There for trust, out of the way of reading.
 struct SourcesView: View {
     var sources: [Source]
+    @State private var open = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(Motion.ui) { open.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "text.book.closed").font(.system(size: 10, weight: .semibold))
+                    Text(sources.count == 1 ? "Source" : "Sources")
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .rotationEffect(.degrees(open ? 180 : 0))
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Palette.ink3)
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(open ? "Hide sources" : "Show \(sources.count) sources")
+            if open {
+                links.transition(.opacity)
+            }
+        }
+    }
+
+    private var links: some View {
         FlowLayout(spacing: 10) {
             ForEach(sources) { s in
                 if let url = URL(string: s.url) {
@@ -376,7 +412,7 @@ extension Slot {
         switch self {
         case .am: return "sun.max"
         case .pm: return "moon"
-        case .body: return "drop.halffull"
+        case .body, .body2: return "drop.halffull"
         }
     }
 
@@ -385,7 +421,7 @@ extension Slot {
         switch self {
         case .am: return "sun.max.fill"
         case .pm: return "moon.fill"
-        case .body: return "drop.halffull"
+        case .body, .body2: return "drop.halffull"
         }
     }
 
@@ -394,7 +430,7 @@ extension Slot {
         switch self {
         case .am: return "This morning"
         case .pm: return "Tonight"
-        case .body: return (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
+        case .body, .body2: return (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
         }
     }
 
@@ -403,13 +439,13 @@ extension Slot {
         switch self {
         case .am: return "Not this morning"
         case .pm: return "Not tonight"
-        case .body: return "Not today"
+        case .body, .body2: return "Not today"
         }
     }
 
     /// The routine's name in the app ("Evening", "Morning", "Back").
     func name(_ plan: Plan) -> String {
-        self == .body ? plan.body.displayName : title
+        self.isBody ? plan.shortName(self) : title
     }
 
     /// Whether this routine's screens wear the dusk look.
@@ -417,7 +453,7 @@ extension Slot {
         switch self {
         case .pm: return true
         case .am: return false
-        case .body: return sp.time.hour >= 17 || sp.time.hour < dayRolloverHour
+        case .body, .body2: return sp.time.hour >= 17 || sp.time.hour < dayRolloverHour
         }
     }
 }

@@ -75,37 +75,7 @@ struct OnboardingView: View {
     // MARK: Pages
 
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Spacer()
-            WelcomeOrbit(size: 180)
-            .environment(\.colorScheme, .dark)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 28)
-            .background(Palette.stage, in: RoundedRectangle(cornerRadius: Metrics.stageRadius, style: .continuous))
-            .padding(.bottom, 32)
-            Text("Your dermatologist’s routine, remembered.")
-                .font(.barrierLargeTitle).tracking(-0.5)
-                .foregroundStyle(Palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Tendwell tells you exactly what to do tonight, reminds you at the right time, and adjusts when life gets in the way.")
-                .font(.body)
-                .foregroundStyle(Palette.ink2)
-                .padding(.top, 14)
-            Spacer()
-            Button("Set up my routine") { next() }
-                .buttonStyle(PrimaryButtonStyle())
-            Button("I have a code from my clinic") { model.planCode = PlanCodeRequest(start: .scan) }
-                .buttonStyle(TertiaryButtonStyle())
-                .frame(maxWidth: .infinity)
-                .padding(.top, 6)
-            Text("Everything stays on your iPhone.")
-                .font(.footnote)
-                .foregroundStyle(Palette.ink3)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 4)
-        }
-        .padding(.horizontal, Metrics.margin)
-        .padding(.vertical, 16)
+        WelcomePage(onStart: next, onCode: { model.planCode = PlanCodeRequest(start: .scan) })
     }
 
     /// A page title on the 16 pt line, above the list (never inside a row, where corners clip it).
@@ -202,15 +172,15 @@ struct OnboardingView: View {
         switch slot {
         case .pm: return "Your evening"
         case .am: return "Your morning"
-        case .body: return "Back or body?"
+        case .body, .body2: return "Back or body?"
         }
     }
 
     private func pageText(_ slot: Slot) -> String {
         switch slot {
-        case .pm: return "Add what you use at night, in order. Tap a step to set how often, the amount, and your dermatologist’s exact words."
+        case .pm: return "Add what you use at night, in order. Tap one for how often or to start it slowly."
         case .am: return "Same for the morning. Sunscreen usually goes last."
-        case .body: return "Got something for your back, chest or body too, like a lotion after the shower? Turn this on and it gets its own reminder and log. Otherwise, skip."
+        case .body, .body2: return "Got something for your back, chest or body too, like a lotion after the shower? Turn this on and it gets its own reminder and log. Otherwise, skip."
         }
     }
 
@@ -291,8 +261,8 @@ struct OnboardingView: View {
                 if am.enabled && !am.steps.isEmpty {
                     bullet("sun.max", "Mornings at \(am.time.formatted).")
                 }
-                if s.plan.body.enabled && !s.plan.body.steps.isEmpty {
-                    let b = s.plan.body
+                ForEach(s.plan.activeSlots.filter(\.isBody), id: \.self) { slot in
+                    let b = s.plan[slot]
                     bullet("drop.halffull", "\(b.displayName): \((b.cue ?? "daily").lowercased()), around \(b.time.formatted).")
                 }
                 bullet("hand.tap", "Long-press a reminder: Done, In 30 minutes, or Not tonight.")

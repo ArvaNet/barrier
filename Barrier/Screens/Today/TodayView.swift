@@ -25,6 +25,9 @@ struct TodayView: View {
                 if !others.isEmpty {
                     AlsoTodayCard(slots: others, notTonight: $notTonight)
                 }
+                ForEach(BuildUps.asks(model.state, today: today).prefix(1)) { ask in
+                    MoveUpCard(ask: ask)
+                }
                 if let m = Procedures.moments(model.state, today: today).first {
                     ProcedureCard(moment: m, camera: $cameraArea)
                         .id("procedure")
@@ -154,7 +157,9 @@ struct SlotHero: View {
         } else if inst.cycleLen > 1 {
             parts.append("\(slot.word.capitalized) \(inst.pos + 1) of \(inst.cycleLen)")
         }
-        if inst.easing, let ease = model.state.plan[slot].easeIn {
+        if let b = BuildUps.running(model.state.plan[slot]).first?.buildUp {
+            parts.append("building up, week \(max(0, b.start.days(to: inst.day)) / 7 + 1)")
+        } else if inst.easing, let ease = model.state.plan[slot].easeIn {
             let week = ease.start.days(to: inst.day) / 7 + 1
             parts.append("easing in, week \(week)")
         }
@@ -270,7 +275,7 @@ struct SlotHero: View {
             } label: {
                 Label("Start", systemImage: "play.fill").labelStyle(.titleOnly)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: slot.isDusk(model.state.plan[slot]) ? Palette.stageAccent : Palette.accent))
+            .buttonStyle(PrimaryButtonStyle(fill: slot.isDusk(model.state.plan[slot]) ? Palette.stageAccent : Palette.cta))
             .disabled(inst.steps.isEmpty)
 
             Button("Done") { model.markDone(inst) }
@@ -387,7 +392,7 @@ struct SlotHero: View {
         switch slot {
         case .pm: return "Tonight · \(inst.label)"
         case .am: return inst.label == "Morning routine" ? "This morning" : "This morning · \(inst.label)"
-        case .body: return inst.label
+        case .body, .body2: return inst.label
         }
     }
 
@@ -398,7 +403,7 @@ struct SlotHero: View {
         default:
             if inst.steps.isEmpty { return "Nothing today" }
             let steps = "\(inst.steps.count) step\(inst.steps.count == 1 ? "" : "s")"
-            if slot == .body, let cue = model.state.plan.body.cue, !cue.isEmpty {
+            if slot.isBody, let cue = model.state.plan[slot].cue, !cue.isEmpty {
                 // Kept to one line: the cue says more than a step count.
                 return "\(cue) · \(time.formatted)"
             }

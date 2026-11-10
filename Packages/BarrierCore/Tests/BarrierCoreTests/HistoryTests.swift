@@ -7,7 +7,7 @@ final class HistoryTests: XCTestCase {
     /// Tretinoin every night, no ease-in, the starting routine noted on day 0.
     func base() -> AppState {
         var s = Presets.apply(.retinoid, to: Presets.blankState(today: start), today: start)
-        s.plan.pm.easeIn = nil
+        s.nightlyRetinoid()
         s.onboarded = true
         s.recordPlan(today: start)
         return s
@@ -61,7 +61,7 @@ final class HistoryTests: XCTestCase {
 
     func testAStrengthChangeIsAChangeAndOldLinesKeepTheirName() {
         var s = Presets.apply(.retinoid, to: Presets.blankState(today: start), today: start)
-        s.plan.pm.easeIn = nil
+        s.nightlyRetinoid()
         s.onboarded = true
         let t = tret(s)
         s.products[s.products.firstIndex { $0.id == t.id }!].name = "Tretinoin 0.025% cream"
@@ -180,6 +180,7 @@ final class HistoryTests: XCTestCase {
 
     func testAnOlderSaveCountsItsFirstDaysEdits() {
         var s = Presets.apply(.retinoid, to: Presets.blankState(today: start), today: start)
+        s.nightlyRetinoid()
         s.onboarded = true
         let day = start.adding(30)
         s.recordPlan(today: day, start: true)

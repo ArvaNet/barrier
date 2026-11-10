@@ -130,7 +130,7 @@ public enum Engine {
     }
 
     public static func label(slot: Slot, steps: [DueStep], rest: RestReason?, sp: SlotPlan, pos: Int, products: [String: Product]) -> (label: String, hue: Hue) {
-        if slot == .body {
+        if slot.isBody {
             // The body routine is named by the user ("Back") and keeps that name.
             let name = sp.displayName
             if rest == .pause { return ("\(name), basics only", .lilac) }
@@ -285,7 +285,7 @@ public enum Engine {
                 out.append(i)
             }
         }
-        let order: [Slot: Int] = [.am: 0, .pm: 1, .body: 2]
+        let order: [Slot: Int] = [.am: 0, .pm: 1, .body: 2, .body2: 3]
         return out.sorted { a, b in a.day == b.day ? order[a.slot, default: 0] < order[b.slot, default: 0] : a.day < b.day }
     }
 
@@ -331,7 +331,7 @@ public enum Engine {
             switch e.slot {
             case .pm: s.nightsDone += 1
             case .am: s.morningsDone += 1
-            case .body: s.bodyDone += 1
+            case .body, .body2: s.bodyDone += 1
             }
             if s.firstDay == nil || e.day < s.firstDay! { s.firstDay = e.day }
             if e.slot == .pm, let l = e.label { s.byLabel[l, default: 0] += 1 }

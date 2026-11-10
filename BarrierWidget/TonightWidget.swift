@@ -67,9 +67,9 @@ struct TonightProvider: TimelineProvider {
         switch slot {
         case .pm: when = "Tonight"
         case .am: when = "Morning"
-        case .body: when = (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
+        case .body, .body2: when = (sp.cue ?? "").isEmpty ? "Today" : sp.cue!
         }
-        let dusk = slot == .pm || (slot == .body && (sp.time.hour >= 17 || sp.time.hour < dayRolloverHour))
+        let dusk = slot == .pm || (slot.isBody && (sp.time.hour >= 17 || sp.time.hour < dayRolloverHour))
         return TonightEntry(
             date: date, configured: true, slot: slot, day: today, label: inst.label, hue: inst.hue,
             steps: inst.steps.map(\.product.name), done: inst.isDone, time: sp.time,
@@ -102,7 +102,7 @@ struct TonightWidgetView: View {
         switch entry.slot {
         case .pm: return "moon.fill"
         case .am: return "sun.max.fill"
-        case .body: return "drop.halffull"
+        case .body, .body2: return "drop.halffull"
         }
     }
 
@@ -231,7 +231,7 @@ struct TonightWidgetView: View {
     }
 
     private var inline: some View {
-        Text(entry.done ? "\(entry.slot == .body ? entry.label : entry.when) done ✓" : "\(entry.label) · \(entry.time.short)")
+        Text(entry.done ? "\(entry.slot.isBody ? entry.label : entry.when) done ✓" : "\(entry.label) · \(entry.time.short)")
             .containerBackground(.clear, for: .widget)
     }
 }
