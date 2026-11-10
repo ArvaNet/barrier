@@ -108,9 +108,7 @@
   .words li { margin: 0 0 6px; }
   .words li strong { font-weight: 600; }
   .words .line { display: block; color: var(--ink-2); }
-  .words .rotation, .words .ease { color: var(--ink-2); margin: 0 0 6px; }
-  .words .ease { margin-top: 4px; }
-  .words .ease strong { color: var(--ink); font-weight: 600; }
+  .words .rotation { color: var(--ink-2); margin: 0 0 6px; }
   .empty { color: var(--ink-2); margin: 0; }
   [hidden] { display: none !important; }
 
@@ -238,12 +236,6 @@
         ol.appendChild(li);
       });
       w.appendChild(ol);
-      if (s.easeIn.length) {
-        var ease = el("p", "ease");
-        ease.appendChild(el("strong", "", "Easing in"));
-        s.easeIn.forEach(function (l) { ease.appendChild(el("span", "line", l)); });
-        w.appendChild(ease);
-      }
     });
     if (d.ifIrritated) {
       w.appendChild(el("h3", "", "If your skin gets irritated"));

@@ -22,7 +22,6 @@
     payload: 2600, // characters in the payload
     products: 24,
     steps: 16,
-    phases: 6,
     name: 80,
     note: 280,
     amount: 120,
@@ -33,20 +32,30 @@
     waitMin: 120,
     courseDays: 730,
     rotation: 12, // Engine.maxRotation
+    // Starting slowly: what the app's step editor lets a person set.
+    stages: 4,
+    stageEveryMin: 2,
+    stageEveryMax: 4,
+    stageWeeksMax: 8,
   };
 
-  var SLOTS = ["am", "pm", "body"];
+  // Evening first, as everywhere in the app (Slot.ordered).
+  var SLOTS = ["pm", "am", "body", "body2"];
+  var BODY = { body: true, body2: true };
   var KINDS = ["cleanser", "retinoid", "exfoliant", "treatment", "serum", "moisturizer", "spf", "oral", "other"];
   var ACTIVE = { retinoid: true, exfoliant: true, treatment: true };
-  var SLOT_TITLE = { am: "Morning", pm: "Evening", body: "Body" };
-  var SLOT_WORD = { am: "morning", pm: "night", body: "day" };
+  var SLOT_TITLE = { am: "Morning", pm: "Evening", body: "Body", body2: "Body" };
+  var SLOT_WORD = { am: "morning", pm: "night", body: "day", body2: "day" };
 
   var KEYS = {
-    code: ["v", "c", "p", "am", "pm", "body", "i"],
+    code: ["v", "c", "p", "am", "pm", "body", "body2", "i"],
     product: ["n", "k", "o", "d"],
-    routine: ["l", "s", "e", "n", "q"],
-    step: ["p", "a", "h", "w", "n", "d"],
+    routine: ["l", "s", "n", "q"],
+    step: ["p", "a", "h", "w", "n", "d", "b"],
   };
+
+  function stageEveryRule(step) { return step + ": each stage is every 2nd, 3rd or 4th time, and less often than the goal"; }
+  function stageDaysRule(step) { return step + ": each stage is 1 to 8 whole weeks (7 to 56 days)"; }
 
   // MARK: Small helpers
 
@@ -122,15 +131,15 @@
       var where = "the " + slot + " routine";
       if (!isObject(r)) { out.push("wrong shape: " + where + " must be an object"); return; }
       int(r, "l", where, false); str(r, "n", where, false); str(r, "q", where, false);
-      if (has(r, "e") && !(Array.isArray(r.e) && r.e.every(function (x) { return Array.isArray(x) && x.every(isInt); }))) {
-        out.push("wrong shape: " + where + " \"e\" must be a list of [days, extra recovery nights]");
-      }
       if (!has(r, "s")) out.push("wrong shape: " + where + " needs \"s\"");
       else if (!Array.isArray(r.s)) out.push("wrong shape: " + where + " \"s\" must be a list of steps");
       else r.s.forEach(function (s, n) {
         var w = where + ", step " + (n + 1);
         if (!isObject(s)) { out.push("wrong shape: " + w + " must be an object"); return; }
         int(s, "p", w, true); str(s, "a", w, false); str(s, "h", w, false); int(s, "w", w, false); ints(s, "n", w); ints(s, "d", w);
+        if (has(s, "b") && !(Array.isArray(s.b) && s.b.every(function (x) { return Array.isArray(x) && x.every(isInt); }))) {
+          out.push("wrong shape: " + w + " \"b\" must be a list of [every, days]");
+        }
       });
     });
     return out;
@@ -164,11 +173,17 @@
     SLOTS.forEach(function (slot) {
       var r = obj[slot];
       if (!has(obj, slot)) return;
-      r.s.forEach(function (s) { if (has(s, "n") && has(s, "d")) problems.push("a step has both rotation positions and weekdays"); });
-      if (has(r, "e")) {
-        r.e.forEach(function (pair) { if (pair.length !== 2) problems.push("an ease-in phase is [days, extra recovery nights]"); });
-        if (r.e.length === 0) problems.push("an empty ease-in");
-      }
+      r.s.forEach(function (s, n) {
+        var step = "the " + slot + " routine, step " + (n + 1);
+        if (has(s, "n") && has(s, "d")) problems.push("a step has both rotation positions and weekdays");
+        if (!has(s, "b")) return;
+        s.b.forEach(function (pair) {
+          if (pair.length !== 2) problems.push(step + ": a stage is [every, days]");
+          else if (pair[0] < Limit.stageEveryMin || pair[0] > Limit.stageEveryMax) problems.push(stageEveryRule(step));
+          else if (pair[1] < 7) problems.push(stageDaysRule(step));
+        });
+        if (s.b.length === 0) problems.push(step + ": an empty build-up");
+      });
     });
     if (problems.length) return { problems: problems, code: null };
 
@@ -202,7 +217,6 @@
       if (r.s.length < 1 || r.s.length > Limit.steps) problems.push(what + " needs 1 to " + Limit.steps + " steps");
 
       var seen = {};
-      var rotatingActive = false;
       var usesNights = false;
       var steps = r.s.map(function (line, n) {
         var step = what + ", step " + (n + 1);
@@ -225,7 +239,22 @@
         }
         if (has(line, "w") && !(line.w >= 1 && line.w <= Limit.waitMin)) problems.push(step + ": a wait is 1 to " + Limit.waitMin + " minutes");
         if (on.n) usesNights = true;
-        if (ACTIVE[products[line.p].k] && !on.d) rotatingActive = true;
+
+        // Starting slowly: only what the step editor offers.
+        if (has(line, "b")) {
+          var goal = every(on, length);
+          if (!ACTIVE[products[line.p].k]) problems.push(step + ": only a retinoid, exfoliant or treatment starts slowly");
+          else if (goal === null) problems.push(step + ": starting slowly needs a goal of every time or every Nth, not weekdays or picked days");
+          else if (line.b.length > Limit.stages) problems.push(step + ": a build-up has 1 to " + Limit.stages + " stages");
+          else {
+            for (var k = 0; k < line.b.length; k++) {
+              var st = line.b[k];
+              if (!(st[0] >= Limit.stageEveryMin && st[0] <= Limit.stageEveryMax && st[0] > goal)) { problems.push(stageEveryRule(step)); break; }
+              if (!(st[1] % 7 === 0 && st[1] >= 7 && st[1] <= 7 * Limit.stageWeeksMax)) { problems.push(stageDaysRule(step)); break; }
+              if (k > 0 && st[0] > line.b[k - 1][0]) { problems.push(step + ": the stages go from the slowest to the fastest"); break; }
+            }
+          }
+        }
         var s = { p: line.p };
         var a = text(line.a, Limit.amount, step + ": the amount", problems);
         var h = text(line.h, Limit.how, step + ": the how-to", problems, true);
@@ -234,42 +263,39 @@
         if (has(line, "w")) s.w = line.w;
         if (on.n) s.n = on.n;
         if (on.d) s.d = on.d;
+        if (has(line, "b")) s.b = line.b.map(function (st) { return [st[0], st[1]]; });
         return s;
       });
 
-      var easeIn = has(r, "e") ? r.e : [];
-      if (easeIn.length) {
-        if (slot !== "pm") problems.push(what + ": only the evening eases in");
-        else if (!rotatingActive) problems.push(what + ": easing in needs a retinoid, exfoliant or treatment");
-        else if (easeIn.length > Limit.phases) problems.push(what + ": at most " + Limit.phases + " ease-in phases");
-        else if (!easeIn.every(function (p) { return p[0] % 7 === 0 && p[0] >= 7 && p[0] <= 56 && p[1] >= 0 && p[1] <= 6; })) {
-          problems.push(what + ": an ease-in phase is 1 to 8 whole weeks with 0 to 6 extra recovery nights");
-        }
-      }
-
       var routine = { s: steps };
-      if (slot === "body") {
-        var name = text(r.n, Limit.bodyName, "the body routine's name", problems);
-        if (name === null) problems.push("the body routine needs a name");
-        var cue = text(r.q, Limit.cue, "the body routine's cue", problems);
+      if (BODY[slot]) {
+        var name = text(r.n, Limit.bodyName, "the " + slot + " routine's name", problems);
+        if (name === null) problems.push("the " + slot + " routine needs a name");
+        var cue = text(r.q, Limit.cue, "the " + slot + " routine's cue", problems);
         if (name !== null) routine.n = name;
         if (cue !== null) routine.q = cue;
         Object.keys(seen).forEach(function (k) { bodyUse[k] = true; });
       } else {
-        if (has(r, "n") || has(r, "q")) problems.push(what + ": only the body routine has a name or a cue");
+        if (has(r, "n") || has(r, "q")) problems.push(what + ": only a body routine has a name or a cue");
         Object.keys(seen).forEach(function (k) { faceUse[k] = true; });
       }
       // A rotation no step uses is the same routine every time.
       if (usesNights && length !== 1) routine.l = length;
-      if (easeIn.length) routine.e = easeIn.map(function (p) { return [p[0], p[1]]; });
       routines[slot] = routine;
     });
 
     if (present.length) {
       var used = Object.assign({}, faceUse, bodyUse);
       if (Object.keys(used).length !== products.length) problems.push("a product isn't used by any step");
-      if (Object.keys(faceUse).some(function (k) { return bodyUse[k]; })) problems.push("a product is in both a face and the body routine");
+      // Face and body keep their own products. The two body routines may share.
+      if (Object.keys(faceUse).some(function (k) { return bodyUse[k]; })) problems.push("a product is in both a face and a body routine");
     }
+    if (problems.length) return { problems: problems, code: null };
+
+    // Nothing loads halfway: every build-up must fit its rotation, placed as the app places it.
+    present.forEach(function (slot) {
+      if (!fits(routines[slot])) problems.push("the " + slot + " routine: a build-up doesn't fit the rotation");
+    });
     if (problems.length) return { problems: problems, code: null };
 
     if (clinic !== null) out.c = clinic;
@@ -332,6 +358,73 @@
     return gap;
   }
 
+  // MARK: Placing build-ups (AppState.startBuildUp, lineUp, Engine.compact, setEvery, resize)
+
+  function lcm(a, b) {
+    function gcd(x, y) { return y === 0 ? x : gcd(y, x % y); }
+    return a / gcd(a, b) * b;
+  }
+
+  function range(n) { var out = []; for (var i = 0; i < n; i++) out.push(i); return out; }
+
+  // The shortest rotation that keeps every step's pattern.
+  function compact(plan) {
+    var L = Math.max(1, plan.length);
+    if (L <= 1) return plan;
+    for (var d = 1; d < L; d++) {
+      if (L % d !== 0) continue;
+      var ok = plan.steps.every(function (on) {
+        if (!on.n) return true;
+        return range(L).every(function (i) { return (on.n.indexOf(i) >= 0) === (on.n.indexOf(i % d) >= 0); });
+      });
+      if (!ok) continue;
+      return {
+        length: d,
+        steps: plan.steps.map(function (on) { return on.n ? { n: on.n.filter(function (x) { return x < d; }) } : on; }),
+      };
+    }
+    return plan;
+  }
+
+  function resize(plan, to) {
+    var old = Math.max(1, plan.length);
+    return {
+      length: to,
+      steps: plan.steps.map(function (on) {
+        return on.n ? { n: range(to).filter(function (i) { return on.n.indexOf(i % old) >= 0; }) } : on;
+      }),
+    };
+  }
+
+  // Each build-up's first stage, in step order, on a fresh phone from day 1: false when one doesn't fit.
+  function fits(routine) {
+    var plan = {
+      length: routine.l || 1,
+      steps: routine.s.map(function (s) { return s.n ? { n: s.n } : s.d ? { d: s.d } : { all: true }; }),
+    };
+    for (var i = 0; i < routine.s.length; i++) {
+      var b = routine.s[i].b;
+      if (!b) continue;
+      var n = b[0][0];
+      plan.steps[i] = { all: true };
+      plan = compact(plan);
+      var want = lcm(Math.max(1, plan.length), n);
+      if (want > Limit.rotation) return false;
+      if (want !== plan.length) plan = resize(plan, want);
+      plan.steps[i] = { n: range(want).filter(function (x) { return x % n === 0; }) };
+    }
+    return true;
+  }
+
+  function everyPhrase(n, word) {
+    if (n <= 1) return "Every " + word;
+    if (n === 2) return "Every other " + word;
+    if (n === 3) return "Every 3rd " + word;
+    return "Every " + n + "th " + word;
+  }
+
+  function lowered(s) { return s.indexOf("Every ") === 0 ? "e" + s.slice(1) : s; }
+
   function schedule(step, length, slot) {
     var word = SLOT_WORD[slot];
     if (step.d) {
@@ -355,49 +448,46 @@
     return days === 1 ? "1 day" : days + " days";
   }
 
-  function easeInLines(phases, length) {
-    var out = [];
-    var week = 1;
-    phases.forEach(function (p) {
-      var weeks = Math.max(1, Math.floor(p[0] / 7));
-      var span = weeks === 1 ? "Week " + week : "Weeks " + week + "–" + (week + weeks - 1);
-      var what;
-      if (length === 1) {
-        if (p[1] === 0) what = "actives every night";
-        else if (p[1] === 1) what = "actives every other night";
-        else if (p[1] === 2) what = "actives every 3rd night";
-        else what = "actives every " + (p[1] + 1) + "th night";
-      } else {
-        what = p[1] === 0 ? "the normal rotation" : p[1] + " extra recovery night" + (p[1] === 1 ? "" : "s") + " in each cycle";
-      }
-      out.push(span + ": " + what);
-      week += weeks;
+  // A build-up in the editor's words (PlanCode.buildUpLines).
+  function buildUpLines(stages, word) {
+    if (!stages || !stages.length) return [];
+    var plan = stages.map(function (st, i) {
+      var phrase = everyPhrase(st[0], word);
+      return (i === 0 ? phrase : lowered(phrase)) + " for " + courseText(st[1]);
     });
-    if (out.length) out.push("From week " + week + ": the full routine");
-    return out;
+    return [plan.join(", then "), "Tendwell asks how your skin is before each move up"];
   }
 
   /** The routine in the app's words. Throws when invalid. */
   function describe(obj) {
     var code = normalize(obj);
-    var sections = SLOTS.filter(function (slot) { return code[slot]; }).map(function (slot) {
+    var present = SLOTS.filter(function (slot) { return code[slot]; });
+    var bodies = present.filter(function (slot) { return BODY[slot]; }).length;
+    var sections = present.map(function (slot) {
       var r = code[slot];
       var length = r.l || 1;
+      var word = SLOT_WORD[slot];
       return {
         slot: slot,
-        title: slot === "body" ? r.n : SLOT_TITLE[slot],
-        rotation: length > 1 ? "Repeats every " + length + " " + SLOT_WORD[slot] + "s" : null,
+        // Two body routines go by their moments, as on the Routine tab.
+        title: BODY[slot] ? (bodies > 1 && r.q ? r.q : r.n) : SLOT_TITLE[slot],
+        rotation: length > 1 ? "Repeats every " + length + " " + word + "s" : null,
         rows: r.s.map(function (step) {
           var p = code.p[step.p];
-          var first = schedule(step, length, slot);
+          var first;
+          if (step.b) {
+            var goal = every(step.n ? { n: step.n } : { all: true }, length);
+            first = everyPhrase(step.b[0][0], word) + ", building up to " + lowered(everyPhrase(goal, word));
+          } else {
+            first = schedule(step, length, slot);
+          }
           if (step.a) first += " · " + step.a;
-          var lines = [first];
+          var lines = [first].concat(buildUpLines(step.b, word));
           if (step.h) lines.push(step.h);
           if (step.w) lines.push("Then wait " + step.w + " minute" + (step.w === 1 ? "" : "s"));
           if (p.d) lines.push("For " + courseText(p.d));
           return { name: p.n, lines: lines, note: p.o || null };
         }),
-        easeIn: easeInLines(r.e || [], length),
       };
     });
     return { clinic: code.c || null, sections: sections, ifIrritated: code.i || null };
@@ -416,10 +506,6 @@
         row.lines.forEach(function (l) { out.push("    " + l); });
         if (row.note) out.push("    " + row.note);
       });
-      if (s.easeIn.length) {
-        out.push("  Easing in");
-        s.easeIn.forEach(function (l) { out.push("    " + l); });
-      }
     });
     if (d.ifIrritated) out.push("If your skin gets irritated", "  " + d.ifIrritated);
     return out.join("\n");
@@ -441,8 +527,12 @@
         ],
         am: { s: [{ p: 0 }, { p: 2 }, { p: 3, h: SPF_HOW }] },
         pm: {
-          s: [{ p: 0, w: 20 }, { p: 1, a: "Pea-size for the whole face", h: "On completely dry skin" }, { p: 2 }],
-          e: [[14, 2], [14, 1]],
+          s: [
+            { p: 0, w: 20 },
+            // Starting slowly (Presets.buildUpStages): two weeks every 3rd night, two weeks every other night, then every night.
+            { p: 1, a: "Pea-size for the whole face", h: "On completely dry skin", b: [[3, 14], [2, 14]] },
+            { p: 2 },
+          ],
         },
       },
     },

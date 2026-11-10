@@ -116,3 +116,12 @@ against the sheet, then it's set up; core tests; CI green with screenshots.
 - [x] Pilot codes page (tools/codes) and the format (docs/plan-code.md); the page's codes are locked to the app's reader (PlanCodeToolTests)
 - [ ] Scan a printed code with a real iPhone (not possible in the simulator)
 - [ ] Open a code as a link from the iPhone camera (not covered by a screenshot)
+
+Re-fit onto main after per-product build-ups and two body routines (2026-11-10):
+
+- [x] Merged main; the code button on the new welcome page, under "Set up my routine"
+- [x] Format, still version 1 (nothing printed yet): routine key `e` gone, step key `b` (stages before the step's own schedule), `body2`; limits mirror the step editor (docs/plan-code.md)
+- [x] Rules place every build-up the way loading does, so a code never loads halfway; loading starts each build-up on day 1 with `startBuildUp`
+- [x] Summary and check screen: build-up lines on the product's row, evening first; pilot page and its locked links regenerated; JS validator agrees with every broken-rule case
+- [ ] CI green, screenshots 09 and 46-53 checked
+- [ ] Committed project file current
