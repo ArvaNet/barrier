@@ -418,7 +418,6 @@ public struct TreatmentTimeline: Sendable {
                 }
             }
             if marks.contains(where: { $0 != .none }) {
-                let sp = s.plan[slot]
                 t.rows.append(Row(slot: slot, name: slot.isBody ? s.plan.shortName(slot) : slot.title, marks: marks))
             }
         }

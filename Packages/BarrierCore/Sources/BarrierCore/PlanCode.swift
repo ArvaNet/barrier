@@ -29,7 +29,6 @@ public struct PlanCode: Hashable, Sendable {
         public static let payload = 2600
         public static let products = 24
         public static let steps = 16
-        public static let phases = 6
         public static let name = 80
         public static let note = 280
         public static let amount = 120
@@ -39,6 +38,14 @@ public struct PlanCode: Hashable, Sendable {
         public static let cue = 40
         public static let waitMin = 120
         public static let courseDays = 730
+        // Starting slowly: what the step editor lets a person set (StepEditorSheet.swift,
+        // BuildUpSection), so a loaded routine can always be opened and edited there.
+        /// Stages before the goal: "Add a slower stage" stops at 4.
+        public static let stages = 4
+        /// A stage's "every": the menu offers every 2nd, 3rd and 4th.
+        public static let stageEvery = 2...4
+        /// A stage's length: the menu offers 1 to 8 weeks.
+        public static let stageWeeks = 1...8
     }
 
     public struct Item: Hashable, Sendable {
@@ -63,31 +70,32 @@ public struct PlanCode: Hashable, Sendable {
         public var amount: String?
         public var how: String?
         public var waitMin: Int?
+        /// The step's own schedule. With a build-up, the goal it builds up to.
         public var on: StepOn
+        /// Starting slowly: the stages before `on`, slowest first, from day 1. Empty = none.
+        public var buildUp: [BuildStage]
 
-        public init(product: Int, amount: String? = nil, how: String? = nil, waitMin: Int? = nil, on: StepOn = .all) {
+        public init(product: Int, amount: String? = nil, how: String? = nil, waitMin: Int? = nil, on: StepOn = .all, buildUp: [BuildStage] = []) {
             self.product = product
             self.amount = amount
             self.how = how
             self.waitMin = waitMin
             self.on = on
+            self.buildUp = buildUp
         }
     }
 
     public struct Routine: Hashable, Sendable {
         public var length: Int
         public var steps: [Line]
-        /// Evening only. Starts on day 1.
-        public var easeIn: [EaseInPhase]
-        /// Body routine only: what it's for ("Back"). Required there.
+        /// Body routines only: what it's for ("Back"). Required there.
         public var name: String?
-        /// Body routine only: a moment ("After shower").
+        /// Body routines only: a moment ("After shower").
         public var cue: String?
 
-        public init(length: Int = 1, steps: [Line], easeIn: [EaseInPhase] = [], name: String? = nil, cue: String? = nil) {
+        public init(length: Int = 1, steps: [Line], name: String? = nil, cue: String? = nil) {
             self.length = length
             self.steps = steps
-            self.easeIn = easeIn
             self.name = name
             self.cue = cue
         }
@@ -108,10 +116,18 @@ public struct PlanCode: Hashable, Sendable {
         self = try checked()
     }
 
-    /// The routines this code carries, morning first.
-    public var slots: [Slot] { Slot.allCases.filter { routines[$0] != nil } }
+    /// The routines this code carries, evening first, as everywhere in the app.
+    public var slots: [Slot] { Slot.ordered.filter { routines[$0] != nil } }
 
     // MARK: Rules
+
+    static func stageEveryRule(_ step: String) -> String {
+        "\(step): each stage is every 2nd, 3rd or 4th time, and less often than the goal"
+    }
+
+    static func stageDaysRule(_ step: String) -> String {
+        "\(step): each stage is 1 to 8 whole weeks (7 to 56 days)"
+    }
 
     private func checked() throws -> PlanCode {
         var out = self
@@ -140,7 +156,6 @@ public struct PlanCode: Hashable, Sendable {
             guard (1...Limit.steps).contains(r.steps.count) else { throw PlanCodeError.invalid("\(what) needs 1 to \(Limit.steps) steps") }
 
             var seen = Set<Int>()
-            var rotatingActive = false
             var usesNights = false
             let steps: [Line] = try r.steps.enumerated().map { n, line in
                 let step = "\(what), step \(n + 1)"
@@ -166,45 +181,63 @@ public struct PlanCode: Hashable, Sendable {
                     throw PlanCodeError.invalid("\(step): a wait is 1 to \(Limit.waitMin) minutes")
                 }
                 if case .nights = on { usesNights = true }
-                if out.products[line.product].kind.isActive {
-                    if case .weekdays = on {} else { rotatingActive = true }
+
+                // Starting slowly: only what the step editor offers.
+                if !line.buildUp.isEmpty {
+                    // StepEditorSheet.canBuildUp: treatments only.
+                    guard out.products[line.product].kind.isActive else {
+                        throw PlanCodeError.invalid("\(step): only a retinoid, exfoliant or treatment starts slowly")
+                    }
+                    // The goal is the step's own schedule, as startBuildUp reads it: every time or every Nth.
+                    guard let goal = Engine.every(of: Step(productId: "", on: on), length: r.length) else {
+                        throw PlanCodeError.invalid("\(step): starting slowly needs a goal of every time or every Nth, not weekdays or picked days")
+                    }
+                    guard line.buildUp.count <= Limit.stages else { throw PlanCodeError.invalid("\(step): a build-up has 1 to \(Limit.stages) stages") }
+                    for (k, stage) in line.buildUp.enumerated() {
+                        guard Limit.stageEvery.contains(stage.every), stage.every > goal else { throw PlanCodeError.invalid(Self.stageEveryRule(step)) }
+                        guard stage.days % 7 == 0, Limit.stageWeeks.contains(stage.days / 7) else { throw PlanCodeError.invalid(Self.stageDaysRule(step)) }
+                        if k > 0, stage.every > line.buildUp[k - 1].every {
+                            throw PlanCodeError.invalid("\(step): the stages go from the slowest to the fastest")
+                        }
+                    }
                 }
                 return Line(product: line.product,
                             amount: try Self.text(line.amount, max: Limit.amount, "\(step): the amount"),
                             how: try Self.text(line.how, max: Limit.how, "\(step): the how-to", multiline: true),
-                            waitMin: line.waitMin, on: on)
-            }
-
-            if !r.easeIn.isEmpty {
-                guard slot == .pm else { throw PlanCodeError.invalid("\(what): only the evening eases in") }
-                guard rotatingActive else { throw PlanCodeError.invalid("\(what): easing in needs a retinoid, exfoliant or treatment") }
-                guard r.easeIn.count <= Limit.phases else { throw PlanCodeError.invalid("\(what): at most \(Limit.phases) ease-in phases") }
-                for p in r.easeIn {
-                    // The same ranges as the editor, so a loaded plan can always be edited.
-                    guard p.days % 7 == 0, (7...56).contains(p.days), (0...6).contains(p.extraRest) else {
-                        throw PlanCodeError.invalid("\(what): an ease-in phase is 1 to 8 whole weeks with 0 to 6 extra recovery nights")
-                    }
-                }
+                            waitMin: line.waitMin, on: on, buildUp: line.buildUp)
             }
 
             var name: String?
             var cue: String?
-            if slot == .body {
-                name = try Self.text(r.name, max: Limit.bodyName, "the body routine's name")
-                guard name != nil else { throw PlanCodeError.invalid("the body routine needs a name") }
-                cue = try Self.text(r.cue, max: Limit.cue, "the body routine's cue")
+            if slot.isBody {
+                name = try Self.text(r.name, max: Limit.bodyName, "the \(slot.rawValue) routine's name")
+                guard name != nil else { throw PlanCodeError.invalid("the \(slot.rawValue) routine needs a name") }
+                cue = try Self.text(r.cue, max: Limit.cue, "the \(slot.rawValue) routine's cue")
                 bodyUse.formUnion(seen)
             } else {
-                guard r.name == nil, r.cue == nil else { throw PlanCodeError.invalid("\(what): only the body routine has a name or a cue") }
+                guard r.name == nil, r.cue == nil else { throw PlanCodeError.invalid("\(what): only a body routine has a name or a cue") }
                 faceUse.formUnion(seen)
             }
             // A rotation no step uses is the same routine every time.
-            out.routines[slot] = Routine(length: usesNights ? r.length : 1, steps: steps, easeIn: r.easeIn, name: name, cue: cue)
+            out.routines[slot] = Routine(length: usesNights ? r.length : 1, steps: steps, name: name, cue: cue)
         }
 
         guard faceUse.union(bodyUse).count == out.products.count else { throw PlanCodeError.invalid("a product isn't used by any step") }
-        // The body routine keeps its own products, as in the editor.
-        guard faceUse.isDisjoint(with: bodyUse) else { throw PlanCodeError.invalid("a product is in both a face and the body routine") }
+        // Face and body keep their own products, as in the editor. The two body routines may share.
+        guard faceUse.isDisjoint(with: bodyUse) else { throw PlanCodeError.invalid("a product is in both a face and a body routine") }
+
+        // Nothing loads halfway: every build-up is placed here, the way loading places it.
+        let day = Day(2026, 1, 1)
+        var scratch = Presets.blankState(today: day)
+        scratch.products = out.products.map { Product(name: $0.name, kind: $0.kind) }
+        let ids = scratch.products.map(\.id)
+        for slot in out.slots {
+            guard let r = out.routines[slot], r.steps.contains(where: { !$0.buildUp.isEmpty }) else { continue }
+            guard scratch.place(r, slot: slot, productIDs: ids, start: day) else {
+                throw PlanCodeError.invalid("the \(slot.rawValue) routine: a build-up doesn't fit the rotation")
+            }
+        }
+
         guard out.payload.count <= Limit.payload else { throw PlanCodeError.invalid("too much text to fit in one code") }
         return out
     }
@@ -243,12 +276,12 @@ public struct PlanCode: Hashable, Sendable {
             var w: Int?
             var n: [Int]?
             var d: [Int]?
+            var b: [[Int]]?
         }
 
         struct R: Codable {
             var l: Int?
             var s: [S]
-            var e: [[Int]]?
             var n: String?
             var q: String?
         }
@@ -259,6 +292,7 @@ public struct PlanCode: Hashable, Sendable {
         var am: R?
         var pm: R?
         var body: R?
+        var body2: R?
         var i: String?
     }
 
@@ -272,14 +306,14 @@ public struct PlanCode: Hashable, Sendable {
                 case .nights(let n): s.n = n
                 case .weekdays(let d): s.d = d
                 }
+                if !line.buildUp.isEmpty { s.b = line.buildUp.map { [$0.every, $0.days] } }
                 return s
             }
-            return Wire.R(l: r.length == 1 ? nil : r.length, s: steps,
-                          e: r.easeIn.isEmpty ? nil : r.easeIn.map { [$0.days, $0.extraRest] }, n: r.name, q: r.cue)
+            return Wire.R(l: r.length == 1 ? nil : r.length, s: steps, n: r.name, q: r.cue)
         }
         return Wire(v: Self.version, c: clinic,
                     p: products.map { Wire.P(n: $0.name, k: $0.kind.rawValue, o: $0.note, d: $0.courseDays) },
-                    am: routine(.am), pm: routine(.pm), body: routine(.body), i: ifIrritated)
+                    am: routine(.am), pm: routine(.pm), body: routine(.body), body2: routine(.body2), i: ifIrritated)
     }
 
     /// The part after `barrier://plan/`.
@@ -308,7 +342,7 @@ public struct PlanCode: Hashable, Sendable {
     }
 
     private static let keys: (code: Set<String>, product: Set<String>, routine: Set<String>, step: Set<String>) =
-        (["v", "c", "p", "am", "pm", "body", "i"], ["n", "k", "o", "d"], ["l", "s", "e", "n", "q"], ["p", "a", "h", "w", "n", "d"])
+        (["v", "c", "p", "am", "pm", "body", "body2", "i"], ["n", "k", "o", "d"], ["l", "s", "n", "q"], ["p", "a", "h", "w", "n", "d", "b"])
 
     /// A key the format doesn't know could be an instruction this version would silently drop.
     private static func only(_ object: Any?, _ allowed: Set<String>, _ what: String) throws {
@@ -333,7 +367,7 @@ public struct PlanCode: Hashable, Sendable {
 
         try Self.only(object, Self.keys.code, "the code")
         for p in object["p"] as? [Any] ?? [] { try Self.only(p, Self.keys.product, "a product") }
-        for slot in Slot.allCases {
+        for slot in Slot.ordered {
             let r = object[slot.rawValue] as? [String: Any]
             try Self.only(r, Self.keys.routine, "the \(slot.rawValue) routine")
             for s in r?["s"] as? [Any] ?? [] { try Self.only(s, Self.keys.step, "a step") }
@@ -351,9 +385,10 @@ public struct PlanCode: Hashable, Sendable {
             return Item(name: p.n, kind: kind, note: p.o, courseDays: p.d)
         }
         var routines: [Slot: Routine] = [:]
-        for (slot, r) in [(Slot.am, wire.am), (.pm, wire.pm), (.body, wire.body)] {
+        for (slot, r) in [(Slot.pm, wire.pm), (.am, wire.am), (.body, wire.body), (.body2, wire.body2)] {
             guard let r else { continue }
-            let steps: [Line] = try r.s.map { s in
+            let steps: [Line] = try r.s.enumerated().map { n, s in
+                let step = "the \(slot.rawValue) routine, step \(n + 1)"
                 let on: StepOn
                 switch (s.n, s.d) {
                 case (nil, nil): on = .all
@@ -361,28 +396,39 @@ public struct PlanCode: Hashable, Sendable {
                 case (nil, let d?): on = .weekdays(d)
                 default: throw PlanCodeError.invalid("a step has both rotation positions and weekdays")
                 }
-                return Line(product: s.p, amount: s.a, how: s.h, waitMin: s.w, on: on)
+                // Checked raw here: a BuildStage rounds what it can't hold.
+                let stages: [BuildStage] = try (s.b ?? []).map { pair in
+                    guard pair.count == 2 else { throw PlanCodeError.invalid("\(step): a stage is [every, days]") }
+                    guard Limit.stageEvery.contains(pair[0]) else { throw PlanCodeError.invalid(Self.stageEveryRule(step)) }
+                    guard pair[1] >= 7 else { throw PlanCodeError.invalid(Self.stageDaysRule(step)) }
+                    return BuildStage(every: pair[0], days: pair[1])
+                }
+                if s.b != nil && stages.isEmpty { throw PlanCodeError.invalid("\(step): an empty build-up") }
+                return Line(product: s.p, amount: s.a, how: s.h, waitMin: s.w, on: on, buildUp: stages)
             }
-            let phases: [EaseInPhase] = try (r.e ?? []).map { pair in
-                guard pair.count == 2 else { throw PlanCodeError.invalid("an ease-in phase is [days, extra recovery nights]") }
-                return EaseInPhase(days: pair[0], extraRest: pair[1])
-            }
-            if r.e != nil && phases.isEmpty { throw PlanCodeError.invalid("an empty ease-in") }
-            routines[slot] = Routine(length: r.l ?? 1, steps: steps, easeIn: phases, name: r.n, cue: r.q)
+            routines[slot] = Routine(length: r.l ?? 1, steps: steps, name: r.n, cue: r.q)
         }
         try self.init(clinic: wire.c, products: items, routines: routines, ifIrritated: wire.i)
     }
 
-    /// A code for the routines someone has now: to hand a routine on, and for tests.
-    /// Finished courses are left out and an ease-in starts over from day 1.
-    public init(_ state: AppState, slots: [Slot] = Slot.allCases, clinic: String? = nil, today: Day) throws {
+    /// A code for the routines someone has now, for tests. Finished courses are left out,
+    /// and a running build-up starts over from day 1 with all its stages.
+    public init(_ state: AppState, slots: [Slot] = Slot.ordered, clinic: String? = nil, today: Day) throws {
         let byID = Dictionary(state.products.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var items: [Item] = []
         var index: [String: Int] = [:]
         var routines: [Slot: Routine] = [:]
-        for slot in Slot.allCases where slots.contains(slot) {
-            let sp = state.plan[slot]
+        for slot in Slot.ordered where slots.contains(slot) {
+            var sp = state.plan[slot]
             guard sp.enabled else { continue }
+            // A step building up is written at its goal, with its stages.
+            for step in sp.steps {
+                guard let b = step.buildUp, !b.done else { continue }
+                guard let goal = Engine.setEvery(sp, stepID: step.id, n: b.goal, products: byID) else {
+                    throw PlanCodeError.invalid("the \(slot.rawValue) routine: a goal doesn't fit the rotation")
+                }
+                sp = goal
+            }
             let length = max(1, sp.length)
             var lines: [Line] = []
             for step in sp.steps {
@@ -398,11 +444,12 @@ public struct PlanCode: Hashable, Sendable {
                 }
                 var on = step.on
                 if case .nights(let n) = on { on = .nights(n.filter { $0 < length }) }
-                lines.append(Line(product: i, amount: step.amount, how: step.how, waitMin: step.waitMin.flatMap { $0 > 0 ? $0 : nil }, on: on))
+                let stages = step.buildUp.flatMap { $0.done ? nil : $0.stages } ?? []
+                lines.append(Line(product: i, amount: step.amount, how: step.how, waitMin: step.waitMin.flatMap { $0 > 0 ? $0 : nil }, on: on, buildUp: stages))
             }
             guard !lines.isEmpty else { continue }
-            routines[slot] = Routine(length: length, steps: lines, easeIn: sp.easeIn?.phases ?? [],
-                                     name: slot == .body ? sp.displayName : nil, cue: slot == .body ? sp.cue : nil)
+            routines[slot] = Routine(length: length, steps: lines,
+                                     name: slot.isBody ? sp.displayName : nil, cue: slot.isBody ? sp.cue : nil)
         }
         try self.init(clinic: clinic, products: items, routines: routines, ifIrritated: state.plan.ifIrritated)
     }
@@ -428,7 +475,7 @@ public extension AppState {
 
         // The patient's own product when it's the same one, so its first day of use stays.
         // Face and body products never mix.
-        let bodyIDs = Set(plan.body.steps.map(\.productId))
+        let bodyIDs = Set(Slot.bodies.flatMap { plan[$0].steps.map(\.productId) })
         var pool = products
         var ids = [String?](repeating: nil, count: code.products.count)
         func usedIn(_ i: Int) -> [Slot] { slots.filter { code.routines[$0]?.steps.contains { $0.product == i } == true } }
@@ -438,7 +485,7 @@ public extension AppState {
         ]
         for same in passes {
             for (i, item) in code.products.enumerated() where ids[i] == nil {
-                let forBody = usedIn(i).contains(.body)
+                let forBody = usedIn(i).contains { $0.isBody }
                 guard let j = pool.firstIndex(where: { bodyIDs.contains($0.id) == forBody && same($0, item) }) else { continue }
                 ids[i] = pool.remove(at: j).id
             }
@@ -458,29 +505,44 @@ public extension AppState {
             ids[i] = p.id
         }
 
+        let productIDs = ids.map { $0 ?? "" }
         for slot in slots {
             guard let r = code.routines[slot], let start = day1[slot] else { continue }
-            var sp = s.plan[slot]
-            // A step for the same product keeps its id, so loading the same code twice changes nothing.
-            let stepIDs = Dictionary(sp.steps.map { ($0.productId, $0.id) }, uniquingKeysWith: { a, _ in a })
-            sp.enabled = true
-            sp.length = r.length
-            sp.steps = r.steps.map { line in
-                let pid = ids[line.product] ?? ""
-                return Step(id: stepIDs[pid] ?? makeID(), productId: pid, amount: line.amount, how: line.how, waitMin: line.waitMin, on: line.on)
-            }
-            sp.names = nil
-            sp.easeIn = r.easeIn.isEmpty ? nil : EaseIn(start: start, phases: r.easeIn)
-            sp.anchor = Anchor(day: start, pos: 0)
-            if slot == .body {
-                sp.name = r.name
-                sp.cue = r.cue
-            }
-            s.plan[slot] = sp
+            // The code's rules placed every build-up already, so this never stops halfway.
+            guard s.place(r, slot: slot, productIDs: productIDs, start: start) else { return self }
         }
         if let text = code.ifIrritated { s.plan.ifIrritated = text }
         s.pruneOrphanProducts()
         return s
+    }
+
+    /// Put a code's routine in place from day 1: its steps on their own schedules, then each
+    /// build-up's first stage, started the way the step editor starts one. False when a
+    /// build-up doesn't fit the rotation; the caller then keeps nothing.
+    internal mutating func place(_ r: PlanCode.Routine, slot: Slot, productIDs: [String], start: Day) -> Bool {
+        var sp = plan[slot]
+        // A step for the same product keeps its id, so loading the same code twice changes nothing.
+        let stepIDs = Dictionary(sp.steps.map { ($0.productId, $0.id) }, uniquingKeysWith: { a, _ in a })
+        sp.enabled = true
+        sp.length = r.length
+        sp.steps = r.steps.map { line in
+            let pid = productIDs.indices.contains(line.product) ? productIDs[line.product] : ""
+            return Step(id: stepIDs[pid] ?? makeID(), productId: pid, amount: line.amount, how: line.how, waitMin: line.waitMin, on: line.on)
+        }
+        sp.names = nil
+        sp.easeIn = nil
+        sp.anchor = Anchor(day: start, pos: 0)
+        if slot.isBody {
+            sp.name = r.name
+            sp.cue = r.cue
+        }
+        plan[slot] = sp
+        // Day 1 is "tonight" for the build-up: it starts then with no moves, spaced from the
+        // last time the patient's own log shows it on (the app's waitFor), and never moves up by itself.
+        for (line, step) in zip(r.steps, sp.steps) where !line.buildUp.isEmpty {
+            guard startBuildUp(slot, stepID: step.id, stages: line.buildUp, start: start, today: start) else { return false }
+        }
+        return true
     }
 }
 
@@ -491,7 +553,8 @@ public struct PlanCodeSummary: Hashable, Sendable {
         public var id: Int
         public var name: String
         public var kind: ProductKind
-        /// "Every other night · Pea-size", "On dry skin", "Then wait 20 minutes", "For 12 weeks, until Feb 2".
+        /// "Every 3rd night, building up to every night · Pea-size", "Every 3rd night for 2 weeks,
+        /// then every other night for 2 weeks", "On dry skin", "Then wait 20 minutes", "For 12 weeks, until Feb 2".
         public var lines: [String]
         /// The prescriber's own words about this product.
         public var note: String?
@@ -501,11 +564,9 @@ public struct PlanCodeSummary: Hashable, Sendable {
         public var slot: Slot
         /// "Evening", "Morning", "Back".
         public var title: String
-        /// "Repeats every 4 nights", or nil when it's the same every time.
+        /// "Repeats every 4 nights" as the sheet has it, or nil when it's the same every time.
         public var rotation: String?
         public var rows: [Row]
-        /// "Weeks 1–2: actives every 3rd night", … Empty without an ease-in.
-        public var easeIn: [String]
         /// Day 1.
         public var starts: Day
         /// The patient already has this routine: it gets replaced.
@@ -525,29 +586,15 @@ public extension PlanCode {
         return days == 1 ? "1 day" : "\(days) days"
     }
 
-    /// "Weeks 1–2: actives every 3rd night", ending with when the full routine starts.
-    static func easeInLines(_ phases: [EaseInPhase], length: Int) -> [String] {
-        var out: [String] = []
-        var week = 1
-        for p in phases {
-            let weeks = max(1, p.days / 7)
-            let span = weeks == 1 ? "Week \(week)" : "Weeks \(week)–\(week + weeks - 1)"
-            let what: String
-            if length == 1 {
-                switch p.extraRest {
-                case 0: what = "actives every night"
-                case 1: what = "actives every other night"
-                case 2: what = "actives every 3rd night"
-                default: what = "actives every \(p.extraRest + 1)th night"
-                }
-            } else {
-                what = p.extraRest == 0 ? "the normal rotation" : "\(p.extraRest) extra recovery night\(p.extraRest == 1 ? "" : "s") in each cycle"
-            }
-            out.append("\(span): \(what)")
-            week += weeks
+    /// A build-up in the editor's words: "Every 3rd night for 2 weeks, then every other night
+    /// for 2 weeks", then that Tendwell asks before each move up.
+    static func buildUpLines(_ stages: [BuildStage], word: String) -> [String] {
+        guard !stages.isEmpty else { return [] }
+        let plan = stages.enumerated().map { i, st in
+            let phrase = Engine.everyPhrase(st.every, word: word)
+            return "\(i == 0 ? phrase : PlanHistory.lowered(phrase)) for \(courseText(st.days))"
         }
-        if !out.isEmpty { out.append("From week \(week): the full routine") }
-        return out
+        return [plan.joined(separator: ", then "), "Tendwell asks how your skin is before each move up"]
     }
 
     /// The code in plain words, as it would load into this state today.
@@ -557,23 +604,34 @@ public extension PlanCode {
         let sections: [PlanCodeSummary.Section] = slots.compactMap { slot in
             guard let r = routines[slot] else { return nil }
             let sp = after.plan[slot]
+            // The schedules as the sheet has them: a build-up can stretch the loaded rotation.
+            var sheet = sp
+            sheet.length = r.length
             let rows: [PlanCodeSummary.Row] = sp.steps.enumerated().compactMap { i, step in
                 guard let p = byID[step.productId], r.steps.indices.contains(i) else { return nil }
-                var first = Engine.describe(step, in: sp, slot: slot)
+                let line = r.steps[i]
+                let goal = Step(productId: step.productId, on: line.on)
+                var first = Engine.describe(goal, in: sheet, slot: slot)
+                // A build-up as the routine's own row says it: the first stage, building up to the goal.
+                if let stage = line.buildUp.first {
+                    first = Engine.everyPhrase(stage.every, word: slot.word)
+                        + ", building up to \(PlanHistory.lowered(Engine.everyPhrase(Engine.every(of: goal, length: r.length) ?? 1, word: slot.word)))"
+                }
                 if let a = step.amount { first += " · \(a)" }
                 var lines = [first]
+                lines += Self.buildUpLines(line.buildUp, word: slot.word)
                 if let how = step.how { lines.append(how) }
                 if let w = step.waitMin { lines.append("Then wait \(w) minute\(w == 1 ? "" : "s")") }
-                if let days = products[r.steps[i].product].courseDays, let until = p.until {
+                if let days = products[line.product].courseDays, let until = p.until {
                     lines.append("For \(Self.courseText(days)), until \(until.monthDay)")
                 }
                 return PlanCodeSummary.Row(id: i, name: p.name, kind: p.kind, lines: lines, note: p.note)
             }
             let old = state.plan[slot]
             return PlanCodeSummary.Section(
-                slot: slot, title: slot == .body ? sp.displayName : slot.title,
-                rotation: sp.length > 1 ? "Repeats every \(sp.length) \(slot.word)s" : nil,
-                rows: rows, easeIn: Self.easeInLines(r.easeIn, length: r.length),
+                slot: slot, title: slot.isBody ? after.plan.shortName(slot) : slot.title,
+                rotation: r.length > 1 ? "Repeats every \(r.length) \(slot.word)s" : nil,
+                rows: rows,
                 starts: state.loadDay(slot, today: today),
                 replaces: state.onboarded && old.enabled && !old.steps.isEmpty)
         }

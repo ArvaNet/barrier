@@ -178,7 +178,7 @@ public enum Presets {
         return s
     }
 
-    /// A clinic's routine code, for screenshots: tretinoin easing in, a course of doxycycline,
+    /// A clinic's routine code, for screenshots: tretinoin starting slowly, a course of doxycycline,
     /// azelaic acid mornings and a lotion for the back.
     public static let demoCode: PlanCode? = try? PlanCode(
         clinic: "Dr. Petrauskienė",
@@ -194,9 +194,9 @@ public enum Presets {
         routines: [
             .pm: .init(steps: [
                 .init(product: 0, waitMin: 20),
-                .init(product: 1, amount: "Pea-size for the whole face", how: "On completely dry skin"),
+                .init(product: 1, amount: "Pea-size for the whole face", how: "On completely dry skin", buildUp: buildUpStages),
                 .init(product: 2),
-            ], easeIn: [EaseInPhase(days: 14, extraRest: 1)]),
+            ]),
             .am: .init(steps: [
                 .init(product: 3, how: "As prescribed, with water"),
                 .init(product: 0),
