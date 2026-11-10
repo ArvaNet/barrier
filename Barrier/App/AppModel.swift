@@ -18,6 +18,13 @@ struct RitualRequest: Identifiable, Hashable {
     var id: String { "\(day.iso)-\(slot.rawValue)" }
 }
 
+/// The "routine from your clinic" sheet: at the scanner, or straight at a code that was opened as a link.
+struct PlanCodeRequest: Identifiable {
+    enum Start { case scan, review(PlanCode), problem(PlanCodeError) }
+    let id = UUID()
+    var start: Start
+}
+
 struct Toast: Identifiable, Equatable {
     let id = UUID()
     var text: String
@@ -37,6 +44,9 @@ final class AppModel {
     var ritual: RitualRequest?
     var showSettings = false
     var showReport = false
+    var planCode: PlanCodeRequest?
+    /// Counts loaded codes, so onboarding can move on after one.
+    private(set) var codesLoaded = 0
     var toast: Toast?
     var notificationStatus: UNAuthorizationStatus = .notDetermined
     /// Saved data exists but couldn't be read. Saving is blocked until it's
@@ -327,6 +337,7 @@ final class AppModel {
 
     /// barrier://ritual/pm/2026-10-09, barrier://today, or a notification link.
     func handle(link: String) {
+        if PlanCode.isLink(link) { openPlanCode(link); return }
         let parts = link.replacingOccurrences(of: "barrier://", with: "").split(separator: "/").map(String.init)
         guard let head = parts.first else { return }
         switch head {
@@ -339,6 +350,48 @@ final class AppModel {
         case "routine": open(.routine)
         case "derm": open(.derm)
         default: open(.today)
+        }
+    }
+
+    /// A routine code opened as a link (the iPhone camera, or a tapped link).
+    func openPlanCode(_ link: String) {
+        guard !loadFailed else { return }
+        let start: PlanCodeRequest.Start
+        do { start = .review(try PlanCode(link: link)) } catch { start = .problem(error as? PlanCodeError ?? .unreadable) }
+        let request = PlanCodeRequest(start: start)
+        // Another cover has to be gone before this sheet can come up.
+        let busy = showSettings || showReport || ritual != nil
+        showSettings = false
+        showReport = false
+        ritual = nil
+        if busy {
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                self?.planCode = request
+            }
+        } else {
+            planCode = request
+        }
+    }
+
+    /// Replace the routines a clinic's code carries. The check against the paper sheet happened on screen.
+    func load(_ code: PlanCode) {
+        let before = state
+        update { $0 = $0.loading(code, today: today) }
+        codesLoaded += 1
+        for slot in code.slots {
+            endRitual(slot, today)
+            NotificationService.shared.clearDelivered(day: today, slot: slot)
+        }
+        Haptics.success(state.settings.haptics)
+        guard state.onboarded else { return }
+        saveNow()
+        show("Routine loaded. Your history stays.") { [weak self] in
+            self?.update { s in
+                s.plan = before.plan
+                s.products = before.products
+                s.history = before.history
+            }
         }
     }
 

@@ -51,6 +51,13 @@ struct OnboardingView: View {
         .background(Palette.bg.ignoresSafeArea())
         .sheet(item: $editing) { t in StepEditorSheet(target: t).barrier(model) }
         .sheet(item: $adding) { s in AddProductSheet(slot: s).barrier(model) }
+        .onChange(of: model.codesLoaded) {
+            // A clinic's code set the routine up: on to the details. Going back keeps it,
+            // because the template it would apply on Continue is already "applied".
+            template = .derm
+            applied = .derm
+            withAnimation(.easeOut(duration: 0.3)) { page = 5 }
+        }
         .onAppear {
             // Screenshot hook: `-fresh -screen onboarding-3` opens that page, as if "Starting a retinoid" was picked.
             guard let s = model.launch.screen, s.hasPrefix("onboarding-"), let n = Int(s.dropFirst("onboarding-".count)) else { return }
@@ -87,6 +94,10 @@ struct OnboardingView: View {
             Spacer()
             Button("Set up my routine") { next() }
                 .buttonStyle(PrimaryButtonStyle())
+            Button("I have a code from my clinic") { model.planCode = PlanCodeRequest(start: .scan) }
+                .buttonStyle(TertiaryButtonStyle())
+                .frame(maxWidth: .infinity)
+                .padding(.top, 6)
             Text("Everything stays on your iPhone.")
                 .font(.footnote)
                 .foregroundStyle(Palette.ink3)

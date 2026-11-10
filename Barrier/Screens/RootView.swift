@@ -32,6 +32,7 @@ struct RootView: View {
         .sheet(isPresented: $model.showSettings) {
             SettingsView().barrier(model)
         }
+        .sheet(item: $model.planCode) { PlanCodeSheet(request: $0).barrier(model) }
         .alert("Tendwell couldn’t read your saved data", isPresented: Binding(
             get: { model.loadFailed && !loadAlertDismissed },
             set: { if !$0 { loadAlertDismissed = true } }
@@ -55,7 +56,20 @@ struct RootView: View {
         guard !didLaunchRoute, let screen = model.launch.screen else { return }
         didLaunchRoute = true
         switch screen {
-        case "routine", "routine-body", "routine-history", "step-editor", "add-product", "pause": model.tab = .routine
+        case "routine", "routine-body", "routine-history", "routine-code", "step-editor", "add-product", "pause": model.tab = .routine
+        // The clinic's code: the check screen (also over onboarding), the scanner, a bad code, and after loading.
+        case "plan-code", "plan-code-bottom":
+            model.tab = .routine
+            model.planCode = PlanCodeRequest(start: demoReview)
+        case "onboarding-code": model.planCode = PlanCodeRequest(start: demoReview)
+        case "plan-scan": model.planCode = PlanCodeRequest(start: .scan)
+        case "plan-code-problem": model.planCode = PlanCodeRequest(start: .problem(.invalid("demo")))
+        case "plan-code-loaded":
+            model.tab = .routine
+            // Late enough that the toast is still up when the screenshot is taken.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                if let code = Presets.demoCode { model.load(code) }
+            }
         case "ritual-body": model.open(.ritual(.body, model.today))
         case "progress", "progress-bottom", "fill-in", "filled-progress": model.tab = .progress
         case "filled-report": model.open(.report)
@@ -66,6 +80,10 @@ struct RootView: View {
         case "ritual-am": model.open(.ritual(.am, model.today))
         default: break
         }
+    }
+
+    private var demoReview: PlanCodeRequest.Start {
+        Presets.demoCode.map { .review($0) } ?? .problem(.unreadable)
     }
 }
 

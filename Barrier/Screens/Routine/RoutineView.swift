@@ -45,6 +45,14 @@ struct RoutineView: View {
                         }
                     }
                     Section {
+                        Button { model.planCode = PlanCodeRequest(start: .scan) } label: {
+                            Label("Load a routine from your clinic’s code…", systemImage: "qrcode.viewfinder")
+                        }
+                    } footer: {
+                        Text("Scan the code on the sheet from your clinic. You check every step before anything changes.")
+                    }
+                    .id("clinic-code")
+                    Section {
                         Button { showTemplates = true } label: {
                             Label("Start over from a template…", systemImage: "rectangle.stack")
                         }
@@ -58,7 +66,7 @@ struct RoutineView: View {
             .listSectionSpacing(.compact)
             .navigationTitle("Routine")
             .onAppear {
-                // Screenshot hooks: `-screen routine-body`, `-screen routine-history`.
+                // Screenshot hooks: `-screen routine-body`, `-screen routine-history`, `-screen routine-code`.
                 if model.launch.screen == "routine-body" { slot = .body }
                 // Sheets: the first active step's editor, the add sheet, the pause sheet.
                 switch model.launch.screen {
@@ -71,6 +79,9 @@ struct RoutineView: View {
                 }
                 if model.launch.screen == "routine-history" {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("history", anchor: .top) }
+                }
+                if model.launch.screen == "routine-code" {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { proxy.scrollTo("clinic-code", anchor: .center) }
                 }
             }
             }

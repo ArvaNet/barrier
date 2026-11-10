@@ -99,3 +99,18 @@ tonight doesn't change; skin notes can be added for any past day; core tests; CI
 # Reliability pass (2026-10-21)
 
 - [x] Stress test (FuzzTests.swift): 150 simulated users, 40-140 days each, with logging, skips, recovery nights, pauses, procedure breaks, plan edits and fill-ins. Checks: no treatment on any rest night, the rotation never skips ahead, one day agrees with the range, stats and timeline counts add up, reminders unique/within the iOS limit/never in the past, save file stable. Zero problems found; a planted bug is caught (3,085 problems).
+
+# Routine from a clinic's code (2026-11-10)
+
+Finish line: scanning or opening a code shows the routine in words, the patient confirms it
+against the sheet, then it's set up; core tests; CI green with screenshots.
+
+- [x] Core: `PlanCode` text form, rules, loading and the summary in words (PlanCode.swift, PlanCodeTests, fuzz)
+- [x] Core: `Presets.demoCode` for screenshots, loads into the demo state (test)
+- [x] App: `PlanCodeRequest`, `openPlanCode` for opened links, `load` with Undo on the toast
+- [x] App: scanner, check screen and problem screen (PlanCodeSheet.swift)
+- [x] Ways in: "I have a code from my clinic" on the welcome page, Routine tab row; onboarding moves on to the details after loading
+- [x] Camera permission text mentions the code
+- [ ] CI green, screenshots 46-53 checked
+- [ ] Committed project file current
+- [ ] Scan a printed code with a real iPhone (not possible in the simulator)

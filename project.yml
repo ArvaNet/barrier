@@ -63,7 +63,7 @@ targets:
           - UIInterfaceOrientationPortrait
         UIAppFonts:
           - Fraunces.ttf
-        NSCameraUsageDescription: Tendwell uses the camera for your progress photos. They stay on this iPhone.
+        NSCameraUsageDescription: Tendwell uses the camera for your progress photos and to scan a routine code from your clinic. Nothing leaves this iPhone.
         NSPhotoLibraryAddUsageDescription: Lets you save a progress photo or your report to Photos.
         NSSupportsLiveActivities: true
         UIBackgroundModes:

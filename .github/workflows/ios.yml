@@ -146,6 +146,14 @@ jobs:
           shot 43-fill-in -starter -hour 11 -screen fill-in
           shot 44-filled-progress -starter -hour 11 -screen filled-progress
           shot 45-filled-report -starter -hour 11 -screen filled-report
+          shot 46-plan-code -demo -hour 11 -screen plan-code
+          shot 47-plan-code-bottom -demo -hour 11 -screen plan-code-bottom
+          shot 48-plan-code-dusk -demo -hour 11 -theme dusk -screen plan-code
+          shot 49-onboarding-code -fresh -hour 11 -screen onboarding-code
+          shot 50-plan-scan -demo -hour 11 -screen plan-scan
+          shot 51-plan-code-problem -demo -hour 11 -screen plan-code-problem
+          shot 52-routine-code -demo -hour 11 -screen routine-code
+          shot 53-plan-code-loaded -demo -hour 11 -screen plan-code-loaded
           cp ~/Library/Logs/DiagnosticReports/Barrier* shots/ 2>/dev/null || true
           ls -la shots
 
